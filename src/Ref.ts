@@ -23,6 +23,10 @@ export default class Ref {
     this._getter = expr.getter(this._path, true);
   }
 
+  /**
+   * Resolves to a value from a given path
+   * @param value The value to resolve
+   */
   public resolve(value: object) {
     return this._getter(value);
   }
