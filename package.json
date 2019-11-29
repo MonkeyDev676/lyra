@@ -33,5 +33,8 @@
     "rimraf": "^2.6.3",
     "ts-node": "^8.4.1",
     "typescript": "^3.7.2"
+  },
+  "dependencies": {
+    "property-expr": "^1.5.1"
   }
 }
