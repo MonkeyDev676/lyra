@@ -18,7 +18,8 @@
     "build": "rimraf dist && tsc",
     "lint": "eslint \"src/**/*.ts\" --report-unused-disable-directives && echo \"No errors found\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix && echo \"No errors found\"",
-    "types:check": "tsc --noEmit && echo \"No errors found\""
+    "types:check": "tsc --noEmit && echo \"No errors found\"",
+    "test": "ts-node src/__tests__"
   },
   "devDependencies": {
     "@types/node": "^12.7.5",
@@ -35,6 +36,8 @@
     "typescript": "^3.7.2"
   },
   "dependencies": {
-    "property-expr": "^1.5.1"
+    "@types/toposort": "^2.0.3",
+    "property-expr": "^1.5.1",
+    "toposort": "^2.0.2"
   }
 }
