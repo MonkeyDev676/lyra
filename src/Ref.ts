@@ -1,13 +1,11 @@
 import expr from 'property-expr';
 import Utils from './Utils';
-import LyraError from './LyraError';
+import LyraError from './errors/LyraError';
 
 export default class Ref {
   private _path: string;
 
   private _getter: expr.Getter;
-
-  public __isRef__ = true;
 
   /**
    * A reference to another schema
@@ -35,7 +33,7 @@ export default class Ref {
    * Check if an object is a Lyra reference
    * @param ref The object to check
    */
-  static isRef(obj: unknown) {
-    return obj != null && (obj as Ref).__isRef__;
+  static isRef(obj: unknown): obj is Ref {
+    return obj != null && obj instanceof Ref;
   }
 }
