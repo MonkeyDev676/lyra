@@ -2,7 +2,8 @@ import l from '..';
 
 console.log(
   l
-    .boolean()
+    .number()
+    .min(1)
     .required()
     .label('Hey')
     .validate(null),

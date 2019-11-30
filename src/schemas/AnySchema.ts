@@ -70,12 +70,6 @@ export default class AnySchema<T = any> {
   public required() {
     this._required = true;
 
-    this.addRule({
-      type: 'required',
-      message: 'test',
-      validate: ({ value }) => value != null,
-    });
-
     return this;
   }
 
@@ -116,15 +110,17 @@ export default class AnySchema<T = any> {
     let enhancedValue: unknown = value;
 
     if (value == null) {
+      if (this._required) return { value: null, pass: false, errors: [this._createError(value)] };
+
       enhancedValue = this._default;
     } else if (!strict) enhancedValue = this.coerce(value);
 
-    if (this._required) {
+    if (enhancedValue != null) {
       if (!this.check(enhancedValue))
         return { value: null, pass: false, errors: [this._createError(value)] };
 
       for (const rule of this._rules) {
-        const result = rule.validate({ value: enhancedValue, raw: value, context });
+        const result = rule.validate({ value: enhancedValue as T, raw: value, context });
 
         if (!result) {
           if (abortEarly) return { value: null, pass: false, errors: [this._createError(value)] };
