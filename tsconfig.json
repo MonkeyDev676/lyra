@@ -11,7 +11,8 @@
     "noErrorTruncation": true,
     "declaration": true,
     "baseUrl": ".",
-    "outDir": "dist"
+    "outDir": "dist",
+    "typeRoots": ["node_modules/@types", "./src/types"]
   },
   "exclude": ["node_modules", "dist"]
 }
