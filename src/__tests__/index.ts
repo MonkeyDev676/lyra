@@ -1,10 +1,5 @@
-import l from '..';
+import L from '..';
 
-console.log(
-  l
-    .number()
-    .min(1)
-    .required()
-    .label('Hey')
-    .validate(null),
-);
+const result = L.array(L.array(L.number().required()).required()).validate([[1, 'a']]);
+
+console.log(result);

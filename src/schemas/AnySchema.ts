@@ -15,7 +15,7 @@ export interface Rule<T> {
 }
 
 export interface ValidationResultPassed<T> {
-  value: T;
+  value: T | null;
   pass: true;
   errors: null;
 }
@@ -34,6 +34,8 @@ export interface ValidatorOptions {
   stripUnknown?: boolean;
   recursive?: boolean;
   context?: object;
+  path?: string;
+  parent?: unknown;
 }
 
 export default class AnySchema<T = any> {
@@ -94,48 +96,60 @@ export default class AnySchema<T = any> {
     return this;
   }
 
-  private _createError(value: unknown, type = 'base', path?: string) {
+  private _createError(value: unknown, path?: string, type = 'base') {
+    let enhancedLabel: string;
+
+    if (this._label == null) {
+      if (path != null) enhancedLabel = path;
+      else enhancedLabel = 'unknown';
+    } else enhancedLabel = this._label;
+
     return new LyraValidationError(
-      `${this._label == null ? 'unknown' : this._label} of ${JSON.stringify(
-        value,
-      )} doesn't have type of ${this._type}.${type}`,
+      `${enhancedLabel} of ${JSON.stringify(value)} doesn't have type of ${this._type}.${type}`,
       path,
     );
   }
 
   public validate(value: unknown, opts: ValidatorOptions = {}): ValidationResult<T> {
     const errors = [];
-    const { strict = true, abortEarly = true, context = {} } = opts;
+    const { strict = true, abortEarly = true, path, context = {} } = opts;
+    const simpleErr = this._createError(value, path);
 
     let enhancedValue: unknown = value;
 
     if (value == null) {
-      if (this._required) return { value: null, pass: false, errors: [this._createError(value)] };
+      if (this._required) return { value: null, pass: false, errors: [simpleErr] };
 
       enhancedValue = this._default;
     } else if (!strict) enhancedValue = this.coerce(value);
 
     if (enhancedValue != null) {
-      if (!this.check(enhancedValue))
-        return { value: null, pass: false, errors: [this._createError(value)] };
+      if (!this.check(enhancedValue)) return { value: null, pass: false, errors: [simpleErr] };
 
       for (const rule of this._rules) {
-        const result = rule.validate({ value: enhancedValue as T, raw: value, context });
+        const result = rule.validate({ value: enhancedValue, raw: value, context });
 
         if (!result) {
-          if (abortEarly) return { value: null, pass: false, errors: [this._createError(value)] };
+          if (abortEarly)
+            return {
+              value: null,
+              pass: false,
+              errors: [this._createError(value, path, rule.type)],
+            };
 
           errors.push(
             rule.message == null
-              ? this._createError(value, rule.type)
+              ? this._createError(value, path, rule.type)
               : new LyraValidationError(rule.message),
           );
         }
       }
+
+      if (errors.length > 0) return { value: null, pass: false, errors };
+
+      return { value: enhancedValue, pass: true, errors: null };
     }
 
-    if (errors.length > 0) return { value: null, pass: false, errors };
-
-    return { value: enhancedValue as T, pass: true, errors: null };
+    return { value: null, pass: true, errors: null };
   }
 }

@@ -3,6 +3,7 @@ import BooleanSchema from './schemas/BooleanSchema';
 import StringSchema from './schemas/StringSchema';
 import DateSchema from './schemas/DateSchema';
 import NumberSchema from './schemas/NumberSchema';
+import ArraySchema from './schemas/ArraySchema';
 import Ref from './Ref';
 
 export default class Lyra {
@@ -24,6 +25,10 @@ export default class Lyra {
 
   public static number() {
     return new NumberSchema();
+  }
+
+  public static array<T>(schema?: AnySchema<T>) {
+    return new ArraySchema(schema);
   }
 
   public static ref(path: string) {

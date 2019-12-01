@@ -12,11 +12,13 @@ export default class Ref {
    * @param path The path to the schema
    */
   constructor(path: string) {
-    if (!Utils.isString(path)) throw new LyraError('The path for Lyra.Ref must be a string');
+    if (!Utils.isString(path))
+      throw new LyraError('The parameter path for Lyra.Ref must be a string');
 
     this._path = path.trim();
 
-    if (this._path === '') throw new LyraError('The path for Lyra.Ref must be a non-empty string');
+    if (this._path === '')
+      throw new LyraError('The parameter path for Lyra.Ref must be a non-empty string');
 
     this._getter = expr.getter(this._path, true);
   }
