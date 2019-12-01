@@ -66,20 +66,20 @@ export default class ArraySchema<T> extends AnySchema<T[]> {
   }
 
   public validate(value: unknown, options: ValidatorOptions = {}): ValidationResult<T[]> {
-    const { abortEarly = true, path } = options;
+    const { abortEarly = true, path, recursive = true } = options;
     const errors = [];
 
     // Run base validation
     const baseResult = super.validate(value, options);
 
     // Run this.check in case of optional without default value
-    if (this._schema == null || !baseResult.pass || !this.check(baseResult.value))
+    if (this._schema == null || !baseResult.pass || !this.check(baseResult.value) || !recursive)
       return baseResult;
 
     for (let i = 0; i < baseResult.value.length; i += 1) {
       const result = this._schema.validate(baseResult.value[i], {
         ...options,
-        path: path == null ? `[${i.toString()}]` : `${path}[${i}]`,
+        path: path == null ? `[${i}]` : `${path}[${i}]`,
         parent: baseResult.value,
       });
 
