@@ -8,7 +8,7 @@ export default class ArraySchema<T> extends AnySchema<T[]> {
   constructor(schema?: AnySchema<T>) {
     if (schema != null && !(schema instanceof AnySchema))
       throw new LyraError(
-        'The parameter schema for Nebula.ArraySchema must inherit the Nebula.AnySchema constructor',
+        'The parameter schema for Lyra.ArraySchema must inherit the Lyra.AnySchema constructor',
       );
 
     super('array');
