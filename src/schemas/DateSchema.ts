@@ -29,7 +29,7 @@ export default class DateSchema extends AnySchema<Date> {
         let enhancedDate: Date;
 
         if (date === 'now') enhancedDate = new Date();
-        else if (!this.check(date))
+        else if (!Utils.instanceOf(date, Date))
           throw new LyraError('The parameter date for date.older must be an instance of Date');
         else enhancedDate = date;
 
@@ -40,7 +40,7 @@ export default class DateSchema extends AnySchema<Date> {
     return this;
   }
 
-  newer(date: Date | string, message?: string) {
+  newer(date: Date | 'now', message?: string) {
     this.addRule({
       type: 'newer',
       message,
@@ -48,7 +48,7 @@ export default class DateSchema extends AnySchema<Date> {
         let enhancedDate: Date;
 
         if (date === 'now') enhancedDate = new Date();
-        else if (!this.check(date))
+        else if (!Utils.instanceOf(value, Date))
           throw new LyraError('The parameter date for date.newer must be an instance of Date');
         else enhancedDate = date;
 

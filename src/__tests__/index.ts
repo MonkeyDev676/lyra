@@ -1,8 +1,13 @@
 import L from '..';
 
-const result = L.array(L.number().required()).validate([1, 'a', new Date()], {
-  abortEarly: false,
-  recursive: false,
+const { value, errors } = L.object({
+  a: L.number().required(),
+  b: L.object({
+    c: L.string(),
+    d: L.number(),
+  }),
+}).validate({
+  a: '1',
 });
 
-console.log(result);
+console.log(value, errors);

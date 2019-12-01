@@ -11,8 +11,16 @@ export default class Utils {
     return typeof value === 'number';
   }
 
+  public static isFunction(value: unknown): value is Function {
+    return typeof value === 'function';
+  }
+
   public static isArray(value: unknown): value is any[] {
     return Array.isArray(value);
+  }
+
+  public static isPlainObject(value: unknown): value is object {
+    return Object.prototype.toString.call(value) === '[object Object]';
   }
 
   public static instanceOf<T extends Function>(obj: unknown, ctor: T): obj is T {

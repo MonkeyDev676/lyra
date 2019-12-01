@@ -1,42 +1,7 @@
 import Utils from '../Utils';
 import LyraValidationError from '../errors/LyraValidationError';
 import LyraError from '../errors/LyraError';
-
-export interface RuleArguments<T> {
-  value: T;
-  raw: unknown;
-  context: object;
-}
-
-export interface Rule<T> {
-  type: string;
-  message?: string;
-  validate: (arg: RuleArguments<T>) => boolean;
-}
-
-export interface ValidationResultPassed<T> {
-  value: T | null;
-  pass: true;
-  errors: null;
-}
-
-export interface ValidationResultFailed {
-  value: null;
-  pass: false;
-  errors: LyraValidationError[];
-}
-
-export type ValidationResult<T> = ValidationResultPassed<T> | ValidationResultFailed;
-
-export interface ValidatorOptions {
-  strict?: boolean;
-  abortEarly?: boolean;
-  stripUnknown?: boolean;
-  recursive?: boolean;
-  context?: object;
-  path?: string;
-  parent?: unknown;
-}
+import { SchemaRule, ValidatorOptions, ValidationResult } from '../types';
 
 export default class AnySchema<T = any> {
   private _type: string;
@@ -47,7 +12,7 @@ export default class AnySchema<T = any> {
 
   private _default: T | null;
 
-  private _rules: Rule<T>[];
+  private _rules: SchemaRule<T>[];
 
   constructor(type = 'any') {
     if (!Utils.isString(type))
@@ -90,7 +55,7 @@ export default class AnySchema<T = any> {
     return this;
   }
 
-  protected addRule(rule: Rule<T>) {
+  protected addRule(rule: SchemaRule<T>) {
     this._rules.push(rule);
 
     return this;
@@ -118,13 +83,13 @@ export default class AnySchema<T = any> {
     let enhancedValue: unknown = value;
 
     if (value == null) {
-      if (this._required) return { value: null, pass: false, errors: [simpleErr] };
+      if (this._required) return { value: null, errors: [simpleErr], pass: false };
 
       enhancedValue = this._default;
     } else if (!strict) enhancedValue = this.coerce(value);
 
     if (enhancedValue != null) {
-      if (!this.check(enhancedValue)) return { value: null, pass: false, errors: [simpleErr] };
+      if (!this.check(enhancedValue)) return { value: null, errors: [simpleErr], pass: false };
 
       for (const rule of this._rules) {
         const result = rule.validate({ value: enhancedValue, raw: value, context });
@@ -145,11 +110,11 @@ export default class AnySchema<T = any> {
         }
       }
 
-      if (errors.length > 0) return { value: null, pass: false, errors };
+      if (errors.length > 0) return { value: null, errors, pass: false };
 
-      return { value: enhancedValue, pass: true, errors: null };
+      return { value: enhancedValue, errors: null, pass: true };
     }
 
-    return { value: null, pass: true, errors: null };
+    return { value: null, errors: null, pass: true };
   }
 }

@@ -34,7 +34,7 @@ export default class NumberSchema extends AnySchema<number> {
       type: 'min',
       message,
       validate: ({ value }) => {
-        if (!this.check(num))
+        if (!Utils.isNumber(num))
           throw new LyraError('The parameter num for number.min must be a number');
 
         return value >= num;
@@ -49,7 +49,7 @@ export default class NumberSchema extends AnySchema<number> {
       type: 'max',
       message,
       validate: ({ value }) => {
-        if (!this.check(num))
+        if (!Utils.isNumber(num))
           throw new LyraError('The parameter num for number.max must be a number');
 
         return value <= num;
@@ -64,7 +64,7 @@ export default class NumberSchema extends AnySchema<number> {
       type: 'multiple',
       message,
       validate: ({ value }) => {
-        if (!this.check(num))
+        if (!Utils.isNumber(num))
           throw new LyraError('The parameter num for number.multiple must be a number');
 
         return value % num === 0;
@@ -79,7 +79,7 @@ export default class NumberSchema extends AnySchema<number> {
       type: 'divide',
       message,
       validate: ({ value }) => {
-        if (!this.check(num))
+        if (!Utils.isNumber(num))
           throw new LyraError('The parameter num for number.divide must be a number');
 
         return num % value === 0;
@@ -94,7 +94,7 @@ export default class NumberSchema extends AnySchema<number> {
       type: 'greater',
       message,
       validate: ({ value }) => {
-        if (!this.check(num))
+        if (!Utils.isNumber(num))
           throw new LyraError('The parameter num for number.greater must be a number');
 
         return value > num;
@@ -109,7 +109,7 @@ export default class NumberSchema extends AnySchema<number> {
       type: 'smaller',
       message,
       validate: ({ value }) => {
-        if (!this.check(num))
+        if (!Utils.isNumber(num))
           throw new LyraError('The parameter num for number.smaller must be a number');
 
         return value < num;

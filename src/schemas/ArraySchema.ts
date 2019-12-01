@@ -1,6 +1,7 @@
-import AnySchema, { ValidatorOptions, ValidationResult } from './AnySchema';
+import AnySchema from './AnySchema';
 import Utils from '../Utils';
 import LyraError from '../errors/LyraError';
+import { ValidatorOptions, ValidationResult } from '../types';
 
 export default class ArraySchema<T> extends AnySchema<T[]> {
   private _schema: AnySchema<T> | null;
@@ -66,7 +67,7 @@ export default class ArraySchema<T> extends AnySchema<T[]> {
   }
 
   public validate(value: unknown, options: ValidatorOptions = {}): ValidationResult<T[]> {
-    const { abortEarly = true, path, recursive = true } = options;
+    const { abortEarly = true, recursive = true, path } = options;
     const errors = [];
 
     // Run base validation

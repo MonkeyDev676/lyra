@@ -1,4 +1,5 @@
 import AnySchema from './AnySchema';
+import Utils from '../Utils';
 import LyraError from '../errors/LyraError';
 
 export default class FunctionSchema<T extends Function> extends AnySchema<T> {
@@ -7,7 +8,7 @@ export default class FunctionSchema<T extends Function> extends AnySchema<T> {
   }
 
   protected check(value: unknown): value is T {
-    return typeof value === 'function';
+    return Utils.isFunction(value);
   }
 
   inherit(ctor: Function, message?: string) {
@@ -15,7 +16,7 @@ export default class FunctionSchema<T extends Function> extends AnySchema<T> {
       type: 'inherit',
       message,
       validate: ({ value }) => {
-        if (!this.check(ctor))
+        if (!Utils.isFunction(ctor))
           throw new LyraError('The parameter ctor for function.inherit must be a function');
 
         return value.prototype instanceof ctor;

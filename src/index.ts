@@ -5,7 +5,9 @@ import DateSchema from './schemas/DateSchema';
 import NumberSchema from './schemas/NumberSchema';
 import ArraySchema from './schemas/ArraySchema';
 import FunctionSchema from './schemas/FunctionSchema';
+import ObjectSchema from './schemas/ObjectSchema';
 import Ref from './Ref';
+import { SchemaMap, LooseObject } from './types';
 
 export default class Lyra {
   public static any<T = any>() {
@@ -34,6 +36,10 @@ export default class Lyra {
 
   public static function<T extends Function>() {
     return new FunctionSchema<T>();
+  }
+
+  public static object<T extends LooseObject>(schemaMap: SchemaMap<T>) {
+    return new ObjectSchema(schemaMap);
   }
 
   public static ref(path: string) {
