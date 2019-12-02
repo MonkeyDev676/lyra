@@ -1,4 +1,5 @@
 import AnySchema from './AnySchema';
+import Ref from '../Ref';
 import Utils from '../Utils';
 import LyraError from '../errors/LyraError';
 
@@ -21,17 +22,18 @@ export default class DateSchema extends AnySchema<Date> {
     return null;
   }
 
-  older(date: Date | 'now', message?: string) {
+  older(date: Date | 'now' | Ref<Date | 'now'>, message?: string) {
     this.addRule({
+      deps: { date },
       type: 'older',
       message,
-      validate: ({ value }) => {
+      validate: ({ value, deps }) => {
         let enhancedDate: Date;
 
-        if (date === 'now') enhancedDate = new Date();
-        else if (!Utils.instanceOf(date, Date))
+        if (deps.date === 'now') enhancedDate = new Date();
+        else if (!Utils.instanceOf(deps.date, Date))
           throw new LyraError('The parameter date for date.older must be an instance of Date');
-        else enhancedDate = date;
+        else enhancedDate = deps.date;
 
         return value >= enhancedDate;
       },
@@ -40,17 +42,18 @@ export default class DateSchema extends AnySchema<Date> {
     return this;
   }
 
-  newer(date: Date | 'now', message?: string) {
+  newer(date: Date | 'now' | Ref<Date | 'now'>, message?: string) {
     this.addRule({
+      deps: { date },
       type: 'newer',
       message,
-      validate: ({ value }) => {
+      validate: ({ value, deps }) => {
         let enhancedDate: Date;
 
-        if (date === 'now') enhancedDate = new Date();
-        else if (!Utils.instanceOf(value, Date))
+        if (deps.date === 'now') enhancedDate = new Date();
+        else if (!Utils.instanceOf(deps.date, Date))
           throw new LyraError('The parameter date for date.newer must be an instance of Date');
-        else enhancedDate = date;
+        else enhancedDate = deps.date;
 
         return value <= enhancedDate;
       },

@@ -1,3 +1,5 @@
+import { Constructor } from './types';
+
 export default class Utils {
   public static isString(value: unknown): value is string {
     return typeof value === 'string';
@@ -23,7 +25,7 @@ export default class Utils {
     return Object.prototype.toString.call(value) === '[object Object]';
   }
 
-  public static instanceOf<T extends Function>(obj: unknown, ctor: T): obj is T {
+  public static instanceOf<T = any>(obj: unknown, ctor: Constructor<T> | Function): obj is T {
     return obj instanceof ctor;
   }
 }

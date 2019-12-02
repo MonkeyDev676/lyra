@@ -2,7 +2,7 @@ import expr from 'property-expr';
 import Utils from './Utils';
 import LyraError from './errors/LyraError';
 
-export default class Ref {
+export default class Ref<T = any> {
   private _path: string;
 
   private _getter: expr.Getter;
@@ -27,15 +27,7 @@ export default class Ref {
    * Resolves to a value from a given path
    * @param value The value to resolve
    */
-  public resolve(value: object) {
+  public resolve(value: object): T {
     return this._getter(value);
-  }
-
-  /**
-   * Check if an object is a Lyra reference
-   * @param ref The object to check
-   */
-  static isRef(obj: unknown): obj is Ref {
-    return obj != null && obj instanceof Ref;
   }
 }

@@ -1,25 +1,36 @@
+import Ref from '../Ref';
 import AnySchema from '../schemas/AnySchema';
 import LyraValidationError from '../errors/LyraValidationError';
 
-export interface SchemaRuleArguments<T> {
+export interface LooseObject {
+  [key: string]: any;
+}
+
+export interface Constructor<T> {
+  new (...args: any[]): T;
+}
+
+export interface SchemaRuleArguments<T, P> {
   value: T;
+  deps: P;
   raw: unknown;
   context: object;
 }
 
-export interface SchemaRule<T> {
+export type DepMap<T> = {
+  [K in keyof T]: T[K] | Ref<T[K]>;
+};
+
+export interface SchemaRule<T, P = any> {
+  deps?: DepMap<P>;
   type: string;
   message?: string;
-  validate: (arg: SchemaRuleArguments<T>) => boolean;
+  validate: (arg: SchemaRuleArguments<T, P>) => boolean;
 }
 
 export type SchemaMap<T> = {
   [K in keyof T]: AnySchema<T[K]>;
 };
-
-export interface LooseObject {
-  [key: string]: any;
-}
 
 export interface ValidationResultPassed<T> {
   value: T | null;

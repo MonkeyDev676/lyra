@@ -1,9 +1,10 @@
+import Ref from '../Ref';
 import Utils from '../Utils';
 import LyraValidationError from '../errors/LyraValidationError';
 import LyraError from '../errors/LyraError';
-import { SchemaRule, ValidatorOptions, ValidationResult } from '../types';
+import { SchemaRule, ValidatorOptions, ValidationResult, LooseObject } from '../types';
 
-export default class AnySchema<T = any> {
+export default class AnySchema<T> {
   private _type: string;
 
   private _required: boolean;
@@ -14,6 +15,10 @@ export default class AnySchema<T = any> {
 
   private _rules: SchemaRule<T>[];
 
+  private _deps: string[];
+
+  private _value: object;
+
   constructor(type = 'any') {
     if (!Utils.isString(type))
       throw new LyraError('The parameter type for Lyra.AnySchema must be a string');
@@ -23,6 +28,14 @@ export default class AnySchema<T = any> {
     this._label = null;
     this._default = null;
     this._rules = [];
+    this._deps = [];
+    this._value = {};
+  }
+
+  protected resolve<T>(value: Ref<T> | T) {
+    if (Utils.instanceOf(value, Ref)) return value.resolve(this._value);
+
+    return value;
   }
 
   // eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
@@ -55,7 +68,16 @@ export default class AnySchema<T = any> {
     return this;
   }
 
-  protected addRule(rule: SchemaRule<T>) {
+  protected addRule<P>(rule: SchemaRule<T, P>) {
+    const { deps } = rule;
+
+    if (deps != null)
+      this._deps.push(
+        ...Object.values(deps)
+          .filter(dep => Utils.instanceOf(dep, Ref))
+          .map(dep => (dep as any)._path),
+      );
+
     this._rules.push(rule);
 
     return this;
@@ -92,7 +114,20 @@ export default class AnySchema<T = any> {
       if (!this.check(enhancedValue)) return { value: null, errors: [simpleErr], pass: false };
 
       for (const rule of this._rules) {
-        const result = rule.validate({ value: enhancedValue, raw: value, context });
+        const result = rule.validate({
+          value: enhancedValue,
+          raw: value,
+          deps:
+            rule.deps == null
+              ? {}
+              : Object.entries(rule.deps).reduce((deps, [key, dep]) => {
+                  // eslint-disable-next-line no-param-reassign
+                  deps[key] = this.resolve(dep);
+
+                  return deps;
+                }, {} as LooseObject),
+          context,
+        });
 
         if (!result) {
           if (abortEarly)

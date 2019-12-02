@@ -1,4 +1,5 @@
 import AnySchema from './AnySchema';
+import Ref from '../Ref';
 import Utils from '../Utils';
 import LyraError from '../errors/LyraError';
 import { ValidatorOptions, ValidationResult } from '../types';
@@ -7,7 +8,7 @@ export default class ArraySchema<T> extends AnySchema<T[]> {
   private _schema: AnySchema<T> | null;
 
   constructor(schema?: AnySchema<T>) {
-    if (schema != null && !(schema instanceof AnySchema))
+    if (schema != null && !Utils.instanceOf(schema, AnySchema))
       throw new LyraError(
         'The parameter schema for Lyra.ArraySchema must inherit the Lyra.AnySchema constructor',
       );
@@ -21,45 +22,48 @@ export default class ArraySchema<T> extends AnySchema<T[]> {
     return Array.isArray(value);
   }
 
-  public length(length: number, message?: string) {
+  public length(length: number | Ref<number>, message?: string) {
     this.addRule({
+      deps: { length },
       type: 'length',
       message,
-      validate: ({ value }) => {
-        if (!Utils.isNumber(length))
+      validate: ({ value, deps }) => {
+        if (!Utils.isNumber(deps.length))
           throw new LyraError('The parameter length for array.length must be a number');
 
-        return value.length === length;
+        return value.length === deps.length;
       },
     });
 
     return this;
   }
 
-  public min(length: number, message?: string) {
+  public min(length: number | Ref<number>, message?: string) {
     this.addRule({
+      deps: { length },
       type: 'min',
       message,
-      validate: ({ value }) => {
-        if (!Utils.isNumber(length))
+      validate: ({ value, deps }) => {
+        if (!Utils.isNumber(deps.length))
           throw new LyraError('The parameter length for array.min must be a number');
 
-        return value.length >= length;
+        return value.length >= deps.length;
       },
     });
 
     return this;
   }
 
-  public max(length: number, message?: string) {
+  public max(length: number | Ref<number>, message?: string) {
     this.addRule({
+      deps: { length },
       type: 'max',
       message,
-      validate: ({ value }) => {
-        if (!Utils.isNumber(length))
+      validate: ({ value, deps }) => {
+        if (!Utils.isNumber(deps.length))
           throw new LyraError('The parameter length for array.max must be a number');
 
-        return value.length <= length;
+        return value.length <= deps.length;
       },
     });
 

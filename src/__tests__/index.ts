@@ -1,13 +1,19 @@
 import L from '..';
 
-const { value, errors } = L.object({
-  a: L.number().required(),
+const v = L.object({
+  a: L.number()
+    .min(L.ref('c'))
+    .required(),
+  c: L.number().min(L.ref('b.e')),
   b: L.object({
-    c: L.string(),
-    d: L.number(),
+    e: L.string(),
+    d: L.number().min(L.ref('c')),
+    f: L.number().min(L.ref('g.h')),
+    g: L.object({
+      h: L.number().min(L.ref('i.j')),
+    }),
   }),
-}).validate({
-  a: '1',
-});
-
-console.log(value, errors);
+  i: L.object({
+    j: L.number(),
+  }),
+}).validate({});
