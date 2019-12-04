@@ -1,11 +1,9 @@
-import expr from 'property-expr';
 import Utils from './Utils';
 import LyraError from './errors/LyraError';
+import { LooseObject } from './types';
 
 export default class Ref<T = any> {
-  private _path: string;
-
-  private _getter: expr.Getter;
+  public path: string;
 
   /**
    * A reference to another schema
@@ -15,19 +13,17 @@ export default class Ref<T = any> {
     if (!Utils.isString(path))
       throw new LyraError('The parameter path for Lyra.Ref must be a string');
 
-    this._path = path.trim();
+    this.path = path.trim();
 
-    if (this._path === '')
+    if (this.path === '')
       throw new LyraError('The parameter path for Lyra.Ref must be a non-empty string');
-
-    this._getter = expr.getter(this._path, true);
   }
 
   /**
    * Resolves to a value from a given path
    * @param value The value to resolve
    */
-  public resolve(value: object): T {
-    return this._getter(value);
+  public resolve(fields: LooseObject): T {
+    return fields[this.path][1];
   }
 }

@@ -7,7 +7,7 @@ import { SchemaRule, ValidatorOptions, ValidationResult, LooseObject } from '../
 export default class AnySchema<T> {
   private _type: string;
 
-  private _required: boolean;
+  public isRequired: boolean;
 
   private _label: string | null;
 
@@ -15,25 +15,22 @@ export default class AnySchema<T> {
 
   private _rules: SchemaRule<T>[];
 
-  private _deps: string[];
-
-  private _value: object;
+  public deps: string[];
 
   constructor(type = 'any') {
     if (!Utils.isString(type))
       throw new LyraError('The parameter type for Lyra.AnySchema must be a string');
 
     this._type = type;
-    this._required = false;
+    this.isRequired = false;
     this._label = null;
     this._default = null;
     this._rules = [];
-    this._deps = [];
-    this._value = {};
+    this.deps = [];
   }
 
-  protected resolve<T>(value: Ref<T> | T) {
-    if (Utils.instanceOf(value, Ref)) return value.resolve(this._value);
+  protected resolve<T>(value: Ref<T> | T, fields: LooseObject) {
+    if (Utils.instanceOf(value, Ref)) return value.resolve(fields);
 
     return value;
   }
@@ -48,7 +45,7 @@ export default class AnySchema<T> {
   }
 
   public required() {
-    this._required = true;
+    this.isRequired = true;
 
     return this;
   }
@@ -57,6 +54,16 @@ export default class AnySchema<T> {
     this._default = value;
 
     return this;
+  }
+
+  public value(value: unknown, strict: boolean) {
+    if (value != null) {
+      if (this.coerce == null || strict) return value;
+
+      return this.coerce(value);
+    }
+
+    return this._default;
   }
 
   public label(label: string) {
@@ -71,11 +78,13 @@ export default class AnySchema<T> {
   protected addRule<P>(rule: SchemaRule<T, P>) {
     const { deps } = rule;
 
+    // If the rule has dependencies
     if (deps != null)
-      this._deps.push(
+      // We need to find the references and map their paths
+      this.deps.push(
         ...Object.values(deps)
           .filter(dep => Utils.instanceOf(dep, Ref))
-          .map(dep => (dep as any)._path),
+          .map(dep => (dep as Ref).path),
       );
 
     this._rules.push(rule);
@@ -83,7 +92,7 @@ export default class AnySchema<T> {
     return this;
   }
 
-  private _createError(value: unknown, path?: string, type = 'base') {
+  protected createError(value: unknown, path?: string, type = 'base') {
     let enhancedLabel: string;
 
     if (this._label == null) {
@@ -99,57 +108,64 @@ export default class AnySchema<T> {
 
   public validate(value: unknown, opts: ValidatorOptions = {}): ValidationResult<T> {
     const errors = [];
-    const { strict = true, abortEarly = true, path, context = {} } = opts;
-    const simpleErr = this._createError(value, path);
+    const { strict = true, abortEarly = true, context = {}, path } = opts;
+
+    if (context.__LYRA_INTERNAL_FIELDS__ == null && this.deps.length > 0)
+      throw new LyraError('References cannot be used outside of Lyra.ObjectSchema');
 
     let enhancedValue: unknown = value;
 
     if (value == null) {
-      if (this._required) return { value: null, errors: [simpleErr], pass: false };
+      if (this.isRequired)
+        return { value: null, errors: [this.createError(value, path)], pass: false };
 
-      enhancedValue = this._default;
-    } else if (!strict) enhancedValue = this.coerce(value);
-
-    if (enhancedValue != null) {
-      if (!this.check(enhancedValue)) return { value: null, errors: [simpleErr], pass: false };
-
-      for (const rule of this._rules) {
-        const result = rule.validate({
-          value: enhancedValue,
-          raw: value,
-          deps:
-            rule.deps == null
-              ? {}
-              : Object.entries(rule.deps).reduce((deps, [key, dep]) => {
-                  // eslint-disable-next-line no-param-reassign
-                  deps[key] = this.resolve(dep);
-
-                  return deps;
-                }, {} as LooseObject),
-          context,
-        });
-
-        if (!result) {
-          if (abortEarly)
-            return {
-              value: null,
-              pass: false,
-              errors: [this._createError(value, path, rule.type)],
-            };
-
-          errors.push(
-            rule.message == null
-              ? this._createError(value, path, rule.type)
-              : new LyraValidationError(rule.message),
-          );
-        }
-      }
-
-      if (errors.length > 0) return { value: null, errors, pass: false };
-
-      return { value: enhancedValue, errors: null, pass: true };
+      return { value: this._default, errors: null, pass: true };
     }
 
-    return { value: null, errors: null, pass: true };
+    if (!strict) {
+      enhancedValue = this.coerce ? this.coerce(value) : null;
+
+      if (enhancedValue == null)
+        return { value: null, errors: [this.createError(value, path)], pass: false };
+    }
+
+    if (!this.check(enhancedValue))
+      return { value: null, errors: [this.createError(value, path)], pass: false };
+
+    for (const rule of this._rules) {
+      const result = rule.validate({
+        value: enhancedValue,
+        raw: value,
+        deps:
+          rule.deps == null
+            ? {}
+            : Object.entries(rule.deps).reduce((deps, [key, dep]) => {
+                // eslint-disable-next-line no-param-reassign
+                deps[key] = this.resolve(dep, context.__LYRA_INTERNAL_FIELDS__);
+
+                return deps;
+              }, {} as LooseObject),
+        context,
+      });
+
+      if (!result) {
+        if (abortEarly)
+          return {
+            value: null,
+            pass: false,
+            errors: [this.createError(value, path, rule.type)],
+          };
+
+        errors.push(
+          rule.message == null
+            ? this.createError(value, path, rule.type)
+            : new LyraValidationError(rule.message),
+        );
+      }
+    }
+
+    if (errors.length > 0) return { value: null, errors, pass: false };
+
+    return { value: enhancedValue, errors: null, pass: true };
   }
 }

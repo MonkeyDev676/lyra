@@ -16,8 +16,8 @@ export default class StringSchema extends AnySchema<string> {
     return Utils.isString(value);
   }
 
-  protected coerce(value: string) {
-    return value;
+  protected coerce(value: unknown) {
+    return String(value);
   }
 
   public length(length: number, message?: string) {

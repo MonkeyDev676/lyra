@@ -46,5 +46,6 @@ module.exports = {
     '@typescript-eslint/explicit-function-return-type': 'off', // Conflicts with airbnb's no-useless-call
     '@typescript-eslint/no-non-null-assertion': 'off',
     '@typescript-eslint/no-explicit-any': 'off', // This is a validation library!
+    '@typescript-eslint/ban-ts-ignore': 'off',
   },
 };

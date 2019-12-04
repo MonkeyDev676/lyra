@@ -8,16 +8,14 @@ import { ValidatorOptions, ValidationResult, SchemaMap, LooseObject } from '../t
 export default class ObjectSchema<T extends LooseObject> extends AnySchema<T> {
   private _schemaMap: SchemaMap<T> | null;
 
-  private _edges: [string, string][];
-
   constructor(schemaMap?: SchemaMap<T>) {
     if (schemaMap != null && !Utils.isPlainObject(schemaMap))
       throw new LyraError('The parameter schemaMap for Lyra.ObjectSchema must be a plain object');
 
     super('object');
 
-    this._schemaMap = schemaMap != null ? schemaMap : null;
-    this._edges = [];
+    if (schemaMap == null || Object.keys(schemaMap).length === 0) this._schemaMap = null;
+    else this._schemaMap = schemaMap;
   }
 
   protected check(value: unknown): value is T {
@@ -88,18 +86,9 @@ export default class ObjectSchema<T extends LooseObject> extends AnySchema<T> {
     return this;
   }
 
-  private _unwrapDeps(schemaMap: SchemaMap<T>, prevKey?: string) {
-    Object.entries(schemaMap).forEach(([key, schema]) => {
-      if ((schema as any)._type === 'object') this._unwrapDeps((schema as any)._schemaMap, key);
-      else
-        (schema as any)._deps.forEach(dep => {
-          this._edges.push([`${prevKey == null ? '' : `${prevKey}.`}${key}`, dep]);
-        });
-    });
-  }
-
   public validate(value: unknown, options: ValidatorOptions = {}): ValidationResult<T> {
-    const { abortEarly = true, recursive = true, path } = options;
+    const { abortEarly = true, recursive = true, strict = true, context = {} } = options;
+    const finalResult: LooseObject = {};
     const errors = [];
     const baseResult = super.validate(value, options);
 
@@ -107,20 +96,68 @@ export default class ObjectSchema<T extends LooseObject> extends AnySchema<T> {
     if (this._schemaMap == null || !baseResult.pass || !this.check(baseResult.value) || !recursive)
       return baseResult;
 
-    this._unwrapDeps(this._schemaMap);
+    const flattenedSchema: { [key: string]: AnySchema<any> } = {};
+    const fields: LooseObject = {};
+    const nodes: string[] = [];
+    const edges: [string, string][] = [];
 
-    console.log(t(this._edges).reverse());
+    const flattenSchemaAndFields = (
+      schemaMap = this._schemaMap!,
+      baseValue = baseResult.value!,
+      result: LooseObject = finalResult,
+      prevKey?: string,
+    ) => {
+      Object.entries(schemaMap).forEach(([key, schema]) => {
+        const enhancedKey = prevKey == null ? key : `${prevKey}.${key}`;
+        const subValue = baseValue[key];
 
-    for (const key of Object.keys(this._schemaMap)) {
-      const newSchema = this._schemaMap[key];
-      const newValue = baseResult.value[key];
-      const newOptions = {
+        if ((schema as any)._schemaMap != null) {
+          // eslint-disable-next-line no-param-reassign
+          result[key] = {};
+
+          flattenSchemaAndFields(
+            (schema as any)._schemaMap,
+            subValue == null ? {} : subValue,
+            result[key],
+            enhancedKey,
+          );
+        } else {
+          flattenedSchema[enhancedKey] = schema;
+          // eslint-disable-next-line no-param-reassign
+          result[key] = schema.value(subValue, strict);
+          fields[enhancedKey] = [subValue, result[key]];
+
+          nodes.push(enhancedKey);
+
+          schema.deps.forEach(dep => {
+            edges.push([enhancedKey, dep]);
+          });
+        }
+      });
+    };
+
+    flattenSchemaAndFields();
+
+    let sortedKeys;
+
+    try {
+      sortedKeys = t.array(nodes, edges).reverse();
+    } catch (err) {
+      throw err;
+    }
+
+    for (const key of sortedKeys) {
+      const subSchema = flattenedSchema[key];
+      const subValue = fields[key];
+
+      const result = subSchema.validate(subValue[0], {
         ...options,
-        path: path == null ? key : `${path}.${key}`,
-        parent: baseResult.value,
-      };
-
-      const result = newSchema.validate(newValue, newOptions);
+        context: {
+          ...context,
+          __LYRA_INTERNAL_FIELDS__: fields,
+        },
+        path: key,
+      });
 
       if (!result.pass) {
         errors.push(...result.errors);
@@ -131,6 +168,6 @@ export default class ObjectSchema<T extends LooseObject> extends AnySchema<T> {
 
     if (errors.length > 0) return { value: null, errors, pass: false };
 
-    return { value: baseResult.value, errors: null, pass: true };
+    return { value: finalResult as T, errors: null, pass: true };
   }
 }

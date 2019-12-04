@@ -1,6 +1,6 @@
-import Ref from '../Ref';
-import AnySchema from '../schemas/AnySchema';
-import LyraValidationError from '../errors/LyraValidationError';
+import Ref from './Ref';
+import AnySchema from './schemas/AnySchema';
+import LyraValidationError from './errors/LyraValidationError';
 
 export interface LooseObject {
   [key: string]: any;
@@ -10,16 +10,20 @@ export interface Constructor<T> {
   new (...args: any[]): T;
 }
 
-export interface SchemaRuleArguments<T, P> {
-  value: T;
-  deps: P;
-  raw: unknown;
-  context: object;
-}
+export type SchemaMap<T> = {
+  [K in keyof T]: AnySchema<T[K]>;
+};
 
 export type DepMap<T> = {
   [K in keyof T]: T[K] | Ref<T[K]>;
 };
+
+export interface SchemaRuleArguments<T, P> {
+  value: T;
+  deps: P;
+  raw: unknown;
+  context: LooseObject;
+}
 
 export interface SchemaRule<T, P = any> {
   deps?: DepMap<P>;
@@ -27,10 +31,6 @@ export interface SchemaRule<T, P = any> {
   message?: string;
   validate: (arg: SchemaRuleArguments<T, P>) => boolean;
 }
-
-export type SchemaMap<T> = {
-  [K in keyof T]: AnySchema<T[K]>;
-};
 
 export interface ValidationResultPassed<T> {
   value: T | null;
@@ -51,7 +51,6 @@ export interface ValidatorOptions {
   abortEarly?: boolean;
   stripUnknown?: boolean;
   recursive?: boolean;
-  context?: object;
+  context?: LooseObject;
   path?: string;
-  parent?: unknown;
 }

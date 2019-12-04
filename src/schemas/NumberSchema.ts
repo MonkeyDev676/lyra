@@ -12,7 +12,7 @@ export default class NumberSchema extends AnySchema<number> {
     return Utils.isNumber(value);
   }
 
-  protected coerce(value: string) {
+  protected coerce(value: unknown) {
     const coerce = Number(value);
 
     if (!Number.isNaN(coerce)) return coerce;

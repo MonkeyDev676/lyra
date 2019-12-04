@@ -38,7 +38,7 @@ export default class Lyra {
     return new FunctionSchema<T>();
   }
 
-  public static object<T extends LooseObject>(schemaMap: SchemaMap<T>) {
+  public static object<T extends LooseObject>(schemaMap?: SchemaMap<T>) {
     return new ObjectSchema(schemaMap);
   }
 

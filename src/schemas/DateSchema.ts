@@ -12,7 +12,9 @@ export default class DateSchema extends AnySchema<Date> {
     return Utils.instanceOf(value, Date);
   }
 
-  protected coerce(value: string) {
+  protected coerce(value: unknown) {
+    if (!Utils.isString(value)) return null;
+
     const timestamp = Date.parse(value);
 
     if (!Number.isNaN(timestamp)) {

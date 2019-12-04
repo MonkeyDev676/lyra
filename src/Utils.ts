@@ -1,4 +1,4 @@
-import { Constructor } from './types';
+import { Constructor, LooseObject } from './types';
 
 export default class Utils {
   public static isString(value: unknown): value is string {
@@ -21,7 +21,7 @@ export default class Utils {
     return Array.isArray(value);
   }
 
-  public static isPlainObject(value: unknown): value is object {
+  public static isPlainObject(value: unknown): value is LooseObject {
     return Object.prototype.toString.call(value) === '[object Object]';
   }
 
