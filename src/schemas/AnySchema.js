@@ -58,7 +58,7 @@ class AnySchema {
   addTransformation(transformation) {
     const next = this.clone();
 
-    if (transformation.pre) {
+    if (transformation.pre != null) {
       const errInfo = transformation.pre();
 
       if (Utils.isString(errInfo)) throw new LyraError(errInfo);
