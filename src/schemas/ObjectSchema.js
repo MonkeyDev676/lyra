@@ -61,14 +61,14 @@ class ObjectSchema extends AnySchema {
     }
   }
 
-  _transform(value, opts, internalOpts = {}) {
-    const enhancedValue = super._transform(value, opts, internalOpts);
+  transform(value, opts) {
+    const enhancedValue = super.transform(value, opts);
 
     if (!this._check(enhancedValue)) return enhancedValue;
 
     Object.entries(this._map).forEach(([key, schema]) => {
       const subValue = enhancedValue[key];
-      const transformedValue = schema._transform(subValue, opts, internalOpts);
+      const transformedValue = schema.transform(subValue, opts);
 
       enhancedValue[key] = transformedValue;
     });

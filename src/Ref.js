@@ -53,6 +53,11 @@ class Ref {
   }
 
   _resolve(context, ancestors) {
+    if ((this._type === 'root' || this._type === 'value') && ancestors == null)
+      throw new LyraError(
+        `Cannot resolve ${this._path} due to it being used outside Lyra.ObjectSchema`,
+      );
+
     if (this._type === 'root') return this._getter(ancestors[ancestors.length - 1]);
 
     if (this._type === 'context') return this._getter(context);

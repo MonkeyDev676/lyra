@@ -24,7 +24,13 @@ class Utils {
   }
 
   static stringify(value) {
-    return Utils.isFunction(value) ? value.toString() : JSON.stringify(value);
+    if (Utils.isFunction(value)) return value.toString();
+
+    if (value === null) return 'null';
+
+    if (value === undefined) return 'undefined';
+
+    return JSON.stringify(value);
   }
 
   static isRef(value) {

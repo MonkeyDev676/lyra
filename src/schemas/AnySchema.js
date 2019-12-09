@@ -1,4 +1,5 @@
 import clone from 'lodash.clonedeepwith';
+import equal from 'fast-deep-equal';
 import Utils from '../Utils';
 import LyraValidationError from '../errors/LyraValidationError';
 import LyraError from '../errors/LyraError';
@@ -71,7 +72,7 @@ class AnySchema {
 
   createError(opts) {
     const enhancedOpts = {
-      type: `${this._type}.base`,
+      type: 'base',
       isRef: false,
       depth: null,
       ...opts,
@@ -106,22 +107,15 @@ class AnySchema {
     }
 
     let enhancedType;
-    let values;
 
-    if (enhancedOpts.type === 'valid') {
-      values = Array.from(this._valids);
-    } else if (enhancedOpts.type === 'invalid') {
-      values = Array.from(this._invalids);
-    }
-
-    if (values != null) {
-      const plural = values.length > 1;
+    if (enhancedOpts.values != null) {
+      const plural = enhancedOpts.values.length > 1;
       const noun = `value${plural ? 's' : ''}`;
       const beVerb = plural ? 'are' : 'is';
 
       enhancedType = `${this._type}.${enhancedOpts.type} (${
         enhancedOpts.type
-      } ${noun} ${beVerb} ${values.join(', ')})`;
+      } ${noun} ${beVerb} ${enhancedOpts.values.map(value => Utils.stringify(value)).join(', ')})`;
     } else enhancedType = `${this._type}.${enhancedOpts.type}`;
 
     return new LyraValidationError(
@@ -134,7 +128,7 @@ class AnySchema {
     );
   }
 
-  _transform(rawValue, opts) {
+  transform(rawValue, opts) {
     let enhancedValue = rawValue;
 
     // Null and undefined behave differently. Required only applies to undefined
@@ -182,8 +176,7 @@ class AnySchema {
     const next = this.clone();
 
     if (Utils.isFunction(value)) next._default = value.call(this);
-    else if (Utils.isRef(value)) next._default = value;
-    else next._default = clone(value);
+    else next._default = value;
 
     return next;
   }
@@ -250,39 +243,62 @@ class AnySchema {
       return { value, errors: null, pass: true };
     }
 
+    if (this._valids.size > 0) {
+      const resolvedValids = Array.from(this._valids);
+
+      resolvedValids.forEach((valid, i) => {
+        if (Utils.isRef(valid))
+          resolvedValids[i] = valid._resolve(opts.context, enhancedInternalOpts.ancestors);
+      });
+
+      if (!resolvedValids.some(valid => equal(value, valid)))
+        return {
+          value: null,
+          errors: [
+            this.createError({
+              value,
+              type: 'valid',
+              message: this._messages.valid,
+              values: resolvedValids,
+              ...enhancedInternalOpts,
+            }),
+          ],
+        };
+
+      return { value, errors: null, pass: true };
+    }
+
+    if (this._invalids.size > 0) {
+      const resolvedInvalids = Array.from(this._invalids);
+
+      resolvedInvalids.forEach((invalid, i) => {
+        if (Utils.isRef(invalid))
+          resolvedInvalids[i] = invalid._resolve(opts.context, enhancedInternalOpts.ancestors);
+      });
+
+      if (resolvedInvalids.some(valid => equal(value, valid)))
+        return {
+          value: null,
+          errors: [
+            this.createError({
+              value,
+              type: 'invalid',
+              message: this._messages.invalid,
+              values: resolvedInvalids,
+              ...enhancedInternalOpts,
+            }),
+          ],
+        };
+
+      return { value, errors: null, pass: true };
+    }
+
     if (this._check != null && !this._check(value))
       return {
         value: null,
         errors: [this.createError({ value, ...enhancedInternalOpts })],
         pass: false,
       };
-
-    if (this._valids.size > 0 && !this._valids.has(value)) {
-      return {
-        value: null,
-        errors: [
-          this.createError({
-            value,
-            type: 'valid',
-            message: this._messages.valid,
-            ...enhancedInternalOpts,
-          }),
-        ],
-      };
-    }
-
-    if (this._invalids.size > 0 && this._invalids.has(value)) {
-      return {
-        value: null,
-        errors: [
-          this.createError({
-            type: 'invalid',
-            message: this._messages.invalid,
-            ...enhancedInternalOpts,
-          }),
-        ],
-      };
-    }
 
     for (const rule of this._rules) {
       const resolvedParams = {};
@@ -381,7 +397,7 @@ class AnySchema {
       ...opts,
     };
 
-    return this._validate(this._transform(value, enhancedOpts), enhancedOpts);
+    return this._validate(this.transform(value, enhancedOpts), enhancedOpts);
   }
 }
 

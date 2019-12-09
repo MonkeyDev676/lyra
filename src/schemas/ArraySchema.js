@@ -26,13 +26,13 @@ class ArraySchema extends AnySchema {
     }
   }
 
-  _transform(value, opts, internalOpts = {}) {
-    const enhancedValue = super._transform(value, opts, internalOpts);
+  transform(value, opts) {
+    const enhancedValue = super.transform(value, opts);
 
     // Hand the value to rules
     if (!this._check(enhancedValue)) return enhancedValue;
 
-    return enhancedValue.map(subValue => this._schema._transform(subValue, opts, internalOpts));
+    return enhancedValue.map(subValue => this._schema.transform(subValue, opts));
   }
 
   length(length, message) {
