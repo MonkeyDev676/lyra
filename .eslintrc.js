@@ -5,27 +5,18 @@ module.exports = {
     node: true,
     jest: true,
   },
-  extends: [
-    'plugin:@typescript-eslint/recommended',
-    'airbnb-base',
-    'prettier',
-    'prettier/@typescript-eslint',
-  ],
-  parser: '@typescript-eslint/parser',
+  extends: ['plugin:import/recommended', 'airbnb-base', 'prettier'],
+  parser: 'babel-eslint',
+  plugins: ['babel'],
   parserOptions: {
     ecmaVersion: 7,
     sourceType: 'module',
   },
-  plugins: ['@typescript-eslint/eslint-plugin'],
-  settings: {
-    'import/resolver': {
-      node: {
-        extensions: ['.ts'],
-      },
-    },
-  },
   rules: {
+    'prefer-destructuring': 'off',
     'no-underscore-dangle': 'off',
+    'no-param-reassign': 'off',
+    'no-continue': 'off',
     'class-methods-use-this': 'off',
     'no-dupe-class-members': 'off', // Allows methods overloading
     'no-console': 'off',
@@ -42,10 +33,6 @@ module.exports = {
         ignoreStrings: true,
         ignoreTemplateLiterals: true,
       },
-    ], // Prettier overrides max-len to off
-    '@typescript-eslint/explicit-function-return-type': 'off', // Conflicts with airbnb's no-useless-call
-    '@typescript-eslint/no-non-null-assertion': 'off',
-    '@typescript-eslint/no-explicit-any': 'off', // This is a validation library!
-    '@typescript-eslint/ban-ts-ignore': 'off',
+    ],
   },
 };

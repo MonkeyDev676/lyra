@@ -7,42 +7,43 @@ import ArraySchema from './schemas/ArraySchema';
 import FunctionSchema from './schemas/FunctionSchema';
 import ObjectSchema from './schemas/ObjectSchema';
 import Ref from './Ref';
-import { SchemaMap, LooseObject } from './types';
 
-export default class Lyra {
-  public static any<T = any>() {
-    return new AnySchema<T>();
+class Lyra {
+  static any() {
+    return new AnySchema();
   }
 
-  public static boolean() {
+  static boolean() {
     return new BooleanSchema();
   }
 
-  public static string() {
+  static string() {
     return new StringSchema();
   }
 
-  public static date() {
+  static date() {
     return new DateSchema();
   }
 
-  public static number() {
+  static number() {
     return new NumberSchema();
   }
 
-  public static array<T>(schema?: AnySchema<T>) {
+  static array(schema) {
     return new ArraySchema(schema);
   }
 
-  public static function<T extends Function>() {
-    return new FunctionSchema<T>();
+  static function() {
+    return new FunctionSchema();
   }
 
-  public static object<T extends LooseObject>(schemaMap?: SchemaMap<T>) {
-    return new ObjectSchema(schemaMap);
+  static object(map) {
+    return new ObjectSchema(map);
   }
 
-  public static ref(path: string) {
-    return new Ref(path);
+  static ref(path, separator) {
+    return new Ref(path, separator);
   }
 }
+
+export default Lyra;

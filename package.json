@@ -2,8 +2,8 @@
   "name": "@botbind/lyra",
   "version": "0.0.0",
   "description": "An unopinionated, simple and lightweight Joi alternative",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/botbind/lyra.git"
@@ -15,30 +15,36 @@
   },
   "homepage": "https://github.com/botbind/lyra#readme",
   "scripts": {
-    "build": "rimraf dist && tsc",
-    "lint": "eslint \"src/**/*.ts\" --report-unused-disable-directives && echo \"No errors found\"",
-    "lint:fix": "eslint \"src/**/*.ts\" --fix && echo \"No errors found\"",
-    "types:check": "tsc --noEmit && echo \"No errors found\"",
-    "test": "ts-node src/__tests__"
+    "lint": "eslint . --report-unused-disable-directives && echo \"No errors found\"",
+    "lint:fix": "eslint . --fix && echo \"No errors found\"",
+    "test": "nodemon --exec babel-node src/__tests__",
+    "build": "rimraf dist && babel src --out-dir dist"
   },
   "devDependencies": {
-    "@types/node": "^12.7.5",
-    "@typescript-eslint/eslint-plugin": "^2.3.3",
-    "@typescript-eslint/parser": "^2.3.3",
+    "@babel/cli": "^7.7.4",
+    "@babel/core": "^7.7.4",
+    "@babel/node": "^7.7.4",
+    "@babel/plugin-transform-runtime": "^7.7.4",
+    "@babel/preset-env": "^7.7.4",
+    "babel-eslint": "^10.0.3",
     "cross-env": "^5.2.0",
     "eslint": "^5.16.0",
     "eslint-config-airbnb-base": "^13.1.0",
     "eslint-config-prettier": "^4.1.0",
+    "eslint-plugin-babel": "^5.3.0",
     "eslint-plugin-import": "^2.16.0",
     "jest": "^24.9.0",
     "nodemon": "^1.18.10",
     "rimraf": "^2.6.3",
-    "ts-node": "^8.4.1",
-    "typescript": "^3.7.2"
+    "typescript": "^3.7.3"
   },
   "dependencies": {
-    "@types/toposort": "^2.0.3",
+    "@babel/runtime": "^7.7.4",
+    "core-js": "^3.4.7",
+    "deepmerge": "^4.2.2",
+    "lodash.clonedeepwith": "^4.5.0",
     "property-expr": "^1.5.1",
+    "regenerator-runtime": "^0.13.3",
     "toposort": "^2.0.2"
   }
 }
