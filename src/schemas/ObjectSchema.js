@@ -11,7 +11,6 @@ class ObjectSchema extends AnySchema {
     super('object');
 
     this._map = null;
-    this._entrifiedMap = null;
 
     if (map != null) {
       const schemaEntries = Object.entries(map);
