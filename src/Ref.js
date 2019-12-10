@@ -53,19 +53,27 @@ class Ref {
   }
 
   _resolve(context, ancestors) {
+    let target;
+
     if ((this._type === 'root' || this._type === 'value') && ancestors == null)
       throw new LyraError(
         `Cannot resolve ${this._path} due to it being used outside Lyra.ObjectSchema`,
       );
 
-    if (this._type === 'root') return this._getter(ancestors[ancestors.length - 1]);
+    if (this._type === 'root') target = ancestors[ancestors.length - 1];
 
-    if (this._type === 'context') return this._getter(context);
+    if (this._type === 'context') target = context;
 
     if (this._ancestor > ancestors.length)
       throw new LyraError(`Reference to ${this._path} exceeds the schema root`);
 
-    return this._getter(ancestors[this._ancestor - 1]);
+    if (this._type === 'value') target = ancestors[this._ancestor - 1];
+
+    try {
+      return this._getter(target);
+    } catch (err) {
+      return undefined;
+    }
   }
 }
 

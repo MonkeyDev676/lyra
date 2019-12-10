@@ -97,7 +97,7 @@ class AnySchema {
 
     if (enhancedOpts.isRef) {
       return new LyraValidationError(
-        `The resolved reference ${enhancedOpts.refPath} of ${enhancedValue} cannot be used for ${enhancedLabel}`,
+        `The reference ${enhancedOpts.refPath} of ${enhancedValue} cannot be used for ${enhancedLabel}. It is either not found or doesn't have the required type`,
         {
           type: enhancedOpts.type,
           path: enhancedOpts.path,
