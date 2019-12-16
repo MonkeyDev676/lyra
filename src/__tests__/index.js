@@ -9,20 +9,31 @@ import L from '..';
   .validate({});
 console.log(schema); */
 
+const Discord = {
+  Collection: class {},
+};
+
+class JSONProvider {
+  constructor() {
+    this.test = 'a';
+  }
+}
+
 console.log(
   L.object({
-    a: L.number(),
-  })
-    .when(L.ref('.'), {
-      is: L.object({ a: L.number().min(10) }),
-      then: L.object({
-        b: L.number()
-          .min(15)
-          .required(),
-      }),
-    })
-    .validate({
-      a: 10,
-      b: 16,
+    shouldType: L.boolean().default(false),
+    prefix: L.string().default('!'),
+    owners: L.array(L.string()).default([]),
+    shouldEditCommandResponses: L.boolean().default(false),
+    commandMessageLifetime: L.number().when(L.ref('shouldEditCommandResponses'), {
+      is: L.boolean().valid(true),
+      then: L.number().default(180000),
+      else: L.number().default(0),
     }),
+    provider: L.function()
+      .inherit(Discord.Collection)
+      .default(JSONProvider),
+  }).validate({
+    shouldEditCommandResponses: 'test',
+  }),
 );

@@ -252,7 +252,9 @@ class ObjectSchema extends AnySchema {
 
         errors.push(...result.errors);
       } else {
-        if (Object.prototype.hasOwnProperty.call(baseResult, key))
+        // {a: undefined} -> {a: undefined}
+        // {} -> {} (without this condition it would return {a: undefined})
+        if (result.value !== undefined || Object.prototype.hasOwnProperty.call(baseResult, key))
           baseResult.value[key] = result.value;
 
         if (schema._flags.strip) stripKeys.push(key);

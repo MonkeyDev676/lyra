@@ -21,10 +21,10 @@ class AnySchema {
     this._type = type;
     this._flags = {};
     this._messages = {
+      [`${this._type}.base`]: `{{label}} must be ${Utils.getDeterminer(this._type)} ${this._type}`,
       'any.required': '{{label}} is required',
       'any.forbidden': '{{label}} is forbidden',
       'any.coerce': '{{label}} cannot be coerced',
-      'any.base': `{{label}} must be ${Utils.getDeterminer(this._type)} ${this._type}`,
       'any.ref': `{{ref}} {{reason}}`,
       'any.valid': '{{label}} is invalid (valid values are {{values}})',
       'any.invalid': '{{label}} is invalid (invalid values are {{values}})',
@@ -204,8 +204,12 @@ class AnySchema {
 
     const next = this.clone();
 
-    if (typeof value === 'function') next._default = value();
-    else next._default = cloneDeepWith(value);
+    // Don't clone functions
+    next._default = cloneDeepWith(value, target => {
+      if (typeof target === 'function') return target;
+
+      return undefined;
+    });
 
     return next;
   }
