@@ -41,8 +41,8 @@ class Lyra {
     return new ObjectSchema(map);
   }
 
-  static ref(path, separator) {
-    return new Ref(path, separator);
+  static ref(path) {
+    return new Ref(path);
   }
 }
 

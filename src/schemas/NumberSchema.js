@@ -3,129 +3,122 @@ import Utils from '../Utils';
 
 class NumberSchema extends AnySchema {
   constructor() {
-    super('number');
+    super('number', {
+      'number.integer': '{{label}} must be an integer',
+      'number.min': '{{label}} must be greater than or equal to {{num}}',
+      'number.max': '{{label}} must be smaller than or equal to {{params.num}}',
+      'number.multiple': '{{label}} must be a multiple of {{params.num}}',
+      'number.divide': '{{label}} must divide {{num}}',
+      'number.greater': '{{label}} must be greater than {{num}}',
+      'number.smaller': '{{label}} must be smaller than {{num}}',
+    });
   }
 
-  _check(value) {
-    return Utils.isNumber(value);
+  check(value) {
+    return typeof value === 'number';
   }
 
-  _coerce(value) {
+  coerce(value, state, context) {
     const coerce = Number(value);
 
-    if (!Number.isNaN(coerce)) return coerce;
+    if (!Number.isNaN(coerce)) return { value: coerce, errors: null };
 
-    return value;
+    return { value: null, errors: [this.error('any.coerce', state, context)] };
   }
 
-  integer(message) {
-    return this.addRule({
-      type: 'integer',
-      message,
+  integer() {
+    return this.test({
+      type: 'number.integer',
       validate: ({ value }) => Number.isInteger(value),
     });
   }
 
-  min(num, message) {
-    return this.addRule({
-      params: { num },
-      type: 'min',
-      message,
-      pre: params => {
-        if (!Utils.isNumber(params.num))
-          return ['The parameter num for number.min must be a number', 'num'];
-
-        return undefined;
+  min(num) {
+    return this.test({
+      params: {
+        num: {
+          value: num,
+          assert: 'number',
+        },
       },
+      type: 'number.min',
       validate: ({ value, params }) => value >= params.num,
     });
   }
 
-  max(num, message) {
-    return this.addRule({
-      params: { num },
-      type: 'max',
-      message,
-      pre: params => {
-        if (!Utils.isNumber(params.num))
-          return ['The parameter num for number.max must be a number', 'num'];
-
-        return undefined;
+  max(num) {
+    return this.test({
+      params: {
+        num: {
+          value: num,
+          assert: 'number',
+        },
       },
+      type: 'number.max',
       validate: ({ value, params }) => value <= params.num,
     });
   }
 
-  multiple(num, message) {
-    return this.addRule({
-      params: { num },
-      type: 'multiple',
-      message,
-      pre: params => {
-        if (!Utils.isNumber(params.num))
-          return ['The parameter num for number.multiple must be a number', 'num'];
-
-        return undefined;
+  multiple(num) {
+    return this.test({
+      params: {
+        num: {
+          value: num,
+          assert: 'number',
+        },
       },
+      type: 'number.multiple',
+
       validate: ({ value, params }) => value % params.num === 0,
     });
   }
 
-  divide(num, message) {
-    return this.addRule({
-      params: { num },
-      type: 'divide',
-      message,
-      pre: params => {
-        if (!Utils.isNumber(params.num))
-          return ['The parameter num for number.divide must be a number', 'num'];
-
-        return undefined;
+  divide(num) {
+    return this.test({
+      params: {
+        num: {
+          value: num,
+          assert: 'number',
+        },
       },
+      type: 'number.divide',
       validate: ({ value, params }) => params.num % value === 0,
     });
   }
 
-  greater(num, message) {
-    return this.addRule({
-      params: { num },
-      type: 'greater',
-      message,
-      pre: params => {
-        if (!Utils.isNumber(params.num))
-          return ['The parameter num for number.greater must be a number', 'num'];
-
-        return undefined;
+  greater(num) {
+    return this.test({
+      params: {
+        num: {
+          value: num,
+          assert: 'number',
+        },
       },
+      type: 'number.greater',
       validate: ({ value, params }) => value > params.num,
     });
   }
 
-  smaller(num, message) {
-    return this.addRule({
-      params: { num },
-      type: 'smaller',
-      message,
-      pre: params => {
-        if (!Utils.isNumber(params.num))
-          return ['The parameter num for number.smaller must be a number', 'num'];
-
-        return undefined;
+  smaller(num) {
+    return this.test({
+      params: {
+        num: {
+          value: num,
+          assert: 'number',
+        },
       },
+      type: 'number.smaller',
       validate: ({ value, params }) => value < params.num,
     });
   }
 
   expression(exp) {
-    return this.addTransformation({
-      pre: () => {
-        if (!Utils.isFunction(exp))
-          return ['The parameter exp for number.expression must be a function', 'num'];
+    Utils.assert(
+      typeof exp === 'function',
+      'The parameter exp for number.expression must be a function',
+    );
 
-        return undefined;
-      },
-      transform: exp,
-    });
+    return this.addTransformation(exp);
   }
 }
 

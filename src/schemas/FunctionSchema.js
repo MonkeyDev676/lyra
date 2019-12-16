@@ -1,26 +1,25 @@
 import AnySchema from './AnySchema';
-import Utils from '../Utils';
 
 class FunctionSchema extends AnySchema {
   constructor() {
-    super('function');
+    super('function', {
+      'function.inherit': '{{label}} must inherit {{ctor}}',
+    });
   }
 
-  _check(value) {
-    return Utils.isFunction(value);
+  check(value) {
+    return typeof value === 'function';
   }
 
-  inherit(ctor, message) {
-    return this.addRule({
-      params: { ctor },
-      type: 'inherit',
-      message,
-      pre: params => {
-        if (!Utils.isFunction(params))
-          return ['The parameter ctor for function.inherit must be a function', 'ctor'];
-
-        return undefined;
+  inherit(ctor) {
+    return this.test({
+      params: {
+        ctor: {
+          value: ctor,
+          assert: 'function',
+        },
       },
+      type: 'function.inherit',
       validate: ({ value, params }) => value.prototype instanceof params.ctor,
     });
   }

@@ -1,28 +1,42 @@
 import t from 'toposort';
+import isPlainObject from 'lodash/isPlainObject';
 import AnySchema from './AnySchema';
 import Utils from '../Utils';
-import LyraError from '../errors/LyraError';
 
 class ObjectSchema extends AnySchema {
-  constructor(map) {
-    if (map != null && !Utils.isPlainObject(map))
-      throw new LyraError('The parameter map for Lyra.ObjectSchema must be a plain object');
+  constructor(inner) {
+    Utils.assert(
+      inner === undefined || isPlainObject(inner),
+      'The parameter map for Lyra.ObjectSchema must be a plain object',
+    );
 
-    super('object');
+    super('object', {
+      'object.unknown': '{{path}} is not allowed',
+      'object.length': '{{label}} must have {{length}} entries',
+      'object.min': '{{label}} must have at least {{length}} entries',
+      'object.max': '{{label}} must have at most {{length}} entries',
+      'object.instance': '{{label}} must be an instance of {{ctor}}',
+      'object.and': '{{label}} must contain all of {{peers}}',
+      'object.nand': '{{label}} must not contain all of {{peers}}',
+      'object.or': '{{label}} must contain at least one of {{peers}}',
+      'object.xor': '{{label}} must contain one of {{peers}}',
+      'object.oxor': '{{label}} must contain one or none of {{peers}}',
+    });
 
-    this._map = null;
+    this._inner = null;
+    this._dependencies = [];
 
-    if (map != null) {
-      const schemaEntries = Object.entries(map);
+    if (inner !== undefined) {
+      const schemaEntries = Object.entries(inner);
 
-      if (schemaEntries.some(([, schema]) => !Utils.isSchema(schema)))
-        throw new LyraError(
-          'The parameter map for Lyra.ObjectSchema must contain only Lyra.AnySchema instances',
-        );
+      Utils.assert(
+        schemaEntries.every(([, schema]) => Utils.isSchema(schema)),
+        'The parameter map for Lyra.ObjectSchema must contain only instances of Lyra.AnySchema',
+      );
 
       // Treat {} as null
       if (schemaEntries.length !== 0) {
-        this._map = map;
+        this._inner = inner;
 
         const nodes = [];
 
@@ -49,159 +63,245 @@ class ObjectSchema extends AnySchema {
     }
   }
 
-  _check(value) {
-    return Utils.isPlainObject(value);
+  check(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
   }
 
-  _coerce(value) {
+  coerce(value, state, context) {
     try {
-      return JSON.parse(value);
+      return { value: JSON.parse(value), errors: null };
     } catch (err) {
-      return value;
+      return { value: null, errors: [this.error('any.coerce', state, context)] };
     }
   }
 
-  transform(value, opts) {
-    const enhancedValue = super.transform(value, opts);
-
-    if (!this._check(enhancedValue)) return enhancedValue;
-
-    Object.entries(this._map).forEach(([key, schema]) => {
-      const subValue = enhancedValue[key];
-      const transformedValue = schema.transform(subValue, opts);
-
-      enhancedValue[key] = transformedValue;
-    });
-
-    return enhancedValue;
-  }
-
-  length(length, message) {
-    return this.addRule({
-      params: { length },
-      type: 'length',
-      message,
-      pre: params => {
-        if (!Utils.isNumber(params.length))
-          return ['The parameter length for object.length must be a number', 'length'];
-
-        return undefined;
+  length(length) {
+    return this.test({
+      params: {
+        length: {
+          value: length,
+          assert: 'number',
+        },
       },
+      type: 'object.length',
       validate: ({ value, params }) => Object.keys(value).length === params.length,
     });
   }
 
-  min(length, message) {
-    return this.addRule({
-      params: { length },
-      type: 'min',
-      message,
-      pre: params => {
-        if (!Utils.isNumber(params.length))
-          return ['The parameter length for object.min must be a number', 'length'];
-
-        return undefined;
+  min(length) {
+    return this.test({
+      params: {
+        length: {
+          value: length,
+          assert: 'number',
+        },
       },
+      type: 'object.min',
       validate: ({ value, params }) => Object.keys(value).length >= params.length,
     });
   }
 
-  max(length, message) {
-    return this.addRule({
-      params: { length },
-      type: 'max',
-      message,
-      pre: params => {
-        if (!Utils.isNumber(params.length))
-          return ['The parameter length for object.max must be a number', 'length'];
-
-        return undefined;
+  max(length) {
+    return this.test({
+      params: {
+        length: {
+          value: length,
+          assert: 'number',
+        },
       },
+      type: 'object.max',
       validate: ({ value, params }) => Object.keys(value).length <= params.length,
     });
   }
 
-  instance(ctor, message) {
-    return this.addRule({
-      params: { ctor },
-      type: 'instance',
-      message,
-      pre: params => {
-        if (!Utils.isFunction(params.ctor))
-          return ['The parameter ctor for object.instance must be a function', 'ctor'];
-
-        return undefined;
+  instance(ctor) {
+    return this.test({
+      params: {
+        ctor: {
+          value: ctor,
+          assert: 'function',
+        },
       },
+      type: 'object.instance',
       validate: ({ value, params }) => value instanceof params.ctor,
     });
   }
 
-  _validate(value, opts, internalOpts = {}) {
-    const enhancedInternalOpts = {
-      depth: 0,
-      ancestors: [],
-      ...internalOpts,
-    };
-    const errors = [];
-    const baseResult = super._validate(value, opts, enhancedInternalOpts);
+  _addDependencies(type, peers, validate) {
+    Utils.assert(
+      peers.length > 0,
+      `The parameter peers for object.${type} must have at least one item`,
+    );
+    Utils.assert(
+      peers.every(peer => Utils.isRef(peer)),
+      `The parameter peers for object.${type} must contain only instances of Lyra.Ref`,
+    );
 
-    if (this._map == null || !baseResult.pass || !this._check(baseResult.value) || !opts.recursive)
+    const next = this.clone();
+
+    next._dependencies.push({
+      type: `object.${type}`,
+      validate,
+    });
+
+    return next;
+  }
+
+  and(...peers) {
+    return this._addDependencies('and', peers, (ancestors, context) => {
+      for (const peer of peers) {
+        if (peer.resolve(ancestors, context) === undefined) return { peers };
+      }
+
+      return undefined;
+    });
+  }
+
+  nand(...peers) {
+    return this._addDependencies('nand', peers, (ancestors, context) => {
+      for (const peer of peers) {
+        if (peer.resolve(ancestors, context) === undefined) return undefined;
+      }
+
+      return { peers };
+    });
+  }
+
+  or(...peers) {
+    return this._addDependencies('or', peers, (ancestors, context) => {
+      for (const peer of peers) {
+        if (peer.resolve(ancestors, context) !== undefined) return undefined;
+      }
+
+      return { peers };
+    });
+  }
+
+  xor(...peers) {
+    return this._addDependencies('xor', peers, (ancestors, context) => {
+      let count = 0;
+
+      for (const peer of peers) {
+        if (peer.resolve(ancestors, context) !== undefined) {
+          if (count === 0) count++;
+          else return { peers };
+        }
+      }
+
+      if (count === 0) return { peers };
+
+      return undefined;
+    });
+  }
+
+  oxor(...peers) {
+    return this._addDependencies('oxor', peers, (ancestors, context) => {
+      let count = 0;
+
+      for (const peer of peers) {
+        if (peer.resolve(ancestors, context) !== undefined) {
+          if (count === 0) count++;
+          else return { peers };
+        }
+      }
+
+      return undefined;
+    });
+  }
+
+  _validate(value, opts, state = {}, schema) {
+    state = {
+      depth: null,
+      ancestors: [],
+      path: null,
+      ...state,
+    };
+    schema = this._generate(schema, state, opts);
+
+    const errors = [];
+    const baseResult = super._validate(value, opts, state, schema);
+
+    if (
+      schema._inner === null ||
+      baseResult.errors !== null ||
+      !schema.check(baseResult.value) ||
+      !opts.recursive
+    )
       return baseResult;
 
-    const ancestors = [baseResult.value, ...enhancedInternalOpts.ancestors];
-    const depth = enhancedInternalOpts.depth + 1;
-    const keys = new Set(Object.keys(baseResult.value));
+    state.ancestors = [baseResult.value, ...state.ancestors];
+    state.depth = state.depth !== null ? state.depth + 1 : 0;
 
-    for (const key of this._sortedKeys) {
-      const newPath =
-        enhancedInternalOpts.path == null ? key : `${enhancedInternalOpts.path}.${key}`;
+    const keys = new Set(Object.keys(baseResult.value));
+    const stripKeys = [];
+
+    for (const key of schema._sortedKeys) {
+      const newPath = state.path === null ? key : `${state.path}.${key}`;
       const subValue = baseResult.value[key];
-      const schema = this._map[key];
+      const subSchema = schema._inner[key];
 
       keys.delete(key);
 
-      const result = schema._validate(subValue, opts, {
+      const result = subSchema._validate(subValue, opts, {
+        ...state,
         path: newPath,
-        ancestors,
-        depth,
       });
 
-      if (!result.pass) {
+      if (result.errors !== null) {
         if (opts.abortEarly) return result;
 
         errors.push(...result.errors);
-      } else if (schema._flags.strip) delete baseResult.value[key];
-    }
+      } else {
+        if (Object.prototype.hasOwnProperty.call(baseResult, key))
+          baseResult.value[key] = result.value;
 
-    if (opts.stripUnknown) {
-      for (const key of keys) {
-        delete baseResult.value[key];
-        keys.delete(key);
+        if (schema._flags.strip) stripKeys.push(key);
       }
     }
 
-    if (!opts.allowUnknown)
+    for (const depedency of schema._dependencies) {
+      const data = depedency.validate(state.ancestors, opts.context);
+
+      if (data !== undefined) {
+        const err = schema.error(depedency.type, state, opts.context, data);
+
+        if (opts.abortEarly) return { value: null, errors: [err] };
+
+        errors.push(err);
+      }
+    }
+
+    stripKeys.forEach(key => {
+      delete baseResult.value[key];
+      keys.delete(key);
+    });
+
+    if (opts.stripUnknown) {
+      keys.forEach(key => {
+        delete baseResult.value[key];
+        keys.delete(key);
+      });
+    }
+
+    if (!opts.allowUnknown) {
       for (const key of keys) {
-        const err = this.createError({
-          message: `The key ${key} is not allowed`,
-          type: 'object.unknown',
-          path: enhancedInternalOpts.path == null ? key : `${enhancedInternalOpts.path}.${key}`,
-          depth,
-        });
+        const newPath = state.path === null ? key : `${state.path}.${key}`;
+
+        const err = schema.error('object.unknown', state, opts.context, { path: newPath });
 
         if (opts.abortEarly)
           return {
             value: null,
             errors: [err],
-            pass: false,
           };
 
         errors.push(err);
       }
+    }
 
-    if (errors.length > 0) return { value: null, errors, pass: false };
+    if (errors.length > 0) return { value: null, errors };
 
-    return { value: baseResult.value, errors: null, pass: true };
+    return { value: baseResult.value, errors: null };
   }
 }
 

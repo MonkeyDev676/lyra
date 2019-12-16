@@ -1,136 +1,122 @@
 import AnySchema from './AnySchema';
 import Utils from '../Utils';
-import LyraError from '../errors/LyraError';
 
 class ArraySchema extends AnySchema {
-  constructor(schema) {
-    if (schema != null && !Utils.isSchema(schema))
-      throw new LyraError(
-        'The parameter schema for Lyra.ArraySchema must be an instance of Lyra.AnySchema',
-      );
+  constructor(inner) {
+    Utils.assert(
+      inner === undefined || Utils.isSchema(inner),
+      'The parameter inner for Lyra.ArraySchema must be an instance of Lyra.AnySchema',
+    );
 
-    super('array');
+    super('array', {
+      'array.length': '{{label}} must have {{length}} items',
+      'array.min': '{{label}} must have at least {{length}} items',
+      'array.max': '{{label}} must have at most {{length}} items',
+    });
 
-    this._schema = schema != null ? schema : null;
+    this._inner = inner !== undefined ? inner : null;
   }
 
-  _check(value) {
-    return Utils.isArray(value);
+  check(value) {
+    return Array.isArray(value);
   }
 
-  _coerce(value) {
+  coerce(value, state, context) {
     try {
-      return JSON.parse(value);
+      return { value: JSON.parse(value), errors: null };
     } catch (err) {
-      return value;
+      return { value: null, errors: [this.error('any.coerce', state, context)] };
     }
   }
 
-  transform(value, opts) {
-    const enhancedValue = super.transform(value, opts);
-
-    // Hand the value to rules
-    if (!this._check(enhancedValue)) return enhancedValue;
-
-    return enhancedValue.map(subValue => this._schema.transform(subValue, opts));
-  }
-
-  length(length, message) {
-    return this.addRule({
-      params: { length },
-      type: 'length',
-      message,
-      pre: params => {
-        if (!Utils.isNumber(params.length))
-          return ['The parameter length for array.length must be a number', 'length'];
-
-        return undefined;
+  length(length) {
+    return this.test({
+      params: {
+        length: {
+          value: length,
+          assert: 'number',
+        },
       },
+      type: 'array.length',
       validate: ({ value, params }) => value.length === params.length,
     });
   }
 
-  min(length, message) {
-    return this.addRule({
-      params: { length },
-      type: 'min',
-      message,
-      pre: params => {
-        if (!Utils.isNumber(params.length))
-          return ['The parameter length for array.min must be a number', 'length'];
-
-        return undefined;
+  min(length) {
+    return this.test({
+      params: {
+        length: {
+          value: length,
+          assert: 'number',
+        },
       },
+      type: 'array.min',
       validate: ({ value, params }) => value.length >= params.length,
     });
   }
 
-  max(length, message) {
-    return this.addRule({
-      params: { length },
-      type: 'max',
-      message,
-      pre: params => {
-        if (!Utils.isNumber(params.length))
-          return ['The parameter length for array.max must be a number', 'length'];
-
-        return undefined;
+  max(length) {
+    return this.test({
+      params: {
+        length: {
+          value: length,
+          assert: 'number',
+        },
       },
+      type: 'array.max',
       validate: ({ value, params }) => value.length <= params.length,
     });
   }
 
   reverse() {
-    return this.addTransformation({
-      transform: value => value.reverse(),
-    });
+    return this.transform(value => value.reverse());
   }
 
-  _validate(value, opts, internalOpts = {}) {
-    const enhancedInternalOpts = {
-      depth: 0,
+  _validate(value, opts, state = {}, schema) {
+    state = {
+      depth: null,
       ancestors: [],
-      ...internalOpts,
+      path: null,
+      ...state,
     };
+    schema = this._generate(schema, state, opts);
+
     const errors = [];
-    const baseResult = super._validate(value, opts, enhancedInternalOpts);
+    const baseResult = super._validate(value, opts, state, schema);
 
     if (
-      this._schema == null ||
-      !baseResult.pass ||
-      !this._check(baseResult.value) ||
+      schema._inner === null ||
+      baseResult.errors !== null ||
+      !schema.check(baseResult.value) ||
       !opts.recursive
     )
       return baseResult;
 
-    const ancestors = [baseResult.value, ...enhancedInternalOpts.ancestors];
-    const depth = enhancedInternalOpts.depth + 1;
+    state.ancestors = [baseResult.value, ...state.ancestors];
+    state.depth = state.depth === null ? 0 : state.depth + 1;
 
-    for (let i = 0; i < baseResult.value.length; i += 1) {
-      const newPath =
-        enhancedInternalOpts.path == null ? `[${i}]` : `${enhancedInternalOpts.path}[${i}]`;
+    for (let i = 0; i < baseResult.value.length; i++) {
+      const newPath = state.path === null ? `[${i}]` : `${state.path}[${i}]`;
 
-      const result = this._schema._validate(baseResult.value[i], opts, {
+      const result = schema._inner._validate(baseResult.value[i], opts, {
+        ...state,
         path: newPath,
-        ancestors,
-        depth,
       });
 
-      if (!result.pass) {
+      if (result.errors !== null) {
         if (opts.abortEarly) return result;
 
         errors.push(...result.errors);
-      }
+      } else baseResult.value[i] = result.value;
     }
 
     if (errors.length > 0)
       return {
         value: null,
         errors,
-        pass: false,
       };
 
-    return { value: baseResult.value, errors: null, pass: true };
+    return { value: baseResult.value, errors: null };
   }
 }
 

@@ -1,60 +1,65 @@
 import AnySchema from './AnySchema';
-import Utils from '../Utils';
 
 class DateSchema extends AnySchema {
   constructor() {
-    super('date');
+    super('date', {
+      'date.older': '{{label}} must be older than {{date}}',
+      'date.newer': '{{label}} must be newer than {{date}}',
+    });
   }
 
-  _check(value) {
+  check(value) {
     return value instanceof Date;
   }
 
-  _coerce(value) {
-    if (!Utils.isString(value)) return null;
+  coerce(value, state, context) {
+    if (typeof value !== 'string')
+      return { value: null, errors: [this.error('any.coerce', state, context)] };
 
     const timestamp = Date.parse(value);
 
     if (!Number.isNaN(timestamp)) {
-      return new Date(timestamp);
+      return { value: new Date(timestamp), errors: null };
     }
 
-    return value;
+    return { value: null, errors: [this.error('any.coerce', state, context)] };
   }
 
-  older(date, message) {
-    return this.addRule({
-      params: { date },
-      type: 'older',
-      message,
-      pre: params => {
-        if (params.date !== 'now' || !this._check(params.date))
-          return 'The parameter date for date.older must be either now or an instance of Date';
-
-        return undefined;
+  older(date) {
+    return this.test({
+      params: {
+        date: {
+          value: date,
+          assert: resolved => [
+            resolved === 'now' || resolved instanceof Date,
+            'must be now or an instance of Date',
+          ],
+        },
       },
+      type: 'date.older',
       validate: ({ value, params }) => {
         let enhancedDate;
 
         if (params.date === 'now') enhancedDate = new Date();
         else enhancedDate = params.date;
 
-        return value >= enhancedDate;
+        return value <= enhancedDate;
       },
     });
   }
 
-  newer(date, message) {
-    return this.addRule({
-      params: { date },
-      type: 'newer',
-      message,
-      pre: params => {
-        if (params.date !== 'now' || !this._check(params.date))
-          return 'The parameter date for date.newer must be either now or an instance of Date';
-
-        return undefined;
+  newer(date) {
+    return this.test({
+      params: {
+        date: {
+          value: date,
+          assert: resolved => [
+            resolved === 'now' || resolved instanceof Date,
+            'must be now or an instance of Date',
+          ],
+        },
       },
+      type: 'date.newer',
       validate: ({ value, params }) => {
         let enhancedDate;
 

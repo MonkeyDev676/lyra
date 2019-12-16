@@ -1,38 +1,39 @@
 const L = require('./dist').default;
 
-const a = {
-  a: 1,
-  c: 1,
-  b: {
-    e: '1',
-    d: 1,
-    f: 2,
-    g: {
-      h: 2,
-    },
-    c: 0,
-  },
-};
+const schema = L.object({
+  username: L.string()
+    .alphanum()
+    .min(3)
+    .max(30)
+    .required(),
 
-console.log(
-  L.object({
-    a: L.number()
-      .min(L.ref('c'))
-      .required(),
-    c: L.number().min(L.ref('b.e')),
-    b: L.object({
-      e: L.number(),
-      d: L.number().min(L.ref('.c')),
-      f: L.number().min(L.ref('.g.h')),
-      g: L.object({
-        h: L.number().min(L.ref('....i.j')),
-      }),
-    }),
-    i: L.object({
-      j: L.number().default(2),
-    }),
-  }).validate(a, {
-    abortEarly: false,
-    strict: false,
-  }),
-);
+  password: L.string()
+    .test(/^[a-zA-Z0-9]{3,30}$/)
+    .required()
+    .strip(),
+
+  repeat_password: L.string()
+    .valid(L.ref('password'))
+    .strip(),
+
+  birth_year: L.number()
+    .integer()
+    .min(1900)
+    .max(2013)
+    .required(),
+
+  email: L.string()
+    .email()
+    .required(),
+});
+const now = new Date();
+const result = schema.validate({
+  username: 'abc',
+  birth_year: 1994,
+  password: '123',
+  repeat_password: '123',
+  email: 'brianle1301@gmail.com',
+});
+const time = new Date() - now;
+
+console.log(time);

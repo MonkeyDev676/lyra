@@ -1,5 +1,4 @@
 import AnySchema from './AnySchema';
-import Utils from '../Utils';
 
 const truthyValues = ['true', '1', '+', 'on', 'enable', 'enabled', 't', 'yes', 'y', 1, true];
 
@@ -7,32 +6,33 @@ const falsyValues = ['false', '0', '-', 'off', 'disable', 'disabled', 'f', 'no',
 
 class BooleanSchema extends AnySchema {
   constructor() {
-    super('boolean');
+    super('boolean', {
+      'boolean.truthy': '{{label}} must be truthy',
+      'boolean.falsy': '{{label}} must be falsy',
+    });
   }
 
-  _check(value) {
-    return Utils.isBoolean(value);
+  check(value) {
+    return typeof value === 'boolean';
   }
 
-  _coerce(value) {
-    if (truthyValues.includes(value)) return true;
-    if (falsyValues.includes(value)) return false;
+  coerce(value, state, context) {
+    if (truthyValues.includes(value)) return { value: true, errors: null };
+    if (falsyValues.includes(value)) return { value: false, errors: null };
 
-    return value;
+    return { value: null, errors: [this.error('any.coerce', state, context)] };
   }
 
-  truthy(message) {
-    return this.addRule({
-      type: 'truthy',
-      message,
+  truthy() {
+    return this.test({
+      type: 'boolean.truthy',
       validate: ({ value }) => value,
     });
   }
 
-  falsy(message) {
-    return this.addRule({
-      type: 'falsy',
-      message,
+  falsy() {
+    return this.test({
+      type: 'boolean.falsy',
       validate: ({ value }) => !value,
     });
   }

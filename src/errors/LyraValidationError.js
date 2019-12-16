@@ -1,13 +1,14 @@
 class LyraValidationError extends Error {
-  constructor(message, meta) {
-    const { type, path, depth } = meta;
+  constructor(message, type, state) {
+    const { ancestors, path, depth } = state;
 
     super(message);
 
     this.name = 'LyraValidationError';
     this.type = type;
-    this.path = path == null ? null : path;
-    this.depth = depth == null ? null : depth;
+    this.path = path;
+    this.depth = depth;
+    this.ancestors = ancestors;
   }
 }
 
