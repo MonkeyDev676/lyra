@@ -162,7 +162,7 @@ export abstract class AnySchema<T = any> {
 }
 
 export class ArraySchema<T> extends AnySchema<T[]> {
-  inner: AnySchema<T> | null;
+  _inner: AnySchema<T> | null;
   constructor(inner: AnySchema<T>);
   check(value: unknown): value is T[];
   coerce(value: unknown): Result<T[]>;
