@@ -1,6 +1,6 @@
 {
   "name": "@botbind/lyra",
-  "version": "0.0.0",
+  "version": "0.0.0-beta",
   "description": "An unopinionated, simple and lightweight Joi alternative",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
