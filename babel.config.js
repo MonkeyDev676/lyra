@@ -1,4 +1,4 @@
-module.exports = {
+const config = {
   presets: [
     [
       '@babel/preset-env',
@@ -20,3 +20,7 @@ module.exports = {
   plugins: ['@babel/plugin-transform-runtime'],
   ignore: ['node_modules'],
 };
+
+if (process.env.NODE_ENV !== 'development') config.ignore.push('src/__tests__');
+
+module.exports = config;

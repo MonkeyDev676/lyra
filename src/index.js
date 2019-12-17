@@ -29,16 +29,16 @@ class Lyra {
     return new NumberSchema();
   }
 
-  static array(schema) {
-    return new ArraySchema(schema);
+  static array(inner) {
+    return new ArraySchema(inner);
   }
 
   static function() {
     return new FunctionSchema();
   }
 
-  static object(map) {
-    return new ObjectSchema(map);
+  static object(inner) {
+    return new ObjectSchema(inner);
   }
 
   static ref(path) {

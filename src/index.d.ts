@@ -1,217 +1,252 @@
-declare module '@botbind/lyra' {
-  /**
-   * The error that is thrown when
-   */
-  export class LyraError extends Error {}
+export interface State {
+  path?: string;
+  depth?: number;
+  ancestors: object[];
+}
 
-  /**
-   *
-   */
-  export interface State {
-    /**
-     *
-     */
-    type: string;
+export class LyraError extends Error {}
 
-    /**
-     *
-     */
-    path?: string;
+export class LyraValidationError extends Error {
+  type: string;
+  path: string | null;
+  depth: number | null;
+  ancestors: object[];
+  constructor(message: string, type: string, meta: State);
+}
 
-    /**
-     *
-     */
-    depth?: number;
-  }
+export class Values {
+  _values: Set<unknown>;
+  _refs: Set<unknown>;
+  constructor();
+  merge(source: Values, remove: Values): this;
+  add(...values: unknown[]): this;
+  delete(...values: unknown[]): this;
+  has(value: unknown): boolean;
+  values(): unknown[];
+}
 
-  /**
-   *
-   */
-  export class LyraValidationError extends Error {
-    /**
-     *
-     */
-    public type: string;
+export class Utils {
+  static isSchema(value: unknown): value is AnySchema;
+  static isRef(value: unknown): value is Ref;
+  static isValues(value: unknown): value is Values;
+  static assert(condition: boolean, message: string): void;
+  static getDeterminer(word: string): 'an' | 'a';
+  static customizerToMessage(customizer: string | Error): string;
+  static serialize(value: unknown): string;
+}
 
-    /**
-     *
-     */
-    public path: string | null;
+export class Ref {
+  _type: 'value' | 'root' | 'context';
+  _path: string;
+  _ancestor: number | null;
+  _root: string;
+  constructor(path: string);
+  resolve(context: Record<string, any>, ancestors: object[]): unknown;
+}
 
-    /**
-     *
-     */
-    public depth: number | null;
-    constructor(message: string, meta: State);
-  }
+export type ExtractedRef = [number, string, string | undefined];
 
-  export class Utils {
-    /**
-     *
-     * @param value
-     */
-    public static isSchema(value: unknown): value is AnySchema;
+export interface RuleArgs<T, P> {
+  value: T;
+  params: P;
+  context: object;
+}
 
-    /**
-     *
-     * @param value
-     */
-    public static isRef(value: unknown): value is Ref;
+export type ParamAssert = (resolved: unknown) => [boolean, string];
 
-    /**
-     *
-     * @param value
-     */
-    public static serialize(value: unknown): string;
+export type RuleParams<T> = {
+  [K in keyof T]: {
+    value: T[K];
+    assert: string | ParamAssert;
+  };
+};
 
-    /**
-     *
-     * @param value
-     * @param atRoot
-     */
-    public static cloneDeep<T>(value: T, atRoot?: boolean): T;
-  }
+export interface Rule<T, P = undefined> {
+  params: RuleParams<P>;
+  type: string;
+  validate: (args: RuleArgs<T, P>) => boolean;
+}
 
-  export type Getter = (value: object) => unknown;
+export type Transformation<T> = (value: T) => T;
 
-  /**
-   *
-   */
-  export class Ref {
-    private _type: string;
-    private _path: string;
-    private _ancestor: number | null;
-    private _getter: Getter;
-    private _root: string;
-    private constructor(path: string);
+export interface ValidatorOptions {
+  strict: boolean;
+  transform: boolean;
+  abortEarly: boolean;
+  recursive: boolean;
+  allowUnknown: boolean;
+  stripUnknown: boolean;
+  context: Record<string, any>;
+}
 
-    /**
-     *
-     * @param values
-     * @param context
-     * @param ancestors
-     */
-    public static all(values: unknown[], context: object, ancestors: object[]): unknown[];
+export interface ConditionOptionsWithThen {
+  is: AnySchema;
+  then: AnySchema;
+  else?: AnySchema;
+}
 
-    /**
-     *
-     * @param context
-     * @param ancestors
-     */
-    public resolve(context: object, ancestors: object[]): unknown;
-  }
+export interface ConditionOptionsWithElse {
+  is: AnySchema;
+  then?: AnySchema;
+  else: AnySchema;
+}
 
-  export interface SchemaRuleArguments<T, P> {
-    value: T;
-    params: P;
-    context: object;
-  }
+export type ConditionOptions = ConditionOptionsWithThen | ConditionOptionsWithElse;
 
-  export interface SchemaRule<T> {}
+export type Condition = (ancestors: object[], context: Record<string, any>) => AnySchema;
 
-  export type Transformation<T> = (value: T) => T;
+export type ErrorCustomizerFunction = (
+  type: string,
+  state: State,
+  context: Record<string, any>,
+  data: Record<string, any>,
+) => string | Error;
 
-  export interface ValidatorOptions {}
+export interface DefautOptions {
+  literal?: boolean;
+}
 
-  export interface ValidationResultFailed {
-    value: null;
-    errors: LyraValidationError[];
-    pass: false;
-  }
+export interface ResultFailed {
+  value: null;
+  errors: LyraValidationError[];
+}
 
-  export interface ValidationResultPass<T> {
-    value: T;
-    errors: null;
-    pass: true;
-  }
+export interface ResultPass<T> {
+  value: T;
+  errors: null;
+}
 
-  export type ValidationResult<T> = ValidationResultFailed | ValidationResultPass<T>;
+export type Result<T> = ResultFailed | ResultPass<T>;
 
-  export abstract class AnySchema<T> {
-    private _type: string;
-    private _flags: { required: boolean; strip: boolean };
-    private _messages: { required: string | null; valid: string | null; invalid: string | null };
-    private _label: string | null;
-    private _default: unknown | undefined;
-    private _valids: Set<unknown>;
-    private _invalids: Set<unknown>;
-    private _refs: [number, string, string | undefined][];
-    private _rules: SchemaRule<T>[];
-    private _transformations: Transformation<T>[];
-    constructor(type?: string);
-    public static isSchema(value: unknown): value is AnySchema;
-    protected abstract check(value: unknown): value is T;
-    protected coerce?(value: unknown): unknown;
-    public clone(): this;
-    protected addRule(rule: SchemaRule<T>): this;
-    protected addTransformation(transformation: Transformation<T>): this;
-    private _applyCoercion(value: unknown, strict: boolean): unknown;
-    public strip(): this;
-    public required(message?: string): this;
-    public default(value: unknown): this;
-    public label(label: string): this;
-    public valid(values: (unknown | Ref)[], message?: string): this;
-    public valid(...values: (unknown | Ref)[]): this;
-    public invalid(values: (unknown | Ref)[], message?: string): this;
-    public invalid(...values: (unknown | Ref)[]): this;
-    protected coreValidate(
-      value: unknown,
-      opts: ValidatorOptions,
-      state: State,
-    ): ValidationResult<T>;
-    public validate(value: unknown, opts: ValidationResultPass): ValidationResult<T>;
-  }
+export type SchemaMap<T> = {
+  [K in keyof T]: AnySchema<T[K]>;
+};
 
-  export class ArraySchema<T> extends AnySchema<T[]> {
-    private _schema: AnySchema<T>;
-    protected check(value: unknown): value is T[];
-    protected coerce(value: unknown): unknown;
-    public length(length: number | Ref, message?: string): this;
-    public min(length: number | Ref, message?: string): this;
-    public max(length: number | Ref, message?: string): this;
-    public reverse(): this;
-  }
+export abstract class AnySchema<T = any> {
+  _type: string;
+  _flags: Record<string, any>;
+  _messages: Record<string, string>;
+  _label: string | null;
+  _default: unknown | undefined;
+  _valids: Set<unknown>;
+  _invalids: Set<unknown>;
+  _conditions: Condition[];
+  _refs: ExtractedRef[];
+  _rules: Rule<T>[];
+  _transformations: Transformation<T>[];
+  constructor(type?: string);
+  abstract check(value: unknown): value is T;
+  coerce?(value: unknown): Result<T>;
+  clone(): this;
+  merge(schema?: AnySchema): this;
+  _generate(state: State, opts: ValidatorOptions, schema?: AnySchema): AnySchema;
+  error(
+    type: string,
+    state: State,
+    context: Record<string, any>,
+    data: Record<string, any>,
+  ): LyraValidationError;
+  test(rule: Rule<T>): this;
+  transform(transformation: Transformation<T>): this;
+  strip(): this;
+  required(): this;
+  forbidden(): this;
+  default(value: unknown, opts?: DefautOptions): this;
+  label(label: string): this;
+  valid(...values: unknown[]): this;
+  invalid(...values: unknown[]): this;
+  when(ref: Ref, opts: ConditionOptions): this;
+  errors(customizer: string | Error | ErrorCustomizerFunction): this;
+  _validate(value: unknown, opts: ValidatorOptions, state: State): Result<T>;
+  validate(value: unknown, opts?: ValidatorOptions): Result<T>;
+}
 
-  export class BooleanSchema extends AnySchema<boolean> {
-    protected check(value: unknown): value is boolean;
-    protected coerce(value: unknown): unknown;
-    public truthy(message?: string): this;
-    public falsy(message?: string): this;
-  }
+export class ArraySchema<T> extends AnySchema<T[]> {
+  inner: AnySchema<T> | null;
+  constructor(inner: AnySchema<T>);
+  check(value: unknown): value is T[];
+  coerce(value: unknown): Result<T[]>;
+  length(length: number | Ref): this;
+  min(length: number | Ref): this;
+  max(length: number | Ref): this;
+  reverse(): this;
+}
 
-  export class DateSchema extends AnySchema<Date> {
-    protected check(value: unknown): value is Date;
-    protected coerce(value: unknown): unknown;
-    public older(date: 'now' | Date | Ref, message?: string): this;
-    public newer(date: 'now' | Date | Ref, message?: string): this;
-  }
+export class BooleanSchema extends AnySchema<boolean> {
+  check(value: unknown): value is boolean;
+  coerce(value: unknown): Result<boolean>;
+  truthy(): this;
+  falsy(): this;
+}
 
-  export class FunctionSchema<T extends Function> extends AnySchema<T> {
-    protected check(value: unknown): value is T;
-    public inherit(ctor: Function | Ref, message?: string): this;
-  }
+export class DateSchema extends AnySchema<Date> {
+  check(value: unknown): value is Date;
+  coerce(value: unknown): Result<Date>;
+  older(date: 'now' | Date | Ref): this;
+  newer(date: 'now' | Date | Ref): this;
+}
 
-  export class NumberSchema extends AnySchema<number> {
-    protected check(value: unknown): value is number;
-    protected coerce(value: unknown): unknown;
-    public integer(message?: string): this;
-    public min(num: number | Ref, message?: string): this;
-    public max(num: number | Ref, message?: string): this;
-    public multiple(num: number | Ref, message?: string): this;
-    public divide(num: number | Ref, message?: string): this;
-    public greater(num: number | Ref, message?: string): this;
-    public smaller(num: number | Ref, message?: string): this;
-    public expression(exp: Transformation<number>): this;
-  }
+export class FunctionSchema<T extends Function> extends AnySchema<T> {
+  check(value: unknown): value is T;
+  inherit(ctor: Function | Ref): this;
+}
 
-  export class ObjectSchema<T extends object> extends AnySchema<T> {
-    protected check(value: unknown): value is object;
-    protected coerce(value: unknown): unknown;
-    public length(length: number | Ref, message?: string): this;
-    public min(num: number | Ref, message?: string): this;
-    public max(num: number | Ref, message?: string): this;
-    public instance(ctor: Function | Ref, message?: string): this;
-  }
+export class NumberSchema extends AnySchema<number> {
+  check(value: unknown): value is number;
+  coerce(value: unknown): Result<number>;
+  integer(): this;
+  min(num: number | Ref): this;
+  max(num: number | Ref): this;
+  multiple(num: number | Ref): this;
+  divide(num: number | Ref): this;
+  greater(num: number | Ref): this;
+  smaller(num: number | Ref): this;
+}
 
-  export class StringSchema extends AnySchema<string> {}
+export class ObjectSchema<T extends object> extends AnySchema<T> {
+  _inner: SchemaMap<T> | null;
+  constructor(inner: SchemaMap<T>);
+  check(value: unknown): value is T;
+  coerce(value: unknown): Result<T>;
+  length(length: number | Ref): this;
+  min(length: number | Ref): this;
+  max(length: number | Ref): this;
+  instance(ctor: Function | Ref): this;
+  and(...peers: Ref[]): this;
+  nand(...peers: Ref[]): this;
+  or(...peers: Ref[]): this;
+  xor(...peers: Ref[]): this;
+  oxor(...peers: Ref[]): this;
+}
+
+export class StringSchema extends AnySchema<string> {
+  check(value: unknown): value is string;
+  coerce(value: unknown): Result<string>;
+  length(length: number | Ref): this;
+  min(length: number | Ref): this;
+  max(length: number | Ref): this;
+  creditCard(): this;
+  pattern(regex: RegExp | Ref): this;
+  email(): this;
+  url(): this;
+  alphanum(): this;
+  numeric(): this;
+  _pattern(regex: RegExp | Ref, type: string): this;
+  uppercase(): this;
+  lowercase(): this;
+  trim(): this;
+  reverse(): this;
+  replace(pattern: string | RegExp, replacement: string): this;
+}
+
+export default class Lyra {
+  static any(): AnySchema;
+  static boolean(): BooleanSchema;
+  static string(): StringSchema;
+  static date(): DateSchema;
+  static number(): NumberSchema;
+  static array<T>(inner: AnySchema<T>): ArraySchema<T>;
+  static function<T extends Function>(): FunctionSchema<T>;
+  static object<T extends object>(inner: SchemaMap<T>): ObjectSchema<T>;
+  static ref(path: string): Ref;
 }

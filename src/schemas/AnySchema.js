@@ -43,8 +43,8 @@ class AnySchema {
 
   clone() {
     // Clone all instances but lyra schemas, since they are already immutable
-    return cloneDeepWith(this, value => {
-      if (Utils.isSchema(value) && value !== this) return value;
+    return cloneDeepWith(this, target => {
+      if (Utils.isSchema(target) && target !== this) return target;
 
       return undefined;
     });
@@ -66,6 +66,8 @@ class AnySchema {
     const next = this.clone();
 
     return mergeWith(next, schema, (target, source, key) => {
+      // If target is not any and source is any, keep the target type
+      if (target !== 'any' && source === 'any') return target;
       // Rules and dependencies and transformations
       if (Array.isArray(target)) return target.concat(source);
 
@@ -79,7 +81,7 @@ class AnySchema {
     });
   }
 
-  _generate(schema, state, opts) {
+  _generate(state, opts, schema) {
     if (schema === undefined) {
       schema = this;
 
@@ -199,14 +201,19 @@ class AnySchema {
     return next;
   }
 
-  default(value) {
+  default(value, opts = {}) {
     Utils.assert(value !== undefined, `The parameter value for any.default must be provided`);
+    Utils.assert(isPlainObject(opts), 'The parameter options for any.default must be an object');
+    Utils.assert(
+      typeof value === 'function' || !opts.literal,
+      'Only function values for any.default support the option literal ',
+    );
 
     const next = this.clone();
 
     // Don't clone functions
     next._default = cloneDeepWith(value, target => {
-      if (typeof target === 'function') return target;
+      if (typeof target === 'function' && opts.literal) return target;
 
       return undefined;
     });
@@ -306,7 +313,7 @@ class AnySchema {
 
   _validate(value, opts, state = {}, schema) {
     state = { depth: null, ancestors: [], path: null, ...state };
-    schema = this._generate(schema, state, opts);
+    schema = this._generate(state, opts, schema);
     value = clone(value);
 
     const errors = [];

@@ -23,6 +23,8 @@ class Values {
       if (Utils.isRef(value)) this._refs.add(value);
       else this._values.add(value);
     });
+
+    return this;
   }
 
   delete(...values) {
@@ -30,6 +32,8 @@ class Values {
       if (Utils.isRef(value)) this._refs.delete(value);
       else this._values.delete(value);
     });
+
+    return this;
   }
 
   has(value, ancestors, context) {

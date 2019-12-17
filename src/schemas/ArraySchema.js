@@ -79,7 +79,7 @@ class ArraySchema extends AnySchema {
       path: null,
       ...state,
     };
-    schema = this._generate(schema, state, opts);
+    schema = this._generate(state, opts, schema);
 
     const errors = [];
     const baseResult = super._validate(value, opts, state, schema);

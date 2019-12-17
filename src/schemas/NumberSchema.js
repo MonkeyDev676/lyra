@@ -1,5 +1,4 @@
 import AnySchema from './AnySchema';
-import Utils from '../Utils';
 
 class NumberSchema extends AnySchema {
   constructor() {
@@ -110,15 +109,6 @@ class NumberSchema extends AnySchema {
       type: 'number.smaller',
       validate: ({ value, params }) => value < params.num,
     });
-  }
-
-  expression(exp) {
-    Utils.assert(
-      typeof exp === 'function',
-      'The parameter exp for number.expression must be a function',
-    );
-
-    return this.addTransformation(exp);
   }
 }
 

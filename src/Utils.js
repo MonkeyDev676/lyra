@@ -25,8 +25,8 @@ class Utils {
     if (!condition) throw new LyraError(message);
   }
 
-  static getDeterminer(value) {
-    return ['a', 'e', 'i', 'o', 'u'].includes(value[0]) ? 'an' : 'a';
+  static getDeterminer(word) {
+    return ['a', 'e', 'i', 'o', 'u'].includes(word[0]) ? 'an' : 'a';
   }
 
   static customizerToMessage(customizer) {
@@ -57,7 +57,7 @@ class Utils {
     )
       return value.toString();
 
-    if (typeof value === 'function') return `${value.constructor.name}() {}`;
+    if (typeof value === 'function') return `${value.name}() {}`;
 
     if (Utils.isRef(value)) return value._display;
 

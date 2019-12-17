@@ -13,12 +13,6 @@ const Discord = {
   Collection: class {},
 };
 
-class JSONProvider {
-  constructor() {
-    this.test = 'a';
-  }
-}
-
 console.log(
   L.object({
     shouldType: L.boolean().default(false),
@@ -32,8 +26,6 @@ console.log(
     }),
     provider: L.function()
       .inherit(Discord.Collection)
-      .default(JSONProvider),
-  }).validate({
-    shouldEditCommandResponses: 'test',
-  }),
+      .default(function Test() {}, { literal: true }),
+  }).validate({}),
 );
