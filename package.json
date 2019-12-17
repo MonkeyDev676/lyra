@@ -4,6 +4,7 @@
   "description": "An unopinionated, simple and lightweight Joi alternative",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "browser": "dist/umd/index.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/botbind/lyra.git"
@@ -17,9 +18,10 @@
   "scripts": {
     "lint": "eslint . --report-unused-disable-directives && echo \"No errors found\"",
     "lint:fix": "eslint . --fix && echo \"No errors found\"",
-    "test": "cross-env NODE_ENV=development nodemon --exec babel-node src/__tests__",
-    "build": "rimraf dist && babel src --out-dir dist && cp src/index.d.ts dist",
-    "tslint": "tslint -c tslint.json 'src/index.d.ts'"
+    "test": "cross-env BABEL_ENV=development nodemon --exec babel-node src/__tests__",
+    "build:cjs": "cross-env BABEL_ENV=cjs babel src --out-dir dist",
+    "build:umd": "cross-env BABEL_ENV=umd  babel src --out-dir dist/umd",
+    "build": "rimraf dist && npm run build:cjs && npm run build:umd && cp src/index.d.ts dist"
   },
   "devDependencies": {
     "@babel/cli": "^7.7.4",
