@@ -1,5 +1,9 @@
 ### Versions
 
+## v0.0.5-beta
+
+Fix the build
+
 ## v0.0.4-beta
 
 ### _17 Dec 2019_
