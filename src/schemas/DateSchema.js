@@ -9,7 +9,7 @@ class DateSchema extends AnySchema {
   }
 
   check(value) {
-    return value instanceof Date;
+    return value instanceof Date && !Number.isNaN(value);
   }
 
   coerce(value, state, context) {
@@ -66,7 +66,7 @@ class DateSchema extends AnySchema {
         if (params.date === 'now') enhancedDate = new Date();
         else enhancedDate = params.date;
 
-        return value <= enhancedDate;
+        return value >= enhancedDate;
       },
     });
   }
