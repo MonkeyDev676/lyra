@@ -18,19 +18,19 @@ class Values {
     return this;
   }
 
-  add(...values) {
-    values.forEach(value => {
-      if (Utils.isRef(value)) this._refs.add(value);
-      else this._values.add(value);
+  add(...items) {
+    items.forEach(item => {
+      if (Utils.isRef(item)) this._refs.add(item);
+      else this._values.add(item);
     });
 
     return this;
   }
 
-  delete(...values) {
-    values.forEach(value => {
-      if (Utils.isRef(value)) this._refs.delete(value);
-      else this._values.delete(value);
+  delete(...items) {
+    items.forEach(item => {
+      if (Utils.isRef(item)) this._refs.delete(item);
+      else this._values.delete(item);
     });
 
     return this;
