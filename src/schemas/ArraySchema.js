@@ -5,7 +5,7 @@ class ArraySchema extends AnySchema {
   constructor(inner) {
     Utils.assert(
       inner === undefined || Utils.isSchema(inner),
-      'The parameter inner for Lyra.ArraySchema must be an instance of Lyra.AnySchema',
+      'The parameter inner for ArraySchema must be an instance of AnySchema',
     );
 
     super('array', {

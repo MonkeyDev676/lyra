@@ -3,11 +3,11 @@ import Utils from './Utils';
 
 class Ref {
   constructor(path) {
-    Utils.assert(typeof path === 'string', 'The parameter path for Lyra.Ref must be a string');
+    Utils.assert(typeof path === 'string', 'The parameter path for Ref must be a string');
 
     path = path.trim();
 
-    Utils.assert(path !== '', 'The parameter path for Lyra.Ref must be a non-empty string');
+    Utils.assert(path !== '', 'The parameter path for Ref must be a non-empty string');
 
     let slice = 1;
 

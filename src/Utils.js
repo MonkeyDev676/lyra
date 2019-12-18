@@ -29,17 +29,6 @@ class Utils {
     return ['a', 'e', 'i', 'o', 'u'].includes(word[0]) ? 'an' : 'a';
   }
 
-  static customizerToMessage(customizer) {
-    Utils.assert(
-      customizer instanceof Error || typeof customizer === 'string',
-      'The parameter customizer for Lyra.Utils.customizerToMessage must be an instance of Error or a string',
-    );
-
-    if (customizer instanceof Error) return customizer.message;
-
-    return customizer;
-  }
-
   static serialize(value) {
     if (value === null) return 'null';
 

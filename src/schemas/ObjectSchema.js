@@ -7,7 +7,7 @@ class ObjectSchema extends AnySchema {
   constructor(inner) {
     Utils.assert(
       inner === undefined || isPlainObject(inner),
-      'The parameter map for Lyra.ObjectSchema must be a plain object',
+      'The parameter inner for ObjectSchema must be a plain object',
     );
 
     super('object', {
@@ -31,7 +31,7 @@ class ObjectSchema extends AnySchema {
 
       Utils.assert(
         schemaEntries.every(([, schema]) => Utils.isSchema(schema)),
-        'The parameter map for Lyra.ObjectSchema must contain only instances of Lyra.AnySchema',
+        'The parameter inner for ObjectSchema must contain only instances of AnySchema',
       );
 
       // Treat {} as null
@@ -136,12 +136,12 @@ class ObjectSchema extends AnySchema {
     );
     Utils.assert(
       peers.every(peer => Utils.isRef(peer)),
-      `The parameter peers for object.${type} must contain only instances of Lyra.Ref`,
+      `The parameter peers for object.${type} must contain only instances of Ref`,
     );
     // Improve consistency
     Utils.assert(
       peers.every(peer => peer._ancestor === 0),
-      `The parameter peers for object.${type} must contain only self referencing references`,
+      `The parameter peers for object.${type} must contain only self references`,
     );
 
     const next = this.clone();

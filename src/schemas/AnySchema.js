@@ -8,15 +8,9 @@ import LyraValidationError from '../errors/LyraValidationError';
 
 class AnySchema {
   constructor(type = 'any', messages = {}) {
-    Utils.assert(
-      typeof type === 'string',
-      'The parameter type for Lyra.AnySchema must be a string',
-    );
+    Utils.assert(typeof type === 'string', 'The parameter type for AnySchema must be a string');
 
-    Utils.assert(
-      isPlainObject(messages),
-      'The parameter messages for Lyra.AnySchema must be an object',
-    );
+    Utils.assert(isPlainObject(messages), 'The parameter messages for AnySchema must be an object');
 
     this._type = type;
     this._flags = {};
@@ -53,7 +47,7 @@ class AnySchema {
   merge(schema) {
     Utils.assert(
       schema === undefined || Utils.isSchema(schema),
-      'The parameter schema must be an instance of Lyra.AnySchema',
+      'The parameter schema must be an instance of AnySchema',
     );
 
     if (schema === undefined) return this;
@@ -243,18 +237,15 @@ class AnySchema {
   }
 
   when(ref, opts) {
-    Utils.assert(
-      Utils.isRef(ref),
-      'The parameter ref for any.when must be an instance of Lyra.Ref',
-    );
+    Utils.assert(Utils.isRef(ref), 'The parameter ref for any.when must be an instance of Ref');
     Utils.assert(isPlainObject(opts), 'The parameter opts for any.when must be an object');
     Utils.assert(
       Utils.isSchema(opts.is),
-      'The option is for any.when must be an instance of Lyra.AnySchema',
+      'The option is for any.when must be an instance of AnySchema',
     );
     Utils.assert(
       Utils.isSchema(opts.then) || Utils.isSchema(opts.else),
-      'The option then or else for any.when must be an instance of Lyra.AnySchema',
+      'The option then or else for any.when must be an instance of AnySchema',
     );
 
     const next = this.clone();
@@ -288,13 +279,15 @@ class AnySchema {
     const next = this.clone();
 
     function wrapper(type, state, context, data) {
-      let message;
+      if (typeof customizer === 'function') {
+        customizer = customizer(type, state, context, data);
+      }
 
-      if (typeof customizer === 'function')
-        message = Utils.customizerToMessage(customizer(type, state, context, data));
-      else message = Utils.customizerToMessage(customizer);
-
-      return new LyraValidationError(message, type, state);
+      return new LyraValidationError(
+        customizer instanceof Error ? customizer.message : customizer,
+        type,
+        state,
+      );
     }
 
     next._flags.errors = wrapper;
