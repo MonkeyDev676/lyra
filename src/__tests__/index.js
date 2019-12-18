@@ -1,31 +1,21 @@
 import L from '..';
 
-/* const schema = L.object({
+const schema = L.object({
   a: L.number(),
   b: L.number(),
   c: L.number(),
 })
-  .xor(L.ref('a'), L.ref('b'), L.ref('c'))
-  .validate({});
-console.log(schema); */
-
-const Discord = {
-  Collection: class {},
-};
+  .and(L.ref('.a'), L.ref('.b'), L.ref('.c'))
+  .min(L.ref('.a'))
+  .validate({
+    a: 1,
+    b: 1,
+    c: 0,
+  });
+console.log(schema);
 
 console.log(
-  L.object({
-    shouldType: L.boolean().default(false),
-    prefix: L.string().default('!'),
-    owners: L.array(L.string()).default([]),
-    shouldEditCommandResponses: L.boolean().default(false),
-    commandMessageLifetime: L.number().when(L.ref('shouldEditCommandResponses'), {
-      is: L.boolean().valid(true),
-      then: L.number().default(180000),
-      else: L.number().default(0),
-    }),
-    provider: L.function()
-      .inherit(Discord.Collection)
-      .default(function Test() {}, { literal: true }),
-  }).validate({}),
+  L.array(L.number().default(2))
+    .min(L.ref('.[0]'))
+    .validate([3, 1, undefined]),
 );

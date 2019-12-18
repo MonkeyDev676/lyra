@@ -44,7 +44,7 @@ class Values {
     }
 
     for (const ref of this._refs) {
-      const resolved = ref.resolve(ancestors, context);
+      const resolved = ref.resolve(value, ancestors, context);
 
       if (isEqual(resolved, value)) return true;
     }

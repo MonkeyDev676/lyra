@@ -57,7 +57,9 @@ class ObjectSchema extends AnySchema {
         try {
           this._sortedKeys = t.array(nodes, edges);
         } catch (err) {
-          throw err;
+          Utils.assert(!err.message.startsWith('Cyclic dependency'), 'Cyclic dependency detected');
+
+          this._sortedKeys = nodes;
         }
       }
     }
@@ -136,6 +138,11 @@ class ObjectSchema extends AnySchema {
       peers.every(peer => Utils.isRef(peer)),
       `The parameter peers for object.${type} must contain only instances of Lyra.Ref`,
     );
+    // Improve consistency
+    Utils.assert(
+      peers.every(peer => peer._ancestor === 0),
+      `The parameter peers for object.${type} must contain only self referencing references`,
+    );
 
     const next = this.clone();
 
@@ -148,9 +155,9 @@ class ObjectSchema extends AnySchema {
   }
 
   and(...peers) {
-    return this._addDependencies('and', peers, (ancestors, context) => {
+    return this._addDependencies('and', peers, (value, ancestors, context) => {
       for (const peer of peers) {
-        if (peer.resolve(ancestors, context) === undefined) return { peers };
+        if (peer.resolve(value, ancestors, context) === undefined) return { peers };
       }
 
       return undefined;
@@ -158,9 +165,9 @@ class ObjectSchema extends AnySchema {
   }
 
   nand(...peers) {
-    return this._addDependencies('nand', peers, (ancestors, context) => {
+    return this._addDependencies('nand', peers, (value, ancestors, context) => {
       for (const peer of peers) {
-        if (peer.resolve(ancestors, context) === undefined) return undefined;
+        if (peer.resolve(value, ancestors, context) === undefined) return undefined;
       }
 
       return { peers };
@@ -168,9 +175,9 @@ class ObjectSchema extends AnySchema {
   }
 
   or(...peers) {
-    return this._addDependencies('or', peers, (ancestors, context) => {
+    return this._addDependencies('or', peers, (value, ancestors, context) => {
       for (const peer of peers) {
-        if (peer.resolve(ancestors, context) !== undefined) return undefined;
+        if (peer.resolve(value, ancestors, context) !== undefined) return undefined;
       }
 
       return { peers };
@@ -178,11 +185,11 @@ class ObjectSchema extends AnySchema {
   }
 
   xor(...peers) {
-    return this._addDependencies('xor', peers, (ancestors, context) => {
+    return this._addDependencies('xor', peers, (value, ancestors, context) => {
       let count = 0;
 
       for (const peer of peers) {
-        if (peer.resolve(ancestors, context) !== undefined) {
+        if (peer.resolve(value, ancestors, context) !== undefined) {
           if (count === 0) count++;
           else return { peers };
         }
@@ -195,11 +202,11 @@ class ObjectSchema extends AnySchema {
   }
 
   oxor(...peers) {
-    return this._addDependencies('oxor', peers, (ancestors, context) => {
+    return this._addDependencies('oxor', peers, (value, ancestors, context) => {
       let count = 0;
 
       for (const peer of peers) {
-        if (peer.resolve(ancestors, context) !== undefined) {
+        if (peer.resolve(value, ancestors, context) !== undefined) {
           if (count === 0) count++;
           else return { peers };
         }
@@ -209,40 +216,19 @@ class ObjectSchema extends AnySchema {
     });
   }
 
-  _validate(value, opts, state = {}, schema) {
-    state = {
-      depth: null,
-      ancestors: [],
-      path: null,
-      ...state,
-    };
-    schema = this._generate(state, opts, schema);
-
+  _validateInner(value, opts, state, schema) {
     const errors = [];
-    const baseResult = super._validate(value, opts, state, schema);
 
-    if (
-      schema._inner === null ||
-      baseResult.errors !== null ||
-      !schema.check(baseResult.value) ||
-      !opts.recursive
-    )
-      return baseResult;
-
-    state.ancestors = [baseResult.value, ...state.ancestors];
-    state.depth = state.depth !== null ? state.depth + 1 : 0;
-
-    const keys = new Set(Object.keys(baseResult.value));
+    const keys = new Set(Object.keys(value));
     const stripKeys = [];
 
     for (const key of schema._sortedKeys) {
       const newPath = state.path === null ? key : `${state.path}.${key}`;
-      const subValue = baseResult.value[key];
       const subSchema = schema._inner[key];
 
       keys.delete(key);
 
-      const result = subSchema._validate(subValue, opts, {
+      const result = subSchema._validate(value[key], opts, {
         ...state,
         path: newPath,
       });
@@ -254,15 +240,15 @@ class ObjectSchema extends AnySchema {
       } else {
         // {a: undefined} -> {a: undefined}
         // {} -> {} (without this condition it would return {a: undefined})
-        if (result.value !== undefined || Object.prototype.hasOwnProperty.call(baseResult, key))
-          baseResult.value[key] = result.value;
+        if (result.value !== undefined || Object.prototype.hasOwnProperty.call(value, key))
+          value[key] = result.value;
 
         if (schema._flags.strip) stripKeys.push(key);
       }
     }
 
     for (const depedency of schema._dependencies) {
-      const data = depedency.validate(state.ancestors, opts.context);
+      const data = depedency.validate(value, state.ancestors, opts.context);
 
       if (data !== undefined) {
         const err = schema.error(depedency.type, state, opts.context, data);
@@ -274,13 +260,13 @@ class ObjectSchema extends AnySchema {
     }
 
     stripKeys.forEach(key => {
-      delete baseResult.value[key];
+      delete value[key];
       keys.delete(key);
     });
 
     if (opts.stripUnknown) {
       keys.forEach(key => {
-        delete baseResult.value[key];
+        delete value[key];
         keys.delete(key);
       });
     }
@@ -303,7 +289,7 @@ class ObjectSchema extends AnySchema {
 
     if (errors.length > 0) return { value: null, errors };
 
-    return { value: baseResult.value, errors: null };
+    return { value, errors: null };
   }
 }
 

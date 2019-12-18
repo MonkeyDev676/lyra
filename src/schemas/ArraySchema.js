@@ -72,33 +72,13 @@ class ArraySchema extends AnySchema {
     return this.transform(value => value.reverse());
   }
 
-  _validate(value, opts, state = {}, schema) {
-    state = {
-      depth: null,
-      ancestors: [],
-      path: null,
-      ...state,
-    };
-    schema = this._generate(state, opts, schema);
-
+  _validateInner(value, opts, state, schema) {
     const errors = [];
-    const baseResult = super._validate(value, opts, state, schema);
 
-    if (
-      schema._inner === null ||
-      baseResult.errors !== null ||
-      !schema.check(baseResult.value) ||
-      !opts.recursive
-    )
-      return baseResult;
-
-    state.ancestors = [baseResult.value, ...state.ancestors];
-    state.depth = state.depth === null ? 0 : state.depth + 1;
-
-    for (let i = 0; i < baseResult.value.length; i++) {
+    for (let i = 0; i < value.length; i++) {
       const newPath = state.path === null ? `[${i}]` : `${state.path}[${i}]`;
 
-      const result = schema._inner._validate(baseResult.value[i], opts, {
+      const result = schema._inner._validate(value[i], opts, {
         ...state,
         path: newPath,
       });
@@ -107,7 +87,7 @@ class ArraySchema extends AnySchema {
         if (opts.abortEarly) return result;
 
         errors.push(...result.errors);
-      } else baseResult.value[i] = result.value;
+      } else value[i] = result.value;
     }
 
     if (errors.length > 0)
@@ -116,7 +96,7 @@ class ArraySchema extends AnySchema {
         errors,
       };
 
-    return { value: baseResult.value, errors: null };
+    return { value, errors: null };
   }
 }
 

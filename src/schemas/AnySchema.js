@@ -81,18 +81,6 @@ class AnySchema {
     });
   }
 
-  _generate(state, opts, schema) {
-    if (schema === undefined) {
-      schema = this;
-
-      schema._conditions.forEach(condition => {
-        schema = schema.merge(condition(state.ancestors, opts));
-      });
-    }
-
-    return schema;
-  }
-
   error(type, state, context, data = {}) {
     Utils.assert(typeof type === 'string', 'The parameter code for any.error must be a string');
     Utils.assert(isPlainObject(state), 'The parameter state for any.error must be an object');
@@ -152,7 +140,7 @@ class AnySchema {
     opts.params = opts.params !== undefined ? opts.params : {};
 
     Object.values(opts.params).forEach(param => {
-      if (Utils.isRef(param.value) && param.value._type === 'value') {
+      if (Utils.isRef(param.value) && param.value._ancestor !== 'context') {
         next._refs.push([param.value._ancestor, param.value._root]);
       }
     });
@@ -271,12 +259,15 @@ class AnySchema {
 
     const next = this.clone();
 
-    if (ref._type === 'value') {
+    if (ref._ancestor !== 'context') {
       next._refs.push([ref._ancestor, ref._root]);
     }
 
-    next._conditions.push((ancestors, validateOpts) => {
-      const result = opts.is.validate(ref.resolve(ancestors, validateOpts.context), validateOpts);
+    next._conditions.push((value, ancestors, validateOpts) => {
+      const result = opts.is.validate(
+        ref.resolve(value, ancestors, validateOpts.context),
+        validateOpts,
+      );
 
       if (result.errors === null) return opts.then;
 
@@ -311,10 +302,12 @@ class AnySchema {
     return next;
   }
 
-  _validate(value, opts, state = {}, schema) {
-    state = { depth: null, ancestors: [], path: null, ...state };
-    schema = this._generate(state, opts, schema);
+  _validate(value, opts, state) {
     value = clone(value);
+
+    const schema = this._conditions.reduce((generated, condition) => {
+      return generated.merge(condition(value, state.ancestors, opts));
+    }, this);
 
     const errors = [];
 
@@ -350,7 +343,7 @@ class AnySchema {
       let defaultValue = schema._default;
 
       if (Utils.isRef(schema._default))
-        defaultValue = schema._default.resolve(state.ancestors, opts.context);
+        defaultValue = schema._default.resolve(value, state.ancestors, opts.context);
 
       return { value: defaultValue, errors: null };
     }
@@ -385,6 +378,19 @@ class AnySchema {
         value,
       );
 
+    if (schema._validateInner !== undefined) {
+      state.ancestors = [value, ...state.ancestors];
+      state.depth++;
+
+      const result = this._validateInner(value, opts, state, schema);
+
+      if (result.errors !== null) {
+        if (opts.abortEarly) return result;
+
+        errors.push(...result.errors);
+      }
+    }
+
     for (const rule of schema._rules) {
       const params = {};
       const rawParams = {};
@@ -398,7 +404,7 @@ class AnySchema {
         let resolved;
 
         if (isRef) {
-          resolved = param.value.resolve(state.ancestors, opts.context);
+          resolved = param.value.resolve(value, state.ancestors, opts.context);
         } else {
           resolved = param.value;
         }
@@ -427,7 +433,7 @@ class AnySchema {
 
         if (!condition) {
           // Developer error
-          Utils.assert(!isRef, `The parameter ${key} of ${rule.type} ${reason}`);
+          Utils.assert(isRef, `The parameter ${key} of ${rule.type} ${reason}`);
 
           err = schema.error('any.ref', state, opts.context, { ref: param.value, reason });
 
@@ -485,7 +491,7 @@ class AnySchema {
       ...opts,
     };
 
-    return this._validate(value, opts);
+    return this._validate(value, opts, { depth: 1, ancestors: [], path: null });
   }
 }
 

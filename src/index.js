@@ -6,6 +6,10 @@ import NumberSchema from './schemas/NumberSchema';
 import ArraySchema from './schemas/ArraySchema';
 import FunctionSchema from './schemas/FunctionSchema';
 import ObjectSchema from './schemas/ObjectSchema';
+import LyraError from './errors/LyraError';
+import LyraValidationError from './errors/LyraValidationError';
+import Values from './Values';
+import Utils from './Utils';
 import Ref from './Ref';
 
 class Lyra {
@@ -46,4 +50,19 @@ class Lyra {
   }
 }
 
+export {
+  AnySchema,
+  BooleanSchema,
+  StringSchema,
+  DateSchema,
+  NumberSchema,
+  ArraySchema,
+  FunctionSchema,
+  ObjectSchema,
+  LyraError,
+  LyraValidationError,
+  Values,
+  Utils,
+  Ref,
+};
 export default Lyra;
