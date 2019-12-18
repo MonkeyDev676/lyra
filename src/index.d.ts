@@ -53,7 +53,7 @@ type Condition = (
   context: LooseObject,
 ) => AnySchema;
 
-type ErrorCustomizerFunction = (
+type ErrorCustomizer = (
   type: string,
   state: State,
   context: LooseObject,
@@ -421,7 +421,7 @@ export abstract class AnySchema<T = any> {
    * Overrides the default validation error with a customizer.
    * @param customizer The error customizer.
    */
-  errors(customizer: string | Error | ErrorCustomizerFunction): this;
+  errors(customizer: string | Error | ErrorCustomizer): this;
 
   /**
    * Validates inner (nested) schemas.
@@ -770,6 +770,45 @@ export class StringSchema extends AnySchema<string> {
    * @param replacement The replacement to the matches.
    */
   replace(pattern: string | RegExp, replacement: string): this;
+}
+
+export class Utils {
+  /**
+   * Checks if a value is an instance of `AnySchema`.
+   * @param value The value to check.
+   */
+  static isSchema(value: unknown): value is AnySchema;
+
+  /**
+   * Checks if a value is an instance of `Ref`.
+   * @param value The value to check.
+   */
+  static isRef(value: unknown): value is Ref;
+
+  /**
+   * Checks if a value is an instance of `Values`.
+   * @param value The value to check.
+   */
+  static isValues(value: unknown): value is Values;
+
+  /**
+   * Throws an error if a condition is not met.
+   * @param condition The condition to check.
+   * @param message The message of the error.
+   */
+  static assert(condition: boolean, message: string): void;
+
+  /**
+   * Gets the determiner of a word.
+   * @param word The word to get the determiner from.
+   */
+  static getDeterminer(word: string): 'an' | 'a';
+
+  /**
+   * Serializes a value.
+   * @param value The value to serialize.
+   */
+  static serialize(value: unknown): string;
 }
 
 export default class Lyra {
