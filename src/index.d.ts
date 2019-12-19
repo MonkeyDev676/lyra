@@ -531,7 +531,7 @@ export class DateSchema extends AnySchema<Date> {
   newer(date: 'now' | Date | Ref<'now' | Date>): this;
 }
 
-export class FunctionSchema<T extends Function> extends AnySchema<T> {
+export class FunctionSchema extends AnySchema<Function> {
   /**
    * The schema that represents the function data type.
    */
@@ -846,7 +846,7 @@ export default class Lyra {
   /**
    * Constructs a schema representing the function data type.
    */
-  static function<T extends Function>(): FunctionSchema<T>;
+  static function(): FunctionSchema;
 
   /**
    * Constructs a schema representing the object data type.
