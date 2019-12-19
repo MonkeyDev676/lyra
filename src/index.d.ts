@@ -27,8 +27,8 @@ type RuleParams<T> = {
   };
 };
 
-interface Rule<T, P extends LooseObject = {}> {
-  params: RuleParams<P>;
+interface Rule<T, P = {}> {
+  params?: RuleParams<P>;
   type: string;
   validate: (args: RuleArgs<T, P>) => boolean;
 }
@@ -355,7 +355,7 @@ export abstract class AnySchema<T = any> {
    * Adds a rule to the schema.
    * @param rule The rule to add.
    */
-  test(rule: Rule<T>): this;
+  test<P = {}>(rule: Rule<T, P>): this;
 
   /**
    * Adds a transformation to schema.
