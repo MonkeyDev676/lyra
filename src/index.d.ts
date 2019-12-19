@@ -82,37 +82,37 @@ interface ValidatorOptions {
   /**
    * Whether to coerce a value before validating.
    */
-  strict: boolean;
+  strict?: boolean;
 
   /**
    * Whether to apply transformations on a value.
    */
-  transform: boolean;
+  transform?: boolean;
 
   /**
    * Whether to stop validating on the first error.
    */
-  abortEarly: boolean;
+  abortEarly?: boolean;
 
   /**
    * Whether to validate inner (nested) schemas.
    */
-  recursive: boolean;
+  recursive?: boolean;
 
   /**
    * Whether to allow a value to have keys that are not specified inside an object schema.
    */
-  allowUnknown: boolean;
+  allowUnknown?: boolean;
 
   /**
    * Whether to strip keys that are not specified inside an object schema.
    */
-  stripUnknown: boolean;
+  stripUnknown?: boolean;
 
   /**
    * Validation context.
    */
-  context: LooseObject;
+  context?: LooseObject;
 }
 
 export class LyraError extends Error {
