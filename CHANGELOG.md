@@ -1,5 +1,9 @@
 ### Versions
 
+## v0.0.9-beta
+
+Completely remove generics in `FunctionSchema`
+
 ## v0.0.8-beta
 
 ### _19 Dec 2019_
