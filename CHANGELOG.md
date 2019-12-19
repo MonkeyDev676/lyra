@@ -1,5 +1,11 @@
 ### Versions
 
+## v0.0.7-beta
+
+### _19 Dec 2019_
+
+Fix type definitions so that all validator options are optional
+
 ## v0.0.6-beta
 
 ### _19 Dec 2019_
