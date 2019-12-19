@@ -304,27 +304,39 @@ class AnySchema {
 
     const errors = [];
 
-    // Order of validation
-    // Valids - invalids - required - coerce - type check - transformations - rules
+    // Valid values
 
     if (schema._valids.size > 0) {
-      if (!schema._valids.has(value, state.ancestors, opts.context))
+      if (schema._valids.has(value, state.ancestors, opts.context)) return { value, errors: null };
+
+      const err = schema.error('any.valid', state, opts.context, { values: schema._valids });
+
+      if (opts.abortEarly)
         return {
           value: null,
-          errors: [schema.error('any.valid', state, opts.context, { values: schema._valids })],
+          errors: [err],
         };
-      return { value, errors: null };
+
+      errors.push(err);
     }
+
+    // Invalid values
 
     if (schema._invalids.size > 0) {
-      if (!schema._valids.has(value, state.ancestors, opts.context))
-        return {
-          value: null,
-          errors: [schema.error('any.invalid', state, opts.context, { values: schema._invalids })],
-        };
+      if (schema._valids.has(value, state.ancestors, opts.context)) {
+        const err = schema.error('any.invalid', state, opts.context, { values: schema._invalids });
 
-      return { value, errors: null };
+        if (opts.abortEarly)
+          return {
+            value: null,
+            errors: [err],
+          };
+
+        errors.push(err);
+      }
     }
+
+    // Required
 
     if (value === undefined) {
       if (schema._flags.presence === 'required')
@@ -341,12 +353,17 @@ class AnySchema {
       return { value: defaultValue, errors: null };
     }
 
+    // Forbidden
+
     if (schema._flags.presence === 'forbidden') {
       return {
         value: null,
         errors: [schema.error('any.forbidden', state, opts.context)],
       };
     }
+
+    // Coerce
+    // Always exit early
 
     if (!opts.strict && schema.coerce !== undefined && value !== null) {
       const coerced = schema.coerce(value, state, opts.context);
@@ -359,17 +376,24 @@ class AnySchema {
         };
     }
 
+    // Base check
+    // Always exit early
+
     if (!schema.check(value))
       return {
         value: null,
         errors: [schema.error(`${schema._type}.base`, state, opts.context)],
       };
 
+    // Transform
+
     if (opts.transform)
       value = schema._transformations.reduce(
         (transformed, transform) => transform(transformed),
         value,
       );
+
+    // Inner schemas
 
     if (schema._validateInner !== undefined) {
       state.ancestors = [value, ...state.ancestors];
@@ -383,6 +407,8 @@ class AnySchema {
         errors.push(...result.errors);
       }
     }
+
+    // Rules
 
     for (const rule of schema._rules) {
       const params = {};
