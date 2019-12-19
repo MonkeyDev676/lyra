@@ -1,6 +1,18 @@
 ### Versions
 
+## v0.0.6-beta
+
+### _19 Dec 2019_
+
+Improved type definitions with comments
+
+Remove root references and fix self references
+
+Fix `Invalid Date` and `date.newer()`
+
 ## v0.0.5-beta
+
+### _17 Dec 2019_
 
 Fix the build
 
