@@ -1,5 +1,11 @@
 ### Versions
 
+## v0.0.8-beta
+
+### _19 Dec 2019_
+
+Remove useless generics
+
 ## v0.0.7-beta
 
 ### _19 Dec 2019_
