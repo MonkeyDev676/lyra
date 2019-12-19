@@ -536,7 +536,7 @@ export class FunctionSchema extends AnySchema<Function> {
    * The schema that represents the function data type.
    */
   constructor();
-  check(value: unknown): value is T;
+  check(value: unknown): value is Function;
 
   /**
    * Specifies that a function must inherit another constructor function.
