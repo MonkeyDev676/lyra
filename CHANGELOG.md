@@ -1,5 +1,9 @@
 ### Versions
 
+## v0.0.10-beta
+
+Fix the problem where `.invalid()` and `.valid()` would stop further errors from being collected when `abortEarly` is specified
+
 ## v0.0.9-beta
 
 Completely remove generics in `FunctionSchema`
