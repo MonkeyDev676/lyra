@@ -72,13 +72,13 @@ class ArraySchema extends AnySchema {
     return this.transform(value => value.reverse());
   }
 
-  _validateInner(value, opts, state, schema) {
+  _validate(value, opts, state, schema) {
     const errors = [];
 
     for (let i = 0; i < value.length; i++) {
       const newPath = state.path === null ? `[${i}]` : `${state.path}[${i}]`;
 
-      const result = schema._terms.inner._validate(value[i], opts, {
+      const result = schema._terms.inner._entry(value[i], opts, {
         ...state,
         path: newPath,
       });

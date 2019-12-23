@@ -34,6 +34,7 @@ class AnySchema {
     this._rules = [];
     this._transformations = [];
     this._terms = {};
+    this._opts = {};
   }
 
   clone() {
@@ -156,6 +157,19 @@ class AnySchema {
     const next = this.clone();
 
     next._transformations.push(transformation);
+
+    return next;
+  }
+
+  opts(opts) {
+    Utils.assert(isPlainObject(opts), 'The parameter opts for any.opts must be an object');
+
+    const next = this.clone();
+
+    next._opts = {
+      ...next._opts,
+      ...opts,
+    };
 
     return next;
   }
@@ -296,12 +310,17 @@ class AnySchema {
     return next;
   }
 
-  _validate(value, opts, state) {
+  _entry(value, opts, state) {
     value = clone(value);
 
     const schema = this._conditions.reduce((generated, condition) => {
       return generated.merge(condition(value, state.ancestors, opts));
     }, this);
+
+    opts = {
+      ...opts,
+      ...schema._opts,
+    };
 
     const errors = [];
 
@@ -369,7 +388,7 @@ class AnySchema {
     if (!opts.strict && schema.coerce !== undefined && value !== null) {
       const coerced = schema.coerce(value, state, opts.context);
 
-      if (coerced.errors !== null) value = coerced.value;
+      if (coerced.errors === null) value = coerced.value;
       else
         return {
           value: null,
@@ -394,13 +413,13 @@ class AnySchema {
         value,
       );
 
-    // Inner schemas
+    // Inherited validate
 
-    if (schema._validateInner !== undefined) {
+    if (schema._validate !== undefined) {
       state.ancestors = [value, ...state.ancestors];
       state.depth++;
 
-      const result = this._validateInner(value, opts, state, schema);
+      const result = schema._validate(value, opts, state, schema);
 
       if (result.errors !== null) {
         if (opts.abortEarly) return result;
@@ -500,6 +519,8 @@ class AnySchema {
   }
 
   validate(value, opts = {}) {
+    Utils.assert(isPlainObject(opts), 'The parameter opts for any.validate must be an object');
+
     opts = {
       strict: true,
       transform: true,
@@ -511,7 +532,7 @@ class AnySchema {
       ...opts,
     };
 
-    return this._validate(value, opts, { depth: 1, ancestors: [], path: null });
+    return this._entry(value, opts, { depth: 1, ancestors: [], path: null });
   }
 }
 

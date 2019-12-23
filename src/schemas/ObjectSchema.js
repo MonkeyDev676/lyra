@@ -24,7 +24,7 @@ class ObjectSchema extends AnySchema {
     });
 
     this._terms.inner = null;
-    this._terms.depedencies = [];
+    this._terms.dependencies = [];
 
     if (inner !== undefined) {
       const schemaEntries = Object.entries(inner);
@@ -212,7 +212,7 @@ class ObjectSchema extends AnySchema {
     });
   }
 
-  _validateInner(value, opts, state, schema) {
+  _validate(value, opts, state, schema) {
     const errors = [];
 
     const keys = new Set(Object.keys(value));
@@ -224,7 +224,7 @@ class ObjectSchema extends AnySchema {
 
       keys.delete(key);
 
-      const result = subSchema._validate(value[key], opts, {
+      const result = subSchema._entry(value[key], opts, {
         ...state,
         path: newPath,
       });
