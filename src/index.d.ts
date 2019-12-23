@@ -479,11 +479,6 @@ export abstract class AnySchema<T = any> {
 
 export class ArraySchema<T> extends AnySchema<T[]> {
   /**
-   * The inner schema.
-   */
-  _inner: AnySchema<T> | null;
-
-  /**
    * The schema that represents the array data type.
    * @param inner The inner schema.
    */
@@ -620,13 +615,6 @@ export class NumberSchema extends AnySchema<number> {
 }
 
 export class ObjectSchema<T extends object> extends AnySchema<T> {
-  /**
-   * The inner schemas.
-   */
-  _inner: SchemaMap<T> | null;
-  _dependencies: 
-  _sortedKeys: string[];
-
   /**
    * The schema that repesents the object data type
    * @param inner The inner schemas.
@@ -841,7 +829,7 @@ export default class Lyra {
   /**
    * Constructs a schema representing any data type.
    */
-  static any<T = any>(): AnySchema<T>;
+  static any(): AnySchema;
 
   /**
    * Constructs a schema representing the boolean data type.
