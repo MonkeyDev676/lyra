@@ -10,7 +10,7 @@ interface State {
   ancestors: object[];
 }
 
-type ExtractedRef = [number, string, string | undefined];
+type ExtractedRef = [number, string];
 
 interface RuleArgs<T, P> {
   value: T;
@@ -77,6 +77,11 @@ type Result<T> =
 type SchemaMap<T> = {
   [K in keyof T]: AnySchema<T[K]>;
 };
+
+interface Dependency {
+  type: string;
+  validate: (value: LooseObject | LooseArray)
+}
 
 interface ValidatorOptions {
   /**
@@ -212,8 +217,10 @@ export class Ref<T = unknown> {
   /**
    * The type of the reference.
    *
-   * - "Value" indicates that the reference points to a value inside the schema. For example: `a.b`, `.a.b`, `..a.b`.
-   * - "Context" indicates that the reference points to a value inside the context. For example: '$a.b'.
+   * - "Value" indicates that the reference points to a value inside the schema. 
+   *   For example: `a.b`, `.a.b`, `..a.b`.
+   * - "Context" indicates that the reference points to a value inside the context. 
+   *   For example: '$a.b'.
    */
   _type: 'value' | 'context';
 
@@ -314,6 +321,16 @@ export abstract class AnySchema<T = any> {
   _transformations: Transformation<T>[];
 
   /**
+   * The terms used when extending `AnySchema`.
+   */
+  _terms: LooseObject;
+
+  /**
+   * The options to override for this specific schema.
+   */
+  _opts: ValidatorOptions;
+
+  /**
    * The schema that represents any data type.
    * @param type The type of the schema.
    */
@@ -349,7 +366,7 @@ export abstract class AnySchema<T = any> {
    * @param context The context of validation.
    * @param data The optional data to populate the message with.
    */
-  error(type: string, state: State, context: LooseObject, data: LooseArray): LyraValidationError;
+  report(type: string, state: State, context: LooseObject, data: LooseArray): LyraValidationError;
 
   /**
    * Adds a rule to the schema.
@@ -362,6 +379,12 @@ export abstract class AnySchema<T = any> {
    * @param transformation The transformation to add.
    */
   transform(transformation: Transformation<T>): this;
+
+  /**
+   * Override options for a specific schema
+   * @param opts The options to override
+   */
+  opts(opts: ValidatorOptions): this;
 
   /**
    * Marks the schema so that it can be strip off after validation.
@@ -421,16 +444,17 @@ export abstract class AnySchema<T = any> {
    * Overrides the default validation error with a customizer.
    * @param customizer The error customizer.
    */
-  errors(customizer: string | Error | ErrorCustomizer): this;
+  error(customizer: string | Error | ErrorCustomizer): this;
 
   /**
-   * Validates inner (nested) schemas.
+   * A method that is invoked right before validation rules are ran. Useful when creating or 
+   * extending schemas.
    * @param value The value to validate.
    * @param opts The validator options.
    * @param state The validation state.
    * @param schema The schema to validate against
    */
-  _validateInner?(
+  _validate?(
     value: unknown,
     opts: ValidatorOptions,
     state: State,
@@ -438,12 +462,12 @@ export abstract class AnySchema<T = any> {
   ): Result<T>;
 
   /**
-   * Validates a value based against a constructed schema.
+   * Like `validate()`, except it has resolved options and state passed to it.
    * @param value The value to validate.
    * @param opts The validator options.
    * @param state The validation state.
    */
-  _validate(value: unknown, opts: ValidatorOptions, state: State): Result<T>;
+  _entry(value: unknown, opts: ValidatorOptions, state: State): Result<T>;
 
   /**
    * Validates a value based against a constructed schema.
@@ -600,6 +624,8 @@ export class ObjectSchema<T extends object> extends AnySchema<T> {
    * The inner schemas.
    */
   _inner: SchemaMap<T> | null;
+  _dependencies: 
+  _sortedKeys: string[];
 
   /**
    * The schema that repesents the object data type
