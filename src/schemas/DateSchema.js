@@ -14,7 +14,7 @@ class DateSchema extends AnySchema {
 
   coerce(value, state, context) {
     if (typeof value !== 'string')
-      return { value: null, errors: [this.error('any.coerce', state, context)] };
+      return { value: null, errors: [this.report('any.coerce', state, context)] };
 
     const timestamp = Date.parse(value);
 
@@ -22,7 +22,7 @@ class DateSchema extends AnySchema {
       return { value: new Date(timestamp), errors: null };
     }
 
-    return { value: null, errors: [this.error('any.coerce', state, context)] };
+    return { value: null, errors: [this.report('any.coerce', state, context)] };
   }
 
   older(date) {

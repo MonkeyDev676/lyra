@@ -69,7 +69,7 @@ class ObjectSchema extends AnySchema {
     try {
       return { value: JSON.parse(value), errors: null };
     } catch (err) {
-      return { value: null, errors: [this.error('any.coerce', state, context)] };
+      return { value: null, errors: [this.report('any.coerce', state, context)] };
     }
   }
 
@@ -247,7 +247,7 @@ class ObjectSchema extends AnySchema {
       const data = depedency.validate(value, state.ancestors, opts.context);
 
       if (data !== undefined) {
-        const err = schema.error(depedency.type, state, opts.context, data);
+        const err = schema.report(depedency.type, state, opts.context, data);
 
         if (opts.abortEarly) return { value: null, errors: [err] };
 
@@ -271,7 +271,7 @@ class ObjectSchema extends AnySchema {
       for (const key of keys) {
         const newPath = state.path === null ? key : `${state.path}.${key}`;
 
-        const err = schema.error('object.unknown', state, opts.context, { path: newPath });
+        const err = schema.report('object.unknown', state, opts.context, { path: newPath });
 
         if (opts.abortEarly)
           return {

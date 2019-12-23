@@ -25,7 +25,7 @@ class ArraySchema extends AnySchema {
     try {
       return { value: JSON.parse(value), errors: null };
     } catch (err) {
-      return { value: null, errors: [this.error('any.coerce', state, context)] };
+      return { value: null, errors: [this.report('any.coerce', state, context)] };
     }
   }
 

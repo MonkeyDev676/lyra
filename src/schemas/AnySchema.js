@@ -76,13 +76,13 @@ class AnySchema {
     });
   }
 
-  error(type, state, context, data = {}) {
-    Utils.assert(typeof type === 'string', 'The parameter code for any.error must be a string');
-    Utils.assert(isPlainObject(state), 'The parameter state for any.error must be an object');
-    Utils.assert(isPlainObject(context), 'The parameter context for any.error myst be an object');
-    Utils.assert(isPlainObject(data), 'The parameter data for any.error must be an object');
+  report(type, state, context, data = {}) {
+    Utils.assert(typeof type === 'string', 'The parameter code for any.report must be a string');
+    Utils.assert(isPlainObject(state), 'The parameter state for any.report must be an object');
+    Utils.assert(isPlainObject(context), 'The parameter context for any.report myst be an object');
+    Utils.assert(isPlainObject(data), 'The parameter data for any.report must be an object');
 
-    if (this._flags.errors !== undefined) return this._flags.errors(type, state, context, data);
+    if (this._flags.error !== undefined) return this._flags.error(type, state, context, data);
 
     let label;
 
@@ -269,12 +269,12 @@ class AnySchema {
     return next;
   }
 
-  errors(customizer) {
+  error(customizer) {
     Utils.assert(
       typeof customizer === 'function' ||
         customizer instanceof Error ||
         typeof customizer === 'string',
-      'The parameter customizer for any.errors must be a string, a function or an instance of Error',
+      'The parameter customizer for any.error must be a string, a function or an instance of Error',
     );
 
     const next = this.clone();
@@ -291,7 +291,7 @@ class AnySchema {
       );
     }
 
-    next._flags.errors = wrapper;
+    next._flags.error = wrapper;
 
     return next;
   }
@@ -310,7 +310,7 @@ class AnySchema {
     if (schema._valids.size > 0) {
       if (schema._valids.has(value, state.ancestors, opts.context)) return { value, errors: null };
 
-      const err = schema.error('any.valid', state, opts.context, { values: schema._valids });
+      const err = schema.report('any.valid', state, opts.context, { values: schema._valids });
 
       if (opts.abortEarly)
         return {
@@ -325,7 +325,7 @@ class AnySchema {
 
     if (schema._invalids.size > 0) {
       if (schema._valids.has(value, state.ancestors, opts.context)) {
-        const err = schema.error('any.invalid', state, opts.context, { values: schema._invalids });
+        const err = schema.report('any.invalid', state, opts.context, { values: schema._invalids });
 
         if (opts.abortEarly)
           return {
@@ -343,7 +343,7 @@ class AnySchema {
       if (schema._flags.presence === 'required')
         return {
           value: null,
-          errors: [schema.error('any.required', state, opts.context)],
+          errors: [schema.report('any.required', state, opts.context)],
         };
 
       let defaultValue = schema._default;
@@ -359,7 +359,7 @@ class AnySchema {
     if (schema._flags.presence === 'forbidden') {
       return {
         value: null,
-        errors: [schema.error('any.forbidden', state, opts.context)],
+        errors: [schema.report('any.forbidden', state, opts.context)],
       };
     }
 
@@ -383,7 +383,7 @@ class AnySchema {
     if (!schema.check(value))
       return {
         value: null,
-        errors: [schema.error(`${schema._type}.base`, state, opts.context)],
+        errors: [schema.report(`${schema._type}.base`, state, opts.context)],
       };
 
     // Transform
@@ -455,7 +455,7 @@ class AnySchema {
           // Developer error
           Utils.assert(isRef, `The parameter ${key} of ${rule.type} ${reason}`);
 
-          err = schema.error('any.ref', state, opts.context, { ref: param.value, reason });
+          err = schema.report('any.ref', state, opts.context, { ref: param.value, reason });
 
           if (opts.abortEarly)
             return {
@@ -482,7 +482,7 @@ class AnySchema {
       const result = rule.validate(ruleOpts);
 
       if (!result) {
-        err = schema.error(rule.type, state, opts.context, rawParams);
+        err = schema.report(rule.type, state, opts.context, rawParams);
 
         if (opts.abortEarly)
           return {

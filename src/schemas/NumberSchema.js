@@ -22,7 +22,7 @@ class NumberSchema extends AnySchema {
 
     if (!Number.isNaN(coerce)) return { value: coerce, errors: null };
 
-    return { value: null, errors: [this.error('any.coerce', state, context)] };
+    return { value: null, errors: [this.report('any.coerce', state, context)] };
   }
 
   integer() {
