@@ -153,7 +153,7 @@ class ObjectSchema extends AnySchema {
   and(...peers) {
     return this._addDependencies('and', peers, (value, ancestors, context) => {
       for (const peer of peers) {
-        if (peer.resolve(value, ancestors, context) === undefined) return { peers };
+        if (peer.resolve(value, ancestors, context) === undefined) return peers;
       }
 
       return undefined;
@@ -166,7 +166,7 @@ class ObjectSchema extends AnySchema {
         if (peer.resolve(value, ancestors, context) === undefined) return undefined;
       }
 
-      return { peers };
+      return peers;
     });
   }
 
@@ -176,7 +176,7 @@ class ObjectSchema extends AnySchema {
         if (peer.resolve(value, ancestors, context) !== undefined) return undefined;
       }
 
-      return { peers };
+      return peers;
     });
   }
 
@@ -187,11 +187,11 @@ class ObjectSchema extends AnySchema {
       for (const peer of peers) {
         if (peer.resolve(value, ancestors, context) !== undefined) {
           if (count === 0) count++;
-          else return { peers };
+          else return peers;
         }
       }
 
-      if (count === 0) return { peers };
+      if (count === 0) return peers;
 
       return undefined;
     });
@@ -204,7 +204,7 @@ class ObjectSchema extends AnySchema {
       for (const peer of peers) {
         if (peer.resolve(value, ancestors, context) !== undefined) {
           if (count === 0) count++;
-          else return { peers };
+          else return peers;
         }
       }
 
@@ -244,10 +244,10 @@ class ObjectSchema extends AnySchema {
     }
 
     for (const depedency of schema._terms.dependencies) {
-      const data = depedency.validate(value, state.ancestors, opts.context);
+      const peers = depedency.validate(value, state.ancestors, opts.context);
 
-      if (data !== undefined) {
-        const err = schema.report(depedency.type, state, opts.context, data);
+      if (peers !== undefined) {
+        const err = schema.report(depedency.type, state, opts.context, { peers });
 
         if (opts.abortEarly) return { value: null, errors: [err] };
 

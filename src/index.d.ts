@@ -80,7 +80,11 @@ type SchemaMap<T> = {
 
 interface Dependency {
   type: string;
-  validate: (value: LooseObject | LooseArray)
+  validate: (
+    value: LooseObject | LooseArray,
+    ancestors: object[],
+    context: LooseObject,
+  ) => { peers: Ref[] };
 }
 
 interface ValidatorOptions {
@@ -217,9 +221,9 @@ export class Ref<T = unknown> {
   /**
    * The type of the reference.
    *
-   * - "Value" indicates that the reference points to a value inside the schema. 
+   * - "Value" indicates that the reference points to a value inside the schema.
    *   For example: `a.b`, `.a.b`, `..a.b`.
-   * - "Context" indicates that the reference points to a value inside the context. 
+   * - "Context" indicates that the reference points to a value inside the context.
    *   For example: '$a.b'.
    */
   _type: 'value' | 'context';
@@ -447,19 +451,14 @@ export abstract class AnySchema<T = any> {
   error(customizer: string | Error | ErrorCustomizer): this;
 
   /**
-   * A method that is invoked right before validation rules are ran. Useful when creating or 
+   * A method that is invoked right before validation rules are ran. Useful when creating or
    * extending schemas.
    * @param value The value to validate.
    * @param opts The validator options.
    * @param state The validation state.
    * @param schema The schema to validate against
    */
-  _validate?(
-    value: unknown,
-    opts: ValidatorOptions,
-    state: State,
-    schema: AnySchema,
-  ): Result<T>;
+  _validate?(value: unknown, opts: ValidatorOptions, state: State, schema: AnySchema): Result<T>;
 
   /**
    * Like `validate()`, except it has resolved options and state passed to it.
