@@ -23,8 +23,8 @@ class ObjectSchema extends AnySchema {
       'object.oxor': '{{label}} must contain one or none of {{peers}}',
     });
 
-    this._inner = null;
-    this._dependencies = [];
+    this._terms.inner = null;
+    this._terms.depedencies = [];
 
     if (inner !== undefined) {
       const schemaEntries = Object.entries(inner);
@@ -36,30 +36,26 @@ class ObjectSchema extends AnySchema {
 
       // Treat {} as null
       if (schemaEntries.length !== 0) {
-        this._inner = inner;
+        this._terms.inner = inner;
 
         const nodes = [];
+        const edges = [];
 
         schemaEntries.forEach(([key, schema]) => {
           nodes.push(key);
 
           schema._refs.forEach(([ancestor, root]) => {
-            if (ancestor > 0) this._refs.push([ancestor - 1, root, key]);
+            if (ancestor - 1 > 0) this._refs.push([ancestor - 1, root]);
+            else edges.push([root, key]);
           });
         });
 
-        const edges = [];
-
-        this._refs.forEach(([ancestor, root, from]) => {
-          if (ancestor === 0) edges.push([root, from]);
-        });
-
         try {
-          this._sortedKeys = t.array(nodes, edges);
+          this._terms.keys = t.array(nodes, edges);
         } catch (err) {
           Utils.assert(!err.message.startsWith('Cyclic dependency'), 'Cyclic dependency detected');
 
-          this._sortedKeys = nodes;
+          this._terms.keys = nodes;
         }
       }
     }
@@ -146,7 +142,7 @@ class ObjectSchema extends AnySchema {
 
     const next = this.clone();
 
-    next._dependencies.push({
+    next._terms.dependencies.push({
       type: `object.${type}`,
       validate,
     });
@@ -222,9 +218,9 @@ class ObjectSchema extends AnySchema {
     const keys = new Set(Object.keys(value));
     const stripKeys = [];
 
-    for (const key of schema._sortedKeys) {
+    for (const key of schema._terms.keys) {
       const newPath = state.path === null ? key : `${state.path}.${key}`;
-      const subSchema = schema._inner[key];
+      const subSchema = schema._terms.inner[key];
 
       keys.delete(key);
 
@@ -247,7 +243,7 @@ class ObjectSchema extends AnySchema {
       }
     }
 
-    for (const depedency of schema._dependencies) {
+    for (const depedency of schema._terms.dependencies) {
       const data = depedency.validate(value, state.ancestors, opts.context);
 
       if (data !== undefined) {

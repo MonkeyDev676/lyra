@@ -30,9 +30,10 @@ class AnySchema {
     this._valids = new Values();
     this._invalids = new Values();
     this._conditions = [];
-    this._refs = []; // [ancestor, root, from]
+    this._refs = []; // [ancestor, root]
     this._rules = [];
     this._transformations = [];
+    this._terms = {};
   }
 
   clone() {
@@ -61,7 +62,7 @@ class AnySchema {
 
     return mergeWith(next, schema, (target, source, key) => {
       // If target is not any and source is any, keep the target type
-      if (target !== 'any' && source === 'any') return target;
+      if (key === '_type' && target !== 'any' && source === 'any') return target;
       // Rules and dependencies and transformations
       if (Array.isArray(target)) return target.concat(source);
 

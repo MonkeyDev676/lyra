@@ -14,7 +14,7 @@ class ArraySchema extends AnySchema {
       'array.max': '{{label}} must have at most {{length}} items',
     });
 
-    this._inner = inner !== undefined ? inner : null;
+    this._terms.inner = inner !== undefined ? inner : null;
   }
 
   check(value) {
@@ -78,7 +78,7 @@ class ArraySchema extends AnySchema {
     for (let i = 0; i < value.length; i++) {
       const newPath = state.path === null ? `[${i}]` : `${state.path}[${i}]`;
 
-      const result = schema._inner._validate(value[i], opts, {
+      const result = schema._terms.inner._validate(value[i], opts, {
         ...state,
         path: newPath,
       });
