@@ -1,7 +1,7 @@
-import t from 'toposort';
-import isPlainObject from 'lodash/isPlainObject';
-import AnySchema from './AnySchema';
-import Utils from '../Utils';
+const t = require('toposort');
+const isPlainObject = require('lodash/isPlainObject');
+const AnySchema = require('./AnySchema');
+const Utils = require('../Utils');
 
 class ObjectSchema extends AnySchema {
   constructor(inner) {
@@ -289,4 +289,4 @@ class ObjectSchema extends AnySchema {
   }
 }
 
-export default ObjectSchema;
+module.exports = ObjectSchema;

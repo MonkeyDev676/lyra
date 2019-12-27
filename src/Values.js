@@ -1,5 +1,5 @@
-import isEqual from 'lodash/isEqual';
-import Utils from './Utils';
+const isEqual = require('lodash/isEqual');
+const Utils = require('./Utils');
 
 class Values {
   constructor() {
@@ -59,4 +59,4 @@ class Values {
 
 Values.prototype.__LYRA_VALUES__ = true;
 
-export default Values;
+module.exports = Values;

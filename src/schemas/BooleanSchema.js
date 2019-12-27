@@ -1,4 +1,4 @@
-import AnySchema from './AnySchema';
+const AnySchema = require('./AnySchema');
 
 const truthyValues = ['true', '1', '+', 'on', 'enable', 'enabled', 't', 'yes', 'y', 1, true];
 
@@ -38,4 +38,4 @@ class BooleanSchema extends AnySchema {
   }
 }
 
-export default BooleanSchema;
+module.exports = BooleanSchema;

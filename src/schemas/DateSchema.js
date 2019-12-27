@@ -1,4 +1,4 @@
-import AnySchema from './AnySchema';
+const AnySchema = require('./AnySchema');
 
 class DateSchema extends AnySchema {
   constructor() {
@@ -72,4 +72,4 @@ class DateSchema extends AnySchema {
   }
 }
 
-export default DateSchema;
+module.exports = DateSchema;

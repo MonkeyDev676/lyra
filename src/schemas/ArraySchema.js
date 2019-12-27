@@ -1,5 +1,5 @@
-import AnySchema from './AnySchema';
-import Utils from '../Utils';
+const AnySchema = require('./AnySchema');
+const Utils = require('../Utils');
 
 class ArraySchema extends AnySchema {
   constructor(inner) {
@@ -100,4 +100,4 @@ class ArraySchema extends AnySchema {
   }
 }
 
-export default ArraySchema;
+module.exports = ArraySchema;

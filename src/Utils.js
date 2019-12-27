@@ -1,5 +1,5 @@
-import isPlainObject from 'lodash/isPlainObject';
-import LyraError from './errors/LyraError';
+const isPlainObject = require('lodash/isPlainObject');
+const LyraError = require('./errors/LyraError');
 
 function serializeArrayLike(value) {
   return `${value.constructor.name}(${value.length}) [ ${value
@@ -92,4 +92,4 @@ class Utils {
   }
 }
 
-export default Utils;
+module.exports = Utils;

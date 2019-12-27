@@ -12,4 +12,4 @@ class LyraValidationError extends Error {
   }
 }
 
-export default LyraValidationError;
+module.exports = LyraValidationError;

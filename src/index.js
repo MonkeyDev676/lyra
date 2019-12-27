@@ -1,56 +1,54 @@
-import AnySchema from './schemas/AnySchema';
-import BooleanSchema from './schemas/BooleanSchema';
-import StringSchema from './schemas/StringSchema';
-import DateSchema from './schemas/DateSchema';
-import NumberSchema from './schemas/NumberSchema';
-import ArraySchema from './schemas/ArraySchema';
-import FunctionSchema from './schemas/FunctionSchema';
-import ObjectSchema from './schemas/ObjectSchema';
-import LyraError from './errors/LyraError';
-import LyraValidationError from './errors/LyraValidationError';
-import Values from './Values';
-import Utils from './Utils';
-import Ref from './Ref';
+const AnySchema = require('./schemas/AnySchema');
+const BooleanSchema = require('./schemas/BooleanSchema');
+const StringSchema = require('./schemas/StringSchema');
+const DateSchema = require('./schemas/DateSchema');
+const NumberSchema = require('./schemas/NumberSchema');
+const ArraySchema = require('./schemas/ArraySchema');
+const FunctionSchema = require('./schemas/FunctionSchema');
+const ObjectSchema = require('./schemas/ObjectSchema');
+const LyraError = require('./errors/LyraError');
+const LyraValidationError = require('./errors/LyraValidationError');
+const Values = require('./Values');
+const Utils = require('./Utils');
+const Ref = require('./Ref');
 
-class Lyra {
-  static any() {
+module.exports = {
+  any() {
     return new AnySchema();
-  }
+  },
 
-  static boolean() {
+  boolean() {
     return new BooleanSchema();
-  }
+  },
 
-  static string() {
+  string() {
     return new StringSchema();
-  }
+  },
 
-  static date() {
+  date() {
     return new DateSchema();
-  }
+  },
 
-  static number() {
+  number() {
     return new NumberSchema();
-  }
+  },
 
-  static array(inner) {
+  array(inner) {
     return new ArraySchema(inner);
-  }
+  },
 
-  static function() {
+  function() {
     return new FunctionSchema();
-  }
+  },
 
-  static object(inner) {
+  object(inner) {
     return new ObjectSchema(inner);
-  }
+  },
 
-  static ref(path) {
+  ref(path) {
     return new Ref(path);
-  }
-}
+  },
 
-export {
   AnySchema,
   BooleanSchema,
   StringSchema,
@@ -65,4 +63,3 @@ export {
   Utils,
   Ref,
 };
-export default Lyra;

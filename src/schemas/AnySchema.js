@@ -1,10 +1,10 @@
-import isPlainObject from 'lodash/isPlainObject';
-import cloneDeepWith from 'lodash/cloneDeepWith';
-import clone from 'lodash/clone';
-import mergeWith from 'lodash/mergeWith';
-import Values from '../Values';
-import Utils from '../Utils';
-import LyraValidationError from '../errors/LyraValidationError';
+const isPlainObject = require('lodash/isPlainObject');
+const cloneDeepWith = require('lodash/cloneDeepWith');
+const clone = require('lodash/clone');
+const mergeWith = require('lodash/mergeWith');
+const Values = require('../Values');
+const Utils = require('../Utils');
+const LyraValidationError = require('../errors/LyraValidationError');
 
 class AnySchema {
   constructor(type = 'any', messages = {}) {
@@ -538,4 +538,4 @@ class AnySchema {
 
 AnySchema.prototype.__LYRA_SCHEMA__ = true;
 
-export default AnySchema;
+module.exports = AnySchema;

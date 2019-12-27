@@ -1,5 +1,5 @@
-import get from 'lodash/get';
-import Utils from './Utils';
+const get = require('lodash/get');
+const Utils = require('./Utils');
 
 class Ref {
   constructor(path) {
@@ -55,4 +55,4 @@ class Ref {
 
 Ref.prototype.__LYRA_REF__ = true;
 
-export default Ref;
+module.exports = Ref;

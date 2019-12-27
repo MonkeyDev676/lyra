@@ -6,4 +6,4 @@ class LyraError extends Error {
   }
 }
 
-export default LyraError;
+module.exports = LyraError;

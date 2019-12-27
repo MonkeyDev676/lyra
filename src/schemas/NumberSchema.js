@@ -1,4 +1,4 @@
-import AnySchema from './AnySchema';
+const AnySchema = require('./AnySchema');
 
 class NumberSchema extends AnySchema {
   constructor() {
@@ -112,4 +112,4 @@ class NumberSchema extends AnySchema {
   }
 }
 
-export default NumberSchema;
+module.exports = NumberSchema;
