@@ -5,6 +5,7 @@ const isPlainObject = require('@botbind/dust/src/isPlainObject');
 const compare = require('@botbind/dust/src/compare');
 const AnySchema = require('./AnySchema');
 const Ref = require('../Ref');
+const _isNumber = require('../internals/_isNumber');
 
 function _dependency(schema, peers, type, validate) {
   assert(peers.length > 0, `The parameter peers for object.${type} must have at least one item`);
@@ -189,9 +190,7 @@ const ObjectSchema = AnySchema.define({
       params: [
         {
           name: 'length',
-          assert(resolved) {
-            return typeof resolved === 'number';
-          },
+          assert: _isNumber,
           reason: 'must be a number',
         },
       ],

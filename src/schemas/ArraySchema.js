@@ -2,6 +2,7 @@ const assert = require('@botbind/dust/src/assert');
 const clone = require('@botbind/dust/src/clone');
 const compare = require('@botbind/dust/src/compare');
 const AnySchema = require('./AnySchema');
+const _isNumber = require('../internals/_isNumber');
 
 const ArraySchema = AnySchema.define({
   type: 'array',
@@ -79,9 +80,7 @@ const ArraySchema = AnySchema.define({
       params: [
         {
           name: 'length',
-          assert(resolved) {
-            return typeof resolved === 'number';
-          },
+          assert: _isNumber,
           reason: 'must be a number',
         },
       ],
