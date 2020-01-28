@@ -14,10 +14,13 @@ module.exports = {
   },
   rules: {
     'prefer-destructuring': 'off',
+    'no-use-before-define': 'off',
     'no-underscore-dangle': 'off',
     'no-param-reassign': 'off',
     'no-continue': 'off',
     'no-plusplus': 'off',
+    'no-new-wrappers': 'off',
+    'consistent-return': 'off',
     'class-methods-use-this': 'off',
     'no-dupe-class-members': 'off', // Allows methods overloading
     'no-console': 'off',

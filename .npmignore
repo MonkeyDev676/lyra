@@ -1,11 +1,10 @@
 .vscode
-src
-
 .editorconfig
 .env
 .eslintcache
 .eslintignore
 .eslintrc.js
 .prettierrc.js
-babel.config.js
+__tests__
+jest.config.js
 tsconfig.json

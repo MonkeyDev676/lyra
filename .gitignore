@@ -2,4 +2,3 @@ node_modules
 .eslintcache
 .DS_STORE
 .env
-dist
