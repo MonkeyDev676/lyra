@@ -53,7 +53,7 @@ const StringSchema = AnySchema.define({
         .join('');
 
     if (schema.$flags.replace !== null) {
-      const [pattern, replacement] = schema._flags.replace;
+      const [pattern, replacement] = schema.$flags.replace;
 
       value = value.replace(pattern, replacement);
     }

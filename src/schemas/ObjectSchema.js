@@ -67,18 +67,18 @@ const ObjectSchema = AnySchema.define({
     value = clone(value);
     state.dive(value);
 
-    for (const [key, subSchema] of schema._flags.inner) {
+    for (const [key, subSchema] of schema.$flags.inner) {
       const path = state.path === null ? key : `${state.path}.${key}`;
 
       keys.delete(key);
 
-      const result = subSchema._validate(value[key], opts, state.updatePath(path));
+      const result = subSchema.$validate(value[key], opts, state.updatePath(path));
 
       if (result.errors !== null) {
         if (opts.abortEarly) return result;
 
         errors.push(...result.errors);
-      } else if (subSchema._flags.strip) {
+      } else if (subSchema.$flags.strip) {
         delete value[key];
       } else if (result.value !== undefined || Object.prototype.hasOwnProperty.call(value, key)) {
         // {a: undefined} -> {a: undefined}
@@ -87,11 +87,11 @@ const ObjectSchema = AnySchema.define({
       }
     }
 
-    for (const dependency of schema._flags.dependencies) {
+    for (const dependency of schema.$flags.dependencies) {
       const peers = dependency.validate(value, state.ancestors, opts.context);
 
       if (peers !== undefined) {
-        const err = schema._createError(`object.${dependency.type}`, state, opts.context, {
+        const err = helpers.createError(`object.${dependency.type}`, {
           peers,
         });
 
@@ -117,7 +117,7 @@ const ObjectSchema = AnySchema.define({
       for (const key of keys) {
         const path = state.path === null ? key : `${state.path}.${key}`;
 
-        const err = schema._createError('object.unknown', state, opts.context, { path });
+        const err = helpers.createError('object.unknown', { path });
 
         if (opts.abortEarly)
           return {
