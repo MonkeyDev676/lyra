@@ -5,35 +5,9 @@ const merge = require('@botbind/dust/src/merge');
 const serialize = require('@botbind/dust/src/serialize');
 const get = require('@botbind/dust/src/get');
 const Ref = require('../Ref');
+const State = require('../State');
 const Values = require('../Values');
 const ValidationError = require('../ValidationError');
-
-class _State {
-  constructor() {
-    this.ancestors = [];
-    this.depth = 1;
-    this.path = null;
-  }
-
-  static isValid(value) {
-    return value != null && !!value.__STATE__;
-  }
-
-  dive(ancestor) {
-    this.ancestors.push(ancestor);
-    this.depth++;
-
-    return this;
-  }
-
-  updatePath(path) {
-    this.path = path;
-
-    return this;
-  }
-}
-
-Object.defineProperty(_State.prototype, '__STATE__', { value: true });
 
 function _attachMethod(value, methodName, method) {
   Object.defineProperty(value, methodName, {
@@ -141,7 +115,7 @@ class AnySchema {
       'The parameter code for AnySchema.$createError must be a string',
     );
     assert(
-      _State.isValid(state),
+      State.isValid(state),
       'The parameter state for AnySchema.$createError must be validation state',
     );
     assert(
@@ -720,7 +694,7 @@ class AnySchema {
       ...opts,
     };
 
-    return this.$validate(value, opts, new _State());
+    return this.$validate(value, opts, new State());
   }
 }
 
