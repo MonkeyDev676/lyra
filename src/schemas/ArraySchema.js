@@ -1,87 +1,47 @@
+const assert = require('@botbind/dust/src/assert');
+const clone = require('@botbind/dust/src/clone');
+const compare = require('@botbind/dust/src/compare');
 const AnySchema = require('./AnySchema');
-const Utils = require('../Utils');
 
-class ArraySchema extends AnySchema {
-  constructor(inner) {
-    Utils.assert(
-      inner === undefined || Utils.isSchema(inner),
-      'The parameter inner for ArraySchema must be an instance of AnySchema',
-    );
+const ArraySchema = AnySchema.define({
+  type: 'array',
+  flags: {
+    inner: null,
+    reverse: false,
+  },
+  messages: {
+    'array.base': '{label} must be an array',
+    'array.coerce': '{label} cannot be coerced to an array',
+    'array.length': '{label} must have {length} items',
+    'array.min': '{label} must have at least {length} items',
+    'array.max': '{label} must have at most {length} items',
+  },
 
-    super('array', {
-      'array.length': '{{label}} must have {{length}} items',
-      'array.min': '{{label}} must have at least {{length}} items',
-      'array.max': '{{label}} must have at most {{length}} items',
-    });
-
-    this._terms.inner = inner !== undefined ? inner : null;
-  }
-
-  check(value) {
-    return Array.isArray(value);
-  }
-
-  coerce(value, state, context) {
+  coerce({ value, helpers }) {
     try {
       return { value: JSON.parse(value), errors: null };
     } catch (err) {
-      return { value: null, errors: [this.report('any.coerce', state, context)] };
+      return { value: null, errors: [helpers.createError('array.coerce')] };
     }
-  }
+  },
 
-  length(length) {
-    return this.test({
-      params: {
-        length: {
-          value: length,
-          assert: 'number',
-        },
-      },
-      type: 'array.length',
-      validate: ({ value, params }) => value.length === params.length,
-    });
-  }
+  transform({ value, schema }) {
+    if (schema.$flags.reverse) value = value.reverse();
 
-  min(length) {
-    return this.test({
-      params: {
-        length: {
-          value: length,
-          assert: 'number',
-        },
-      },
-      type: 'array.min',
-      validate: ({ value, params }) => value.length >= params.length,
-    });
-  }
+    return value;
+  },
 
-  max(length) {
-    return this.test({
-      params: {
-        length: {
-          value: length,
-          assert: 'number',
-        },
-      },
-      type: 'array.max',
-      validate: ({ value, params }) => value.length <= params.length,
-    });
-  }
+  validate({ value, helpers, state, schema, opts }) {
+    if (!Array.isArray(value)) return { value: null, errors: [helpers.createError('array.base')] };
 
-  reverse() {
-    return this.transform(value => value.reverse());
-  }
-
-  _validate(value, opts, state, schema) {
     const errors = [];
 
-    for (let i = 0; i < value.length; i++) {
-      const newPath = state.path === null ? `[${i}]` : `${state.path}[${i}]`;
+    value = clone(value, { recursive: false });
+    state.dive(value);
 
-      const result = schema._terms.inner._entry(value[i], opts, {
-        ...state,
-        path: newPath,
-      });
+    for (let i = 0; i < value.length; i++) {
+      const path = state.path === null ? `[${i}]` : `${state.path}[${i}]`;
+      const result = schema.$flags.inner.$validate(value[i], opts, state.updatePath(path));
 
       if (result.errors !== null) {
         if (opts.abortEarly) return result;
@@ -97,7 +57,72 @@ class ArraySchema extends AnySchema {
       };
 
     return { value, errors: null };
-  }
-}
+  },
+
+  rules: {
+    of: {
+      method(inner) {
+        assert(
+          this.$isValid(inner),
+          'The parameter inner for array.of must be an instance of AnySchema',
+        );
+
+        return this.$setFlag('inner', inner);
+      },
+    },
+
+    compare: {
+      method: false,
+      validate({ value, params }) {
+        return compare(value.length, params.length, params.operator);
+      },
+      params: [
+        {
+          name: 'length',
+          assert(resolved) {
+            return typeof resolved === 'number';
+          },
+          reason: 'must be a number',
+        },
+      ],
+    },
+
+    length: {
+      method(length) {
+        return this.$addRule({
+          name: 'length',
+          method: 'compare',
+          params: { length, operator: '=' },
+        });
+      },
+    },
+
+    min: {
+      method(length) {
+        return this.$addRule({
+          name: 'min',
+          method: 'compare',
+          params: { length, operator: '>=' },
+        });
+      },
+    },
+
+    max: {
+      method(length) {
+        return this.$addRule({
+          name: 'max',
+          method: 'compare',
+          params: { length, operator: '<=' },
+        });
+      },
+    },
+
+    reverse: {
+      method() {
+        return this.$setFlag('reverse', true);
+      },
+    },
+  },
+});
 
 module.exports = ArraySchema;

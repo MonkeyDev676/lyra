@@ -1,28 +1,38 @@
 const AnySchema = require('./AnySchema');
 
-class FunctionSchema extends AnySchema {
-  constructor() {
-    super('function', {
-      'function.inherit': '{{label}} must inherit {{ctor}}',
-    });
-  }
+const FunctionSchema = AnySchema.define({
+  type: 'function',
+  messages: {
+    'function.base': '{label} must be a function',
+    'function.inherit': '{label} must inherit {ctor}',
+  },
 
-  check(value) {
-    return typeof value === 'function';
-  }
+  validate({ value, helpers }) {
+    if (typeof value !== 'function')
+      return { value: null, errors: [helpers.createError('function.base')] };
 
-  inherit(ctor) {
-    return this.test({
-      params: {
-        ctor: {
-          value: ctor,
-          assert: 'function',
-        },
+    return { value, errors: null };
+  },
+
+  rules: {
+    inherit: {
+      method(Ctor) {
+        return this.$addRule({ name: 'inherit', params: { Ctor } });
       },
-      type: 'function.inherit',
-      validate: ({ value, params }) => value.prototype instanceof params.ctor,
-    });
-  }
-}
+      validate({ value, params }) {
+        return value.prototype instanceof params.Ctor;
+      },
+      params: [
+        {
+          name: 'Ctor',
+          assert(resolved) {
+            return typeof resolved === 'function';
+          },
+          reason: 'must be a function',
+        },
+      ],
+    },
+  },
+});
 
 module.exports = FunctionSchema;

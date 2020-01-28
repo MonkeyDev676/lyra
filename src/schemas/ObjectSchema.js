@@ -1,253 +1,98 @@
-const t = require('toposort');
-const isPlainObject = require('lodash/isPlainObject');
+const Constellation = require('@botbind/constellation');
+const assert = require('@botbind/dust/src/assert');
+const clone = require('@botbind/dust/src/clone');
+const isPlainObject = require('@botbind/dust/src/isPlainObject');
+const compare = require('@botbind/dust/src/compare');
 const AnySchema = require('./AnySchema');
-const Utils = require('../Utils');
+const Ref = require('../Ref');
 
-class ObjectSchema extends AnySchema {
-  constructor(inner) {
-    Utils.assert(
-      inner === undefined || isPlainObject(inner),
-      'The parameter inner for ObjectSchema must be a plain object',
-    );
+function _dependency(schema, peers, type, validate) {
+  assert(peers.length > 0, `The parameter peers for object.${type} must have at least one item`);
+  assert(
+    peers.every(peer => Ref.isRef(peer)),
+    `The parameter peers for object.${type} must contain only instances of Ref`,
+  );
+  // Improve consistency
+  assert(
+    peers.every(peer => peer._ancestor === 0),
+    `The parameter peers for object.${type} must contain only self references`,
+  );
 
-    super('object', {
-      'object.unknown': '{{path}} is not allowed',
-      'object.length': '{{label}} must have {{length}} entries',
-      'object.min': '{{label}} must have at least {{length}} entries',
-      'object.max': '{{label}} must have at most {{length}} entries',
-      'object.instance': '{{label}} must be an instance of {{ctor}}',
-      'object.and': '{{label}} must contain all of {{peers}}',
-      'object.nand': '{{label}} must not contain all of {{peers}}',
-      'object.or': '{{label}} must contain at least one of {{peers}}',
-      'object.xor': '{{label}} must contain one of {{peers}}',
-      'object.oxor': '{{label}} must contain one or none of {{peers}}',
-    });
+  return schema.$setFlag('dependecies', next =>
+    next.$flags.dependencies.push({
+      type,
+      validate,
+    }),
+  );
+}
 
-    this._terms.inner = null;
-    this._terms.dependencies = [];
+const ObjectSchema = AnySchema.define({
+  type: 'object',
+  flags: {
+    inner: [],
+    dependencies: [],
+  },
+  messages: {
+    'object.base': '{label} must be an object',
+    'object.coerce': '{label} cannot be coerced to an object',
+    'object.unknown': '{path} is not allowed',
+    'object.length': '{label} must have {length} entries',
+    'object.min': '{label} must have at least {length} entries',
+    'object.max': '{label} must have at most {length} entries',
+    'object.instance': '{label} must be an instance of {ctor}',
+    'object.and': '{label} must contain all of {peers}',
+    'object.nand': '{label} must not contain all of {peers}',
+    'object.or': '{label} must contain at least one of {peers}',
+    'object.xor': '{label} must contain one of {peers}',
+    'object.oxor': '{label} must contain one or none of {peers}',
+  },
 
-    if (inner !== undefined) {
-      const schemaEntries = Object.entries(inner);
-
-      Utils.assert(
-        schemaEntries.every(([, schema]) => Utils.isSchema(schema)),
-        'The parameter inner for ObjectSchema must contain only instances of AnySchema',
-      );
-
-      // Treat {} as null
-      if (schemaEntries.length !== 0) {
-        this._terms.inner = inner;
-
-        const nodes = [];
-        const edges = [];
-
-        schemaEntries.forEach(([key, schema]) => {
-          nodes.push(key);
-
-          schema._refs.forEach(([ancestor, root]) => {
-            if (ancestor - 1 > 0) this._refs.push([ancestor - 1, root]);
-            else edges.push([root, key]);
-          });
-        });
-
-        try {
-          this._terms.keys = t.array(nodes, edges);
-        } catch (err) {
-          Utils.assert(!err.message.startsWith('Cyclic dependency'), 'Cyclic dependency detected');
-
-          this._terms.keys = nodes;
-        }
-      }
-    }
-  }
-
-  check(value) {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
-  }
-
-  coerce(value, state, context) {
+  coerce({ value, helpers }) {
     try {
       return { value: JSON.parse(value), errors: null };
     } catch (err) {
-      return { value: null, errors: [this.report('any.coerce', state, context)] };
+      return { value: null, errors: [helpers.createError('object.coerce')] };
     }
-  }
+  },
 
-  length(length) {
-    return this.test({
-      params: {
-        length: {
-          value: length,
-          assert: 'number',
-        },
-      },
-      type: 'object.length',
-      validate: ({ value, params }) => Object.keys(value).length === params.length,
-    });
-  }
+  validate({ value, helpers, schema, state, opts }) {
+    if (value === null || typeof value === 'object' || Array.isArray(value))
+      return { value: null, errors: [helpers.createError('object.base')] };
 
-  min(length) {
-    return this.test({
-      params: {
-        length: {
-          value: length,
-          assert: 'number',
-        },
-      },
-      type: 'object.min',
-      validate: ({ value, params }) => Object.keys(value).length >= params.length,
-    });
-  }
-
-  max(length) {
-    return this.test({
-      params: {
-        length: {
-          value: length,
-          assert: 'number',
-        },
-      },
-      type: 'object.max',
-      validate: ({ value, params }) => Object.keys(value).length <= params.length,
-    });
-  }
-
-  instance(ctor) {
-    return this.test({
-      params: {
-        ctor: {
-          value: ctor,
-          assert: 'function',
-        },
-      },
-      type: 'object.instance',
-      validate: ({ value, params }) => value instanceof params.ctor,
-    });
-  }
-
-  _addDependencies(type, peers, validate) {
-    Utils.assert(
-      peers.length > 0,
-      `The parameter peers for object.${type} must have at least one item`,
-    );
-    Utils.assert(
-      peers.every(peer => Utils.isRef(peer)),
-      `The parameter peers for object.${type} must contain only instances of Ref`,
-    );
-    // Improve consistency
-    Utils.assert(
-      peers.every(peer => peer._ancestor === 0),
-      `The parameter peers for object.${type} must contain only self references`,
-    );
-
-    const next = this.clone();
-
-    next._terms.dependencies.push({
-      type: `object.${type}`,
-      validate,
-    });
-
-    return next;
-  }
-
-  and(...peers) {
-    return this._addDependencies('and', peers, (value, ancestors, context) => {
-      for (const peer of peers) {
-        if (peer.resolve(value, ancestors, context) === undefined) return peers;
-      }
-
-      return undefined;
-    });
-  }
-
-  nand(...peers) {
-    return this._addDependencies('nand', peers, (value, ancestors, context) => {
-      for (const peer of peers) {
-        if (peer.resolve(value, ancestors, context) === undefined) return undefined;
-      }
-
-      return peers;
-    });
-  }
-
-  or(...peers) {
-    return this._addDependencies('or', peers, (value, ancestors, context) => {
-      for (const peer of peers) {
-        if (peer.resolve(value, ancestors, context) !== undefined) return undefined;
-      }
-
-      return peers;
-    });
-  }
-
-  xor(...peers) {
-    return this._addDependencies('xor', peers, (value, ancestors, context) => {
-      let count = 0;
-
-      for (const peer of peers) {
-        if (peer.resolve(value, ancestors, context) !== undefined) {
-          if (count === 0) count++;
-          else return peers;
-        }
-      }
-
-      if (count === 0) return peers;
-
-      return undefined;
-    });
-  }
-
-  oxor(...peers) {
-    return this._addDependencies('oxor', peers, (value, ancestors, context) => {
-      let count = 0;
-
-      for (const peer of peers) {
-        if (peer.resolve(value, ancestors, context) !== undefined) {
-          if (count === 0) count++;
-          else return peers;
-        }
-      }
-
-      return undefined;
-    });
-  }
-
-  _validate(value, opts, state, schema) {
     const errors = [];
-
+    //const stripKeys = [];
     const keys = new Set(Object.keys(value));
-    const stripKeys = [];
 
-    for (const key of schema._terms.keys) {
-      const newPath = state.path === null ? key : `${state.path}.${key}`;
-      const subSchema = schema._terms.inner[key];
+    value = clone(value);
+    state.dive(value);
+
+    for (const [key, subSchema] of schema._flags.inner) {
+      const path = state.path === null ? key : `${state.path}.${key}`;
 
       keys.delete(key);
 
-      const result = subSchema._entry(value[key], opts, {
-        ...state,
-        path: newPath,
-      });
+      const result = subSchema._validate(value[key], opts, state.updatePath(path));
 
       if (result.errors !== null) {
         if (opts.abortEarly) return result;
 
         errors.push(...result.errors);
-      } else {
+      } else if (subSchema._flags.strip) {
+        delete value[key];
+      } else if (result.value !== undefined || Object.prototype.hasOwnProperty.call(value, key)) {
         // {a: undefined} -> {a: undefined}
         // {} -> {} (without this condition it would return {a: undefined})
-        if (result.value !== undefined || Object.prototype.hasOwnProperty.call(value, key))
-          value[key] = result.value;
-
-        if (schema._flags.strip) stripKeys.push(key);
+        value[key] = result.value;
       }
     }
 
-    for (const depedency of schema._terms.dependencies) {
-      const peers = depedency.validate(value, state.ancestors, opts.context);
+    for (const dependency of schema._flags.dependencies) {
+      const peers = dependency.validate(value, state.ancestors, opts.context);
 
       if (peers !== undefined) {
-        const err = schema.report(depedency.type, state, opts.context, { peers });
+        const err = schema._createError(`object.${dependency.type}`, state, opts.context, {
+          peers,
+        });
 
         if (opts.abortEarly) return { value: null, errors: [err] };
 
@@ -255,10 +100,10 @@ class ObjectSchema extends AnySchema {
       }
     }
 
-    stripKeys.forEach(key => {
+    /*stripKeys.forEach(key => {
       delete value[key];
       keys.delete(key);
-    });
+    });*/
 
     if (opts.stripUnknown) {
       keys.forEach(key => {
@@ -269,9 +114,9 @@ class ObjectSchema extends AnySchema {
 
     if (!opts.allowUnknown) {
       for (const key of keys) {
-        const newPath = state.path === null ? key : `${state.path}.${key}`;
+        const path = state.path === null ? key : `${state.path}.${key}`;
 
-        const err = schema.report('object.unknown', state, opts.context, { path: newPath });
+        const err = schema._createError('object.unknown', state, opts.context, { path });
 
         if (opts.abortEarly)
           return {
@@ -286,7 +131,192 @@ class ObjectSchema extends AnySchema {
     if (errors.length > 0) return { value: null, errors };
 
     return { value, errors: null };
-  }
-}
+  },
+
+  rules: {
+    of: {
+      method(inner) {
+        assert(isPlainObject(inner), 'The parameter inner for object.of must be a plain object');
+
+        const entries = Object.entries(inner);
+
+        assert(
+          entries.every(([, schema]) => this.$isValid(schema)),
+          'The parameter inner for ObjectSchema must contain only instances of AnySchema',
+        );
+
+        // Treat {} as null
+        if (entries.length !== 0) {
+          const sorter = new Constellation();
+          const refs = [];
+
+          entries.forEach(([key, schema]) => {
+            sorter.add(key);
+
+            schema._refs.forEach(([ancestor, root]) => {
+              if (ancestor - 1 > 0) refs.push([ancestor - 1, root]);
+              else sorter.add(root, key);
+            });
+          });
+
+          let keys;
+
+          try {
+            keys = sorter.sort();
+          } catch (err) {
+            throw err;
+          }
+
+          const schema = this.$setFlag(
+            'inner',
+            keys.map(key => [key, inner[key]]),
+          );
+
+          schema._refs.push(...refs);
+
+          return schema;
+        }
+
+        return this;
+      },
+    },
+
+    compare: {
+      method: false,
+      validate({ value, params }) {
+        return compare(Object.entries(value).length, params.length, params.operator);
+      },
+      params: [
+        {
+          name: 'length',
+          assert(resolved) {
+            return typeof resolved === 'number';
+          },
+          reason: 'must be a number',
+        },
+      ],
+    },
+
+    length: {
+      method(length) {
+        return this.$addRule({
+          name: 'length',
+          method: 'compare',
+          params: { length, operator: '=' },
+        });
+      },
+    },
+
+    min: {
+      method(length) {
+        return this.$addRule({
+          name: 'min',
+          method: 'compare',
+          params: { length, operator: '>=' },
+        });
+      },
+    },
+
+    max: {
+      method(length) {
+        return this.$addRule({
+          name: 'max',
+          method: 'compare',
+          params: { length, operator: '<=' },
+        });
+      },
+    },
+
+    instance: {
+      method(ctor) {
+        return this.$addRule({ name: 'instance', params: { ctor } });
+      },
+      validate({ value, params }) {
+        return value instanceof params.ctor;
+      },
+      params: [
+        {
+          name: 'ctor',
+          assert(resolved) {
+            return resolved === 'function';
+          },
+          reason: 'must be a function',
+        },
+      ],
+    },
+
+    and: {
+      method(...peers) {
+        return _dependency(this, peers, 'and', (value, ancestors, context) => {
+          for (const peer of peers) {
+            if (peer.resolve(value, ancestors, context) === undefined) return peers;
+          }
+
+          return undefined;
+        });
+      },
+    },
+
+    nand: {
+      method(...peers) {
+        return _dependency(this, peers, 'nand', (value, ancestors, context) => {
+          for (const peer of peers) {
+            if (peer.resolve(value, ancestors, context) === undefined) return undefined;
+          }
+
+          return peers;
+        });
+      },
+    },
+
+    or: {
+      method(...peers) {
+        return _dependency(this, peers, 'or', (value, ancestors, context) => {
+          for (const peer of peers) {
+            if (peer.resolve(value, ancestors, context) !== undefined) return undefined;
+          }
+
+          return peers;
+        });
+      },
+    },
+
+    xor: {
+      method(...peers) {
+        return _dependency(this, peers, 'xor', (value, ancestors, context) => {
+          let count = 0;
+
+          for (const peer of peers) {
+            if (peer.resolve(value, ancestors, context) !== undefined) {
+              if (count === 0) count++;
+              else return peers;
+            }
+          }
+
+          if (count === 0) return peers;
+
+          return undefined;
+        });
+      },
+    },
+
+    oxor: {
+      method(...peers) {
+        return _dependency(this, peers, 'oxor', (value, ancestors, context) => {
+          let count = 0;
+
+          for (const peer of peers) {
+            if (peer.resolve(value, ancestors, context) !== undefined) {
+              if (count === 0) count++;
+              else return peers;
+            }
+          }
+
+          return undefined;
+        });
+      },
+    },
+  },
+});
 
 module.exports = ObjectSchema;

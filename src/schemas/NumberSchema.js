@@ -1,115 +1,149 @@
+const compare = require('@botbind/dust/src/compare');
 const AnySchema = require('./AnySchema');
+const _isNumber = require('../internals/_isNumber');
 
-class NumberSchema extends AnySchema {
-  constructor() {
-    super('number', {
-      'number.integer': '{{label}} must be an integer',
-      'number.min': '{{label}} must be greater than or equal to {{num}}',
-      'number.max': '{{label}} must be smaller than or equal to {{params.num}}',
-      'number.multiple': '{{label}} must be a multiple of {{params.num}}',
-      'number.divide': '{{label}} must divide {{num}}',
-      'number.greater': '{{label}} must be greater than {{num}}',
-      'number.smaller': '{{label}} must be smaller than {{num}}',
-    });
-  }
+const NumberSchema = AnySchema.define({
+  type: 'number',
+  flags: {
+    unsafe: false,
+  },
+  messages: {
+    'number.base': '{label} must be a number',
+    'number.coerce': '{label} cannot be coerced to a number',
+    'number.integer': '{label} must be an integer',
+    'number.min': '{label} must be greater than or equal to {num}',
+    'number.max': '{label} must be smaller than or equal to {num}',
+    'number.multiple': '{label} must be a multiple of {num}',
+    'number.divide': '{label} must divide {num}',
+    'number.greater': '{label} must be greater than {num}',
+    'number.smaller': '{label} must be smaller than {num}',
+    'number.even': '{label} must be an even number',
+    'number.infinity': '{label} cannot be infinity',
+    'number.unsafe': '{label} must be a safe number',
+  },
 
-  check(value) {
-    return typeof value === 'number';
-  }
-
-  coerce(value, state, context) {
+  coerce({ value, helpers }) {
     const coerce = Number(value);
 
     if (!Number.isNaN(coerce)) return { value: coerce, errors: null };
 
-    return { value: null, errors: [this.report('any.coerce', state, context)] };
-  }
+    return { value: null, errors: [helpers.createError('number.coerce')] };
+  },
 
-  integer() {
-    return this.test({
-      type: 'number.integer',
-      validate: ({ value }) => Number.isInteger(value),
-    });
-  }
+  validate({ value, helpers, schema }) {
+    if (value === Infinity || value === -Infinity)
+      return { value: null, errors: [helpers.createError('number.infinity')] };
 
-  min(num) {
-    return this.test({
-      params: {
-        num: {
-          value: num,
-          assert: 'number',
-        },
+    if (!_isNumber(value)) return { value: null, errors: [helpers.createError('number.base')] };
+
+    if (
+      !schema.$flags.unsafe &&
+      (value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER)
+    )
+      return { value: null, errors: [helpers.createError('number.unsafe')] };
+
+    return { value, errors: null };
+  },
+
+  rules: {
+    unsafe: {
+      method() {
+        return this.$setFlag('unsafe', true);
       },
-      type: 'number.min',
-      validate: ({ value, params }) => value >= params.num,
-    });
-  }
+    },
 
-  max(num) {
-    return this.test({
-      params: {
-        num: {
-          value: num,
-          assert: 'number',
-        },
+    compare: {
+      method: false,
+      validate({ value, params }) {
+        return compare(value, params.num, params.operator);
       },
-      type: 'number.max',
-      validate: ({ value, params }) => value <= params.num,
-    });
-  }
-
-  multiple(num) {
-    return this.test({
-      params: {
-        num: {
-          value: num,
-          assert: 'number',
+      params: [
+        {
+          name: 'num',
+          assert: _isNumber,
+          reason: 'must be a number',
         },
+      ],
+    },
+
+    integer: {
+      validate({ value }) {
+        return Number.isInteger(value);
       },
-      type: 'number.multiple',
+    },
 
-      validate: ({ value, params }) => value % params.num === 0,
-    });
-  }
+    min: {
+      method(num) {
+        return this.$addRule({ name: 'min', method: 'compare', params: { num, operator: '>=' } });
+      },
+    },
 
-  divide(num) {
-    return this.test({
-      params: {
-        num: {
-          value: num,
-          assert: 'number',
+    max: {
+      method(num) {
+        return this.$addRule({ name: 'max', method: 'compare', params: { num, operator: '<=' } });
+      },
+    },
+
+    greater: {
+      method(num) {
+        return this.$addRule({
+          name: 'greater',
+          method: 'compare',
+          params: { num, operator: '>' },
+        });
+      },
+    },
+
+    smaller: {
+      method(num) {
+        return this.$addRule({
+          name: 'smaller',
+          method: 'compare',
+          params: { num, operator: '<' },
+        });
+      },
+      alias: ['less'],
+    },
+
+    multiple: {
+      method(num) {
+        return this.$addRule({ name: 'multiple', params: { num } });
+      },
+      validate({ value, params }) {
+        return value % params.num === 0;
+      },
+      alias: ['divisible', 'factor'],
+      params: [
+        {
+          name: 'num',
+          assert: _isNumber,
+          reason: 'must be a number',
         },
-      },
-      type: 'number.divide',
-      validate: ({ value, params }) => params.num % value === 0,
-    });
-  }
+      ],
+    },
 
-  greater(num) {
-    return this.test({
-      params: {
-        num: {
-          value: num,
-          assert: 'number',
-        },
+    even: {
+      method() {
+        return this.$addRule({ name: 'even', method: 'multiple', params: { num: 2 } });
       },
-      type: 'number.greater',
-      validate: ({ value, params }) => value > params.num,
-    });
-  }
+    },
 
-  smaller(num) {
-    return this.test({
-      params: {
-        num: {
-          value: num,
-          assert: 'number',
-        },
+    divide: {
+      method(num) {
+        return this.$addRule({ name: 'divide', params: { num } });
       },
-      type: 'number.smaller',
-      validate: ({ value, params }) => value < params.num,
-    });
-  }
-}
+      validate({ value, params }) {
+        return value % params.num === 0;
+      },
+      params: [
+        {
+          name: 'num',
+          assert: _isNumber,
+          reason: 'must be a number',
+        },
+      ],
+    },
+  },
+});
 
 module.exports = NumberSchema;

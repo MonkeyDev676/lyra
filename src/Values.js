@@ -1,37 +1,49 @@
-const isEqual = require('lodash/isEqual');
-const Utils = require('./Utils');
+const assert = require('@botbind/dust/src/assert');
+const equal = require('@botbind/dust/src/equal');
+const Ref = require('./Ref');
 
 class Values {
-  constructor() {
-    this._values = new Set();
-    this._refs = new Set();
+  constructor(values, refs) {
+    this._values = new Set(values);
+    this._refs = new Set(refs);
+  }
+
+  static isValid(value) {
+    return value != null && !!value.__VALUES__;
   }
 
   get size() {
     return this._values.size + this._refs.size;
   }
 
-  merge(source, remove) {
-    source.values().forEach(value => this.add(value));
-    remove.values().forEach(value => this.delete(value));
+  merge(src, remove) {
+    assert(Values.isValid(src), 'The parameter src for Values.merge must be an instance of Values');
+    assert(
+      Values.isValid(remove),
+      'The parameter remove for Values.merge must be an instance of Values',
+    );
+
+    for (const value of src.values()) this.add(value);
+
+    for (const value of remove.values()) this.delete(value);
 
     return this;
   }
 
   add(...items) {
-    items.forEach(item => {
-      if (Utils.isRef(item)) this._refs.add(item);
+    for (const item of items) {
+      if (Ref.isRef(item)) this._refs.add(item);
       else this._values.add(item);
-    });
+    }
 
     return this;
   }
 
   delete(...items) {
-    items.forEach(item => {
-      if (Utils.isRef(item)) this._refs.delete(item);
+    for (const item of items) {
+      if (Ref.isRef(item)) this._refs.delete(item);
       else this._values.delete(item);
-    });
+    }
 
     return this;
   }
@@ -40,16 +52,20 @@ class Values {
     if (this._values.has(value)) return true;
 
     for (const v of this._values) {
-      if (isEqual(v, value)) return true;
+      if (equal(v, value)) return true;
     }
 
     for (const ref of this._refs) {
       const resolved = ref.resolve(value, ancestors, context);
 
-      if (isEqual(resolved, value)) return true;
+      if (equal(resolved, value)) return true;
     }
 
     return false;
+  }
+
+  clone() {
+    return new Values(this._values, this._refs);
   }
 
   values() {
@@ -57,6 +73,6 @@ class Values {
   }
 }
 
-Values.prototype.__LYRA_VALUES__ = true;
+Object.defineProperty(Values.prototype, '__VALUES__', { value: true });
 
 module.exports = Values;

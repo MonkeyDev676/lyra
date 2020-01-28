@@ -1,273 +1,503 @@
-const isPlainObject = require('lodash/isPlainObject');
-const cloneDeepWith = require('lodash/cloneDeepWith');
-const clone = require('lodash/clone');
-const mergeWith = require('lodash/mergeWith');
+const assert = require('@botbind/dust/src/assert');
+const isPlainObject = require('@botbind/dust/src/isPlainObject');
+const clone = require('@botbind/dust/src/clone');
+const merge = require('@botbind/dust/src/merge');
+const serialize = require('@botbind/dust/src/serialize');
+const get = require('@botbind/dust/src/get');
+const Ref = require('../Ref');
 const Values = require('../Values');
-const Utils = require('../Utils');
-const LyraValidationError = require('../errors/LyraValidationError');
+const ValidationError = require('../ValidationError');
+
+class _State {
+  constructor() {
+    this.ancestors = [];
+    this.depth = 1;
+    this.path = null;
+  }
+
+  static isValid(value) {
+    return value != null && !!value.__STATE__;
+  }
+
+  dive(ancestor) {
+    this.ancestors.push(ancestor);
+    this.depth++;
+
+    return this;
+  }
+
+  updatePath(path) {
+    this.path = path;
+
+    return this;
+  }
+}
+
+Object.defineProperty(_State.prototype, '__STATE__', { value: true });
+
+function _attachMethod(value, methodName, method) {
+  Object.defineProperty(value, methodName, {
+    value: method,
+    configurable: true,
+    writable: true,
+  });
+}
 
 class AnySchema {
-  constructor(type = 'any', messages = {}) {
-    Utils.assert(typeof type === 'string', 'The parameter type for AnySchema must be a string');
-
-    Utils.assert(isPlainObject(messages), 'The parameter messages for AnySchema must be an object');
-
-    this._type = type;
-    this._flags = {};
-    this._messages = {
-      [`${this._type}.base`]: `{{label}} must be ${Utils.getDeterminer(this._type)} ${this._type}`,
-      'any.required': '{{label}} is required',
-      'any.forbidden': '{{label}} is forbidden',
-      'any.coerce': '{{label}} cannot be coerced',
-      'any.ref': `{{ref}} {{reason}}`,
-      'any.valid': '{{label}} is invalid (valid values are {{values}})',
-      'any.invalid': '{{label}} is invalid (invalid values are {{values}})',
-      ...messages,
-    };
-
-    this._label = null;
-    this._default = undefined;
-    this._valids = new Values();
-    this._invalids = new Values();
+  constructor() {
+    this._type = 'any';
     this._conditions = [];
     this._refs = []; // [ancestor, root]
     this._rules = [];
-    this._transformations = [];
-    this._terms = {};
-    this._opts = {};
+
+    // Defined variables that affect the validation internally
+    this._definition = {
+      transform: null,
+      coerce: null,
+      validate: null,
+      rules: {}, // Rule definition, different from the rules array
+      messages: {
+        'any.required': '{label} is required',
+        'any.forbidden': '{label} is forbidden',
+        'any.ref': '{ref} {reason}',
+        'any.valid': '{label} is invalid (valid values are {values})',
+        'any.invalid': '{label} is invalid (invalid values are {values})',
+      },
+    };
+
+    // User-defined variables that affect the outcomes of the validation
+    this.$flags = {
+      strip: false,
+      presence: 'optional',
+      error: null,
+      label: null,
+      default: undefined,
+      opts: {},
+      valids: new Values(),
+      invalids: new Values(),
+    };
   }
 
-  clone() {
-    // Clone all instances but lyra schemas, since they are already immutable
-    return cloneDeepWith(this, target => {
-      if (Utils.isSchema(target) && target !== this) return target;
+  $isValid(value) {
+    return value != null && !!value.__SCHEMA__;
+  }
 
-      return undefined;
+  $clone() {
+    return clone(this, {
+      customizer(value) {
+        if (this.$isValid(value) && value !== this) return value;
+
+        if (Values.isValid(value)) return value.clone();
+
+        return undefined;
+      },
     });
   }
 
-  merge(schema) {
-    Utils.assert(
-      schema === undefined || Utils.isSchema(schema),
-      'The parameter schema must be an instance of AnySchema',
+  $merge(src) {
+    if (src === undefined) return this;
+
+    assert(
+      this.$valid(src),
+      'The parameter src for AnySchema.$merge must be an instance of AnySchema',
+    );
+    assert(
+      this._type === 'any' || src._type === 'any' || this._type === src._type,
+      `Cannot merge a ${src._type} schema into a ${this._type} schema`,
     );
 
-    if (schema === undefined) return this;
+    const next = this.$clone();
 
-    Utils.assert(
-      this._type === 'any' || schema._type === 'any' || this._type === schema._type,
-      `Cannot merge a ${schema._type} schema into a ${this._type} schema`,
-    );
+    return merge(next, src, {
+      customizer(target, src2, key) {
+        // If target is not any and source is any, keep the target type
+        if (key === '_type' && target !== 'any' && src2 === 'any') return target;
 
-    const next = this.clone();
+        if (this.$valid(target) && this.$valid(src2) && target !== next) return target.$merge(src2);
 
-    return mergeWith(next, schema, (target, source, key) => {
-      // If target is not any and source is any, keep the target type
-      if (key === '_type' && target !== 'any' && source === 'any') return target;
-      // Rules and dependencies and transformations
-      if (Array.isArray(target)) return target.concat(source);
+        if (key === '_invalids') return target.merge(src2, src._valids);
 
-      if (Utils.isSchema(target)) return target.merge(source);
+        if (key === '_valids') return target.merge(src2, src._invalids);
 
-      if (key === '_invalids') return target.merge(source, schema._valids);
-
-      if (key === '_valids') return target.merge(source, schema._invalids);
-
-      return undefined;
+        return undefined;
+      },
     });
   }
 
-  report(type, state, context, data = {}) {
-    Utils.assert(typeof type === 'string', 'The parameter code for any.report must be a string');
-    Utils.assert(isPlainObject(state), 'The parameter state for any.report must be an object');
-    Utils.assert(isPlainObject(context), 'The parameter context for any.report myst be an object');
-    Utils.assert(isPlainObject(data), 'The parameter data for any.report must be an object');
+  $setFlag(name, value) {
+    assert(typeof name === 'string', 'The parameter name for AnySchema.$setFlag must be a string');
 
-    if (this._flags.error !== undefined) return this._flags.error(type, state, context, data);
+    const next = this.$clone();
 
-    let label;
+    if (typeof value === 'function') next.$flags[name] = value(next);
+    else next.$flags[name] = value;
 
-    if (this._label === null) {
+    return next;
+  }
+
+  $createError(code, state, context, lookup = {}) {
+    assert(
+      typeof code === 'string',
+      'The parameter code for AnySchema.$createError must be a string',
+    );
+    assert(
+      _State.isValid(state),
+      'The parameter state for AnySchema.$createError must be validation state',
+    );
+    assert(
+      isPlainObject(context),
+      'The parameter context for AnySchema.$createError must be a plain object',
+    );
+    assert(
+      isPlainObject(lookup),
+      'The parameter lookup for AnySchema.$createError must be a plain object',
+    );
+
+    // Return the error customizer if there is one
+    if (this.$flags.error !== null) return this.$flags.error(code, state, context, lookup);
+
+    const template = this._definition.messages[code];
+
+    assert(template !== undefined, 'Message template not found');
+
+    let label = this.$flags.label;
+
+    if (label === null) {
       if (state.path !== null) label = state.path;
       else label = 'unknown';
-    } else label = this._label;
+    }
 
-    Utils.assert(
-      Object.prototype.hasOwnProperty.call(this._messages, type),
-      'The message template is not found',
-    );
+    let message = template.replace(/{label}/g, label);
 
-    const template = this._messages[type];
-
-    let finalMessage = template.replace(/{{label}}/g, label);
-
-    if (data !== undefined)
-      finalMessage = finalMessage.replace(/{{(\w*)}}/g, (_, match) => {
+    if (lookup !== undefined)
+      message = message.replace(/{(\w*)}/g, (_, match) => {
         const isContext = match[0] === '$';
-        const dataToSearch = isContext ? context : data;
 
+        lookup = isContext ? context : lookup;
         match = isContext ? match.slice(1) : match;
 
-        Utils.assert(
-          Object.prototype.hasOwnProperty.call(dataToSearch, match),
-          `The term ${match} is not found`,
-        );
+        const found = get(lookup, match, { default: '__DEFAULT__' });
 
-        return Utils.serialize(dataToSearch[match]);
+        assert(found !== '__DEFAULT__', 'Term', match, 'not found');
+
+        return serialize(found);
       });
 
-    return new LyraValidationError(finalMessage, type, state);
+    return new ValidationError(message, code, state);
   }
 
-  test(opts) {
-    Utils.assert(isPlainObject(opts), 'The parameter opts for any.test must be an object');
-    Utils.assert(
-      opts.params === undefined || isPlainObject(opts.params),
-      'The option params for any.test must be an object',
+  $ref(ref) {
+    assert(Ref.isValid(ref), 'The parameter ref for AnySchema.$ref must be an instance of Ref');
+
+    if (ref._ancestor !== 'context') this._refs.push([ref._ancestor, ref._root]);
+  }
+
+  $values(values, type) {
+    assert(
+      values.length > 0,
+      `The parameter values for AnySchema.$values must have at least one item`,
     );
-    Utils.assert(typeof opts.type === 'string', 'The option type for any.test must be a string');
-    Utils.assert(
-      typeof opts.validate === 'function',
-      'The option validate for any.test must be a function',
+    assert(
+      type === 'valid' || type === 'invalid',
+      'The parameter type for AnySchema.$values must be either valid or invalid',
     );
 
-    const next = this.clone();
+    const other = type === 'valid' ? 'invalid' : 'valid';
 
-    opts.params = opts.params !== undefined ? opts.params : {};
+    return this.$setFlag(type, next => {
+      next[`_${other}s`].delete(...values);
 
-    Object.values(opts.params).forEach(param => {
-      if (Utils.isRef(param.value) && param.value._ancestor !== 'context') {
-        next._refs.push([param.value._ancestor, param.value._root]);
-      }
+      return next[`_${type}s`].add(...values);
     });
+  }
 
-    opts.validate = opts.validate.bind(this);
+  $addRule(opts) {
+    assert(isPlainObject(opts), 'The parameter opts for AnySchema.$addRule must be a plain object');
+
+    opts = {
+      params: {},
+      ...opts,
+    };
+
+    assert(
+      typeof opts.name === 'string',
+      'The option name for AnySchema.$addRule must be a string',
+    );
+    assert(
+      opts.method === undefined || typeof opts.method === 'string',
+      'The option method for AnySchema.$addRule must be a string',
+    );
+    assert(
+      isPlainObject(opts.params),
+      'The option params for AnySchema.$addRule must be a plain object',
+    );
+
+    const next = this.$clone();
+
+    // Reconstruct name
+    opts.name = `${next._type}.${opts.name}`;
+    // Deduce identifier. If method is present, use it as the identifier, otherwise use name
+    opts.identifier = opts.method === undefined ? opts.name : `${next._type}.${opts.method}`;
+
+    // Method is no longer needed so we delete it
+    delete opts.method;
+
+    // Param definitions
+    const paramDefs = next._definition.rules[opts.identifier].params;
+
+    for (const [name, def] of Object.entries(paramDefs)) {
+      const param = opts.params[name];
+      const isRef = Ref.isValid(param);
+
+      // Params assertions
+      assert(
+        def.assert(param) || (def.allowsRef && isRef),
+        'The parameter',
+        name,
+        'of',
+        opts.name,
+        def.reason,
+      );
+
+      if (isRef) {
+        this.$ref(next, param);
+      }
+    }
 
     next._rules.push(opts);
 
     return next;
   }
 
-  transform(transformation) {
-    Utils.assert(
-      typeof transformation === 'function',
-      `The parameter transformation for any.transform must be a function`,
+  define(opts) {
+    assert(isPlainObject(opts), 'The parameter opts for AnySchema.define must be a plain object');
+
+    opts = {
+      type: 'any',
+      flags: {},
+      messages: {},
+      rules: {},
+      ...opts,
+    };
+
+    assert(typeof opts.type === 'string', 'The option type for AnySchema.define must be a string');
+    assert(
+      isPlainObject(opts.flags),
+      'The option flags for AnySchema.define must be a plain object',
+    );
+    assert(
+      isPlainObject(opts.messages),
+      'The option messages for AnySchema.define must be a plain object',
+    );
+    assert(
+      typeof opts.validate === 'function',
+      'The option validate for AnySchema.define must be a function',
+    );
+    assert(
+      opts.transform === undefined || typeof opts.transform === 'function',
+      'The option transform for AnySchema.define must be a function',
+    );
+    assert(
+      opts.coerce === undefined || typeof opts.coerce === 'function',
+      'The option coerce for AnySchema.define must be a function',
+    );
+    assert(
+      isPlainObject(opts.rules),
+      'The option rules for AnySchema.define must be a plain object',
     );
 
-    const next = this.clone();
+    // Clone the proto so we don't attach methods to all the instances
+    const proto = clone(AnySchema.prototype);
+    // Reconstruct the instance
+    const next = Object.create(proto).$merge(this);
 
-    next._transformations.push(transformation);
+    next._type = opts.type;
+
+    for (const [flagName, flagValue] of Object.entries(opts.flags)) {
+      assert(next.$flags[flagName] === undefined, 'Flag', flagName, 'has already been defined');
+
+      next.$flags[flagName] = flagValue;
+    }
+
+    // Populate definition
+    next._definition.validate = opts.validate;
+    next._definition.transform = opts.transform === undefined ? null : opts.transform;
+    next._definition.coerce = opts.coerce === undefined ? null : opts.coerce;
+
+    for (const [code, message] of Object.entries(opts.messages)) {
+      assert(
+        next._definition.messages[code] === undefined,
+        'Message',
+        code,
+        'has already been defined',
+      );
+
+      next._definition.messages[code] = message;
+    }
+
+    // Populate rule definitions
+    for (const [ruleName, rule] of Object.entries(opts.rules)) {
+      let ruleDef = rule;
+
+      ruleDef = {
+        params: [],
+        alias: [],
+        ...ruleDef,
+      };
+
+      assert(
+        Array.isArray(ruleDef.params),
+        'The option params for rule',
+        ruleName,
+        'must be an array',
+      );
+      assert(
+        Array.isArray(ruleDef.alias),
+        'The options alias for rule',
+        ruleName,
+        'must be an array',
+      );
+      assert(
+        ruleDef.validate === undefined || typeof ruleDef.validate === 'function',
+        'The option validate for rule',
+        ruleName,
+        'must be a function',
+      );
+      assert(
+        ruleDef.method === undefined ||
+          ruleDef.method === false ||
+          typeof ruleDef.method === 'function',
+        'The option method for rule',
+        ruleName,
+        'must be false or a function',
+      );
+      assert(
+        ruleDef.method === false || proto[ruleName] === undefined,
+        'The rule',
+        ruleName,
+        'has already been defined',
+      );
+
+      const paramDef = {};
+
+      // Create param definitions
+      for (const { name: paramName, ...rest } of ruleDef.params) {
+        assert(
+          typeof paramName === 'string',
+          'The option name for param of rule',
+          ruleName,
+          'must be a string',
+        );
+
+        const def = {
+          allowsRef: true,
+          assert() {
+            return true;
+          },
+          ...rest,
+        };
+
+        assert(
+          typeof def.allowsRef === 'boolean',
+          'The option allowsRef for param',
+          paramName,
+          'of rule',
+          ruleName,
+          'must be a boolean',
+        );
+        assert(
+          typeof def.assert === 'function',
+          'The option assert for param',
+          paramName,
+          'of rule',
+          ruleName,
+          'must be a function',
+        );
+
+        paramDef[paramName] = def;
+      }
+
+      ruleDef.params = paramDef;
+
+      // Only add to rule definitions if the rule has the validate method defined
+      if (ruleDef.validate !== undefined)
+        next._definition.rules[`${next._type}.${ruleName}`] = ruleDef;
+
+      const method =
+        typeof ruleDef.method === 'function'
+          ? ruleDef.method
+          : () => next.$addRule({ name: ruleName });
+
+      _attachMethod(proto, ruleName, method);
+
+      ruleDef.alias.forEach(alias => {
+        _attachMethod(proto, alias, proto[ruleName]);
+      });
+    }
 
     return next;
   }
 
   opts(opts) {
-    Utils.assert(isPlainObject(opts), 'The parameter opts for any.opts must be an object');
+    assert(isPlainObject(opts), 'The parameter opts for AnySchema.opts must be a plain object');
 
-    const next = this.clone();
-
-    next._opts = {
-      ...next._opts,
+    return this.$setFlag('opts', next => ({
+      ...next.$flags.opts,
       ...opts,
-    };
-
-    return next;
+    }));
   }
 
   strip() {
-    const next = this.clone();
+    return this.$setFlag('strip', true);
+  }
 
-    next._flags.strip = true;
-
-    return next;
+  optional() {
+    return this.$setFlag('presence', 'optional');
   }
 
   required() {
-    const next = this.clone();
-
-    next._flags.presence = 'required';
-
-    return next;
+    return this.$setFlag('presence', 'required');
   }
 
   forbidden() {
-    const next = this.clone();
-
-    next._flags.presence = 'forbidden';
-
-    return next;
+    return this.$setFlag('presence', 'forbidden');
   }
 
-  default(value, opts = {}) {
-    Utils.assert(value !== undefined, `The parameter value for any.default must be provided`);
-    Utils.assert(isPlainObject(opts), 'The parameter options for any.default must be an object');
-    Utils.assert(
-      typeof value === 'function' || !opts.literal,
-      'Only function values for any.default support the option literal ',
-    );
+  default(value, opts) {
+    assert(value !== undefined, `The parameter value for AnySchema.default must be provided`);
 
-    const next = this.clone();
-
-    // Don't clone functions
-    next._default = cloneDeepWith(value, target => {
-      if (typeof target === 'function' && opts.literal) return target;
-
-      return undefined;
-    });
-
-    return next;
+    return this.$setFlag('default', clone(value, opts));
   }
 
   label(label) {
-    Utils.assert(typeof label === 'string', `The parameter label for any.label must be a string`);
+    assert(typeof label === 'string', `The parameter label for AnySchema.label must be a string`);
 
-    const next = this.clone();
-
-    next._label = label;
-
-    return next;
-  }
-
-  _values(type, values) {
-    Utils.assert(
-      values.length > 0,
-      `The parameter values for any.${type} must have at least one item`,
-    );
-
-    const next = this.clone();
-    const other = type === 'valid' ? 'invalid' : 'valid';
-
-    next[`_${other}s`].delete(...values);
-    next[`_${type}s`].add(...values);
-
-    return next;
+    return this.$setFlag('label', label);
   }
 
   valid(...values) {
-    return this._values('valid', values);
+    return this.$values(this, 'valid', values);
   }
 
   invalid(...values) {
-    return this._values('invalid', values);
+    return this.$values(this, 'invalid', values);
   }
 
   when(ref, opts) {
-    Utils.assert(Utils.isRef(ref), 'The parameter ref for any.when must be an instance of Ref');
-    Utils.assert(isPlainObject(opts), 'The parameter opts for any.when must be an object');
-    Utils.assert(
-      Utils.isSchema(opts.is),
-      'The option is for any.when must be an instance of AnySchema',
+    assert(Ref.isValid(ref), 'The parameter ref for AnySchema.when must be an instance of Ref');
+    assert(isPlainObject(opts), 'The parameter opts for AnySchema.when must be a plain object');
+    assert(
+      this.$valid(opts.is),
+      'The option is for AnySchema.when must be an instance of AnySchema',
     );
-    Utils.assert(
-      Utils.isSchema(opts.then) || Utils.isSchema(opts.else),
-      'The option then or else for any.when must be an instance of AnySchema',
+    assert(
+      this.$valid(opts.then) || this.$valid(opts.else),
+      'The option then or else for AnySchema.when must be an instance of AnySchema',
     );
 
-    const next = this.clone();
+    const next = this.$clone();
 
-    if (ref._ancestor !== 'context') {
-      next._refs.push([ref._ancestor, ref._root]);
-    }
+    this.$ref(next, ref);
 
     next._conditions.push((value, ancestors, validateOpts) => {
       const result = opts.is.validate(
@@ -284,52 +514,67 @@ class AnySchema {
   }
 
   error(customizer) {
-    Utils.assert(
+    assert(
       typeof customizer === 'function' ||
         customizer instanceof Error ||
         typeof customizer === 'string',
-      'The parameter customizer for any.error must be a string, a function or an instance of Error',
+      'The parameter customizer for AnySchema.error must be a string, a function or an instance of Error',
     );
 
-    const next = this.clone();
-
-    function wrapper(type, state, context, data) {
+    return this.$setFlag('error', (type, state, context, data) => {
       if (typeof customizer === 'function') {
         customizer = customizer(type, state, context, data);
       }
 
-      return new LyraValidationError(
+      return new ValidationError(
         customizer instanceof Error ? customizer.message : customizer,
         type,
         state,
       );
-    }
-
-    next._flags.error = wrapper;
-
-    return next;
+    });
   }
 
-  _entry(value, opts, state) {
-    value = clone(value);
+  $validate(value, opts, state) {
+    let schema = this;
 
-    const schema = this._conditions.reduce((generated, condition) => {
-      return generated.merge(condition(value, state.ancestors, opts));
-    }, this);
+    for (const condition of this._conditions) {
+      schema = schema.$merge(condition(value, state.ancestors, opts));
+    }
 
     opts = {
       ...opts,
-      ...schema._opts,
+      ...schema.$flags.opts,
     };
 
     const errors = [];
+    const helpers = {
+      createError(code, lookup) {
+        return schema.$createError(code, state, opts.context, lookup);
+      },
+      setFlag(name, flagValue) {
+        return schema.$setFlag(name, flagValue);
+      },
+      clone() {
+        return schema.$clone();
+      },
+      merge(src) {
+        return schema.$merge(src);
+      },
+      addRule(ruleOpts) {
+        return schema.$addRule(ruleOpts);
+      },
+      ref(ref) {
+        return schema.$ref(ref);
+      },
+    };
 
     // Valid values
 
-    if (schema._valids.size > 0) {
-      if (schema._valids.has(value, state.ancestors, opts.context)) return { value, errors: null };
+    if (schema.$flags.valids.size > 0) {
+      if (schema.$flags.valids.has(value, state.ancestors, opts.context))
+        return { value, errors: null };
 
-      const err = schema.report('any.valid', state, opts.context, { values: schema._valids });
+      const err = helpers.createError('any.valid', { values: schema.$flags.valids });
 
       if (opts.abortEarly)
         return {
@@ -342,9 +587,9 @@ class AnySchema {
 
     // Invalid values
 
-    if (schema._invalids.size > 0) {
-      if (schema._valids.has(value, state.ancestors, opts.context)) {
-        const err = schema.report('any.invalid', state, opts.context, { values: schema._invalids });
+    if (schema.$flags.invalids.size > 0) {
+      if (schema.$flags.invalids.has(value, state.ancestors, opts.context)) {
+        const err = helpers.createError('any.invalid', { values: schema.$flags.invalids });
 
         if (opts.abortEarly)
           return {
@@ -359,34 +604,34 @@ class AnySchema {
     // Required
 
     if (value === undefined) {
-      if (schema._flags.presence === 'required')
+      if (schema.$flags.presence === 'required')
         return {
           value: null,
-          errors: [schema.report('any.required', state, opts.context)],
+          errors: [helpers.createError('any.required')],
         };
 
-      let defaultValue = schema._default;
+      let defaultValue = schema.$flags.default;
 
-      if (Utils.isRef(schema._default))
-        defaultValue = schema._default.resolve(value, state.ancestors, opts.context);
+      if (Ref.isValid(schema.$flags.default))
+        defaultValue = schema.$flags.default.resolve(value, state.ancestors, opts.context);
 
       return { value: defaultValue, errors: null };
     }
 
     // Forbidden
 
-    if (schema._flags.presence === 'forbidden') {
+    if (schema.$flags.presence === 'forbidden') {
       return {
         value: null,
-        errors: [schema.report('any.forbidden', state, opts.context)],
+        errors: [helpers.createError('any.forbidden', state, opts.context)],
       };
     }
 
     // Coerce
     // Always exit early
 
-    if (!opts.strict && schema.coerce !== undefined && value !== null) {
-      const coerced = schema.coerce(value, state, opts.context);
+    if (!opts.strict && schema._definition.coerce !== null && value !== null) {
+      const coerced = schema._definition.coerce({ value, schema, state, opts, helpers });
 
       if (coerced.errors === null) value = coerced.value;
       else
@@ -396,85 +641,38 @@ class AnySchema {
         };
     }
 
+    // Transform
+    if (opts.transform && schema._definition.transform !== null)
+      value = schema._definition.transform({ value, schema, state, opts, helpers });
+
     // Base check
     // Always exit early
+    if (schema._definition.validate !== null) {
+      const result = schema._definition.validate({ value, schema, state, opts, helpers });
 
-    if (!schema.check(value))
-      return {
-        value: null,
-        errors: [schema.report(`${schema._type}.base`, state, opts.context)],
-      };
-
-    // Transform
-
-    if (opts.transform)
-      value = schema._transformations.reduce(
-        (transformed, transform) => transform(transformed),
-        value,
-      );
-
-    // Inherited validate
-
-    if (schema._validate !== undefined) {
-      state.ancestors = [value, ...state.ancestors];
-      state.depth++;
-
-      const result = schema._validate(value, opts, state, schema);
-
-      if (result.errors !== null) {
-        if (opts.abortEarly) return result;
-
-        errors.push(...result.errors);
-      }
+      if (result.errors !== null) return { value: null, errors: [...result.errors] };
     }
 
     // Rules
 
     for (const rule of schema._rules) {
-      const params = {};
-      const rawParams = {};
+      const definition = schema._definition.rules[rule.identifier];
+      const params = { ...rule.params };
+
       let err;
 
-      for (const [key, param] of Object.entries(rule.params)) {
-        rawParams[key] = param.value;
+      for (const [name, param] of Object.entries(definition.params)) {
+        const rawParam = rule.params[name];
 
-        const required = param.required === undefined ? true : param.required;
-        const isRef = Utils.isRef(param.value);
-        let resolved;
+        if (!Ref.isValid(rawParam)) continue;
 
-        if (isRef) {
-          resolved = param.value.resolve(value, state.ancestors, opts.context);
-        } else {
-          resolved = param.value;
-        }
+        const resolved = rawParam.resolve(value, state.ancestors, opts.context);
 
-        let condition = resolved !== undefined || !required;
-        let reason = condition ? null : 'is required';
-
-        if (condition) {
-          if (
-            ['string', 'object', 'boolean', 'array', 'number', 'function'].includes(param.assert)
-          ) {
-            if (param.assert === 'object') condition = isPlainObject(resolved);
-
-            if (param.assert === 'array') condition = Array.isArray(resolved);
-            // eslint-disable-next-line valid-typeof
-            else condition = typeof resolved === param.assert;
-
-            reason = `must be ${Utils.getDeterminer(param.assert)} ${param.assert}`;
-          } else if (typeof param.assert === 'function') {
-            const result = param.assert(resolved);
-
-            condition = result[0];
-            reason = result[1];
-          }
-        }
-
-        if (!condition) {
-          // Developer error
-          Utils.assert(isRef, `The parameter ${key} of ${rule.type} ${reason}`);
-
-          err = schema.report('any.ref', state, opts.context, { ref: param.value, reason });
+        if (!param.assert(resolved)) {
+          err = helpers.createError('any.ref', {
+            ref: rawParam,
+            reason: param.reason,
+          });
 
           if (opts.abortEarly)
             return {
@@ -483,25 +681,15 @@ class AnySchema {
             };
 
           errors.push(err);
-
-          break;
-        }
-
-        params[key] = resolved;
+        } else params[name] = resolved;
       }
 
       if (err !== undefined) continue;
 
-      const ruleOpts = {
-        value,
-        params,
-        context: opts.context,
-      };
-
-      const result = rule.validate(ruleOpts);
+      const result = definition.validate({ value, schema, state, opts, params, helpers });
 
       if (!result) {
-        err = schema.report(rule.type, state, opts.context, rawParams);
+        err = helpers.createError(rule.name, rule.params);
 
         if (opts.abortEarly)
           return {
@@ -519,7 +707,7 @@ class AnySchema {
   }
 
   validate(value, opts = {}) {
-    Utils.assert(isPlainObject(opts), 'The parameter opts for any.validate must be an object');
+    assert(isPlainObject(opts), 'The parameter opts for AnySchema.validate must be a plain object');
 
     opts = {
       strict: true,
@@ -532,10 +720,23 @@ class AnySchema {
       ...opts,
     };
 
-    return this._entry(value, opts, { depth: 1, ancestors: [], path: null });
+    return this.$validate(value, opts, new _State());
   }
 }
 
-AnySchema.prototype.__LYRA_SCHEMA__ = true;
+const methods = {
+  required: ['exist', 'present'],
+  valid: ['allow', 'equal'],
+  invalid: ['deny', 'disallow', 'not'],
+  opts: ['options', 'prefs', 'preferences'],
+};
 
-module.exports = AnySchema;
+for (const [methodName, aliases] of Object.entries(methods)) {
+  aliases.forEach(alias => {
+    _attachMethod(AnySchema.prototype, alias, AnySchema.prototype[methodName]);
+  });
+}
+
+Object.defineProperty(AnySchema.prototype, '__SCHEMA__', { value: true });
+
+module.exports = new AnySchema();

@@ -1,20 +1,20 @@
+const compare = require('@botbind/dust/src/compare');
 const AnySchema = require('./AnySchema');
 
-class DateSchema extends AnySchema {
-  constructor() {
-    super('date', {
-      'date.older': '{{label}} must be older than {{date}}',
-      'date.newer': '{{label}} must be newer than {{date}}',
-    });
-  }
+const DateSchema = AnySchema.define({
+  type: 'date',
+  messages: {
+    'date.base': '{label} must be a valid date',
+    'date.coerce': '{label}} cannot be coerced to a JS date object',
+    'date.max': '{label} must be smaller than or equal to {date}',
+    'date.min': '{label} must be greater than or equal to {date}',
+    'date.greater': '{label} must be greater than {date}',
+    'date.smaller': '{label} must be smaller than {date}',
+  },
 
-  check(value) {
-    return value instanceof Date && !Number.isNaN(value);
-  }
-
-  coerce(value, state, context) {
+  coerce({ value, helpers }) {
     if (typeof value !== 'string')
-      return { value: null, errors: [this.report('any.coerce', state, context)] };
+      return { value: null, errors: [helpers.createError('date.coerce')] };
 
     const timestamp = Date.parse(value);
 
@@ -22,54 +22,71 @@ class DateSchema extends AnySchema {
       return { value: new Date(timestamp), errors: null };
     }
 
-    return { value: null, errors: [this.report('any.coerce', state, context)] };
-  }
+    return { value: null, errors: [helpers.createError('date.coerce')] };
+  },
 
-  older(date) {
-    return this.test({
-      params: {
-        date: {
-          value: date,
-          assert: resolved => [
-            resolved === 'now' || resolved instanceof Date,
-            'must be now or an instance of Date',
-          ],
+  validate({ value, helpers }) {
+    // Check for invalid dates
+    if (!(value instanceof Date) || Number.isNaN(value.getTime()))
+      return { value: null, errors: [helpers.createError('date.base')] };
+
+    return { value, errors: null };
+  },
+
+  rules: {
+    compare: {
+      method: false,
+      validate({ value, params }) {
+        let date;
+
+        if (params.date === 'now') date = new Date();
+        else date = params.date.getTime();
+
+        return compare(value.getTime(), date, params.operator);
+      },
+      params: [
+        {
+          name: 'date',
+          assert(resolved) {
+            return resolved === 'now' || resolved instanceof Date;
+          },
+          reason: 'must be now or an instance of Date',
         },
+      ],
+    },
+
+    min: {
+      method(date) {
+        return this.$addRule({ name: 'min', method: 'compare', params: { date, operator: '>=' } });
       },
-      type: 'date.older',
-      validate: ({ value, params }) => {
-        let enhancedDate;
+    },
 
-        if (params.date === 'now') enhancedDate = new Date();
-        else enhancedDate = params.date;
-
-        return value <= enhancedDate;
+    max: {
+      method(date) {
+        return this.$addRule({ name: 'max', method: 'compare', params: { date, operator: '<=' } });
       },
-    });
-  }
+    },
 
-  newer(date) {
-    return this.test({
-      params: {
-        date: {
-          value: date,
-          assert: resolved => [
-            resolved === 'now' || resolved instanceof Date,
-            'must be now or an instance of Date',
-          ],
-        },
+    greater: {
+      method(date) {
+        return this.$addRule({
+          name: 'greater',
+          method: 'compare',
+          params: { date, operator: '>' },
+        });
       },
-      type: 'date.newer',
-      validate: ({ value, params }) => {
-        let enhancedDate;
+    },
 
-        if (params.date === 'now') enhancedDate = new Date();
-        else enhancedDate = params.date;
-
-        return value >= enhancedDate;
+    smaller: {
+      method(date) {
+        return this.$addRule({
+          name: 'smaller',
+          method: 'compare',
+          params: { date, operator: '<' },
+        });
       },
-    });
-  }
-}
+    },
+  },
+});
 
 module.exports = DateSchema;

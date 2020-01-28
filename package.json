@@ -2,8 +2,8 @@
   "name": "@botbind/lyra",
   "version": "0.0.10-beta",
   "description": "An unopinionated, simple and lightweight Joi alternative",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/botbind/lyra.git"
@@ -17,7 +17,7 @@
   "scripts": {
     "lint": "eslint . --report-unused-disable-directives && echo \"No errors found\"",
     "lint:fix": "eslint . --fix && echo \"No errors found\"",
-    "test": "nodemon src/__tests__"
+    "test": "jest"
   },
   "devDependencies": {
     "babel-eslint": "^10.0.3",
@@ -33,7 +33,7 @@
     "typescript": "^3.7.3"
   },
   "dependencies": {
-    "lodash": "^4.17.15",
-    "toposort": "^2.0.2"
+    "@botbind/constellation": "0.0.7",
+    "@botbind/dust": "0.0.6"
   }
 }

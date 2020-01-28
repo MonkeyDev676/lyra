@@ -6,10 +6,6 @@ const NumberSchema = require('./schemas/NumberSchema');
 const ArraySchema = require('./schemas/ArraySchema');
 const FunctionSchema = require('./schemas/FunctionSchema');
 const ObjectSchema = require('./schemas/ObjectSchema');
-const LyraError = require('./errors/LyraError');
-const LyraValidationError = require('./errors/LyraValidationError');
-const Values = require('./Values');
-const Utils = require('./Utils');
 const Ref = require('./Ref');
 
 module.exports = {
@@ -45,8 +41,8 @@ module.exports = {
     return new ObjectSchema(inner);
   },
 
-  ref(path) {
-    return new Ref(path);
+  ref(path, opts) {
+    return new Ref(path, opts);
   },
 
   AnySchema,
@@ -57,9 +53,5 @@ module.exports = {
   ArraySchema,
   FunctionSchema,
   ObjectSchema,
-  LyraError,
-  LyraValidationError,
-  Values,
-  Utils,
   Ref,
 };
