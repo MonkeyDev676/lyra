@@ -1,7 +1,7 @@
 const compare = require('@botbind/dust/src/compare');
 const AnySchema = require('./AnySchema');
 
-const DateSchema = AnySchema.define({
+const DateSchema = new AnySchema().define({
   type: 'date',
   messages: {
     'date.base': '{label} must be a valid date',
@@ -12,9 +12,8 @@ const DateSchema = AnySchema.define({
     'date.smaller': '{label} must be smaller than {date}',
   },
 
-  coerce({ value, helpers }) {
-    if (typeof value !== 'string')
-      return { value: null, errors: [helpers.createError('date.coerce')] };
+  coerce({ value, createError }) {
+    if (typeof value !== 'string') return { value: null, errors: [createError('date.coerce')] };
 
     const timestamp = Date.parse(value);
 
@@ -22,13 +21,13 @@ const DateSchema = AnySchema.define({
       return { value: new Date(timestamp), errors: null };
     }
 
-    return { value: null, errors: [helpers.createError('date.coerce')] };
+    return { value: null, errors: [createError('date.coerce')] };
   },
 
-  validate({ value, helpers }) {
+  validate({ value, createError }) {
     // Check for invalid dates
     if (!(value instanceof Date) || Number.isNaN(value.getTime()))
-      return { value: null, errors: [helpers.createError('date.base')] };
+      return { value: null, errors: [createError('date.base')] };
 
     return { value, errors: null };
   },

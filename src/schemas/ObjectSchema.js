@@ -27,7 +27,7 @@ function _dependency(schema, peers, type, validate) {
   );
 }
 
-const ObjectSchema = AnySchema.define({
+const ObjectSchema = new AnySchema().define({
   type: 'object',
   flags: {
     inner: [],
@@ -48,17 +48,17 @@ const ObjectSchema = AnySchema.define({
     'object.oxor': '{label} must contain one or none of {peers}',
   },
 
-  coerce({ value, helpers }) {
+  coerce({ value, createError }) {
     try {
       return { value: JSON.parse(value), errors: null };
     } catch (err) {
-      return { value: null, errors: [helpers.createError('object.coerce')] };
+      return { value: null, errors: [createError('object.coerce')] };
     }
   },
 
-  validate({ value, helpers, schema, state, opts }) {
+  validate({ value, schema, state, opts, createError }) {
     if (value === null || typeof value === 'object' || Array.isArray(value))
-      return { value: null, errors: [helpers.createError('object.base')] };
+      return { value: null, errors: [createError('object.base')] };
 
     const errors = [];
     //const stripKeys = [];
@@ -91,7 +91,7 @@ const ObjectSchema = AnySchema.define({
       const peers = dependency.validate(value, state.ancestors, opts.context);
 
       if (peers !== undefined) {
-        const err = helpers.createError(`object.${dependency.type}`, {
+        const err = createError(`object.${dependency.type}`, {
           peers,
         });
 
@@ -117,7 +117,7 @@ const ObjectSchema = AnySchema.define({
       for (const key of keys) {
         const path = state.path === null ? key : `${state.path}.${key}`;
 
-        const err = helpers.createError('object.unknown', { path });
+        const err = createError('object.unknown', { path });
 
         if (opts.abortEarly)
           return {
@@ -142,7 +142,7 @@ const ObjectSchema = AnySchema.define({
         const entries = Object.entries(inner);
 
         assert(
-          entries.every(([, schema]) => this.$isValid(schema)),
+          entries.every(([, schema]) => AnySchema.isValid(schema)),
           'The parameter inner for ObjectSchema must contain only instances of AnySchema',
         );
 

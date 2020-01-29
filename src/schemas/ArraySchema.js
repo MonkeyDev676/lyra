@@ -4,7 +4,7 @@ const compare = require('@botbind/dust/src/compare');
 const AnySchema = require('./AnySchema');
 const _isNumber = require('../internals/_isNumber');
 
-const ArraySchema = AnySchema.define({
+const ArraySchema = new AnySchema().define({
   type: 'array',
   flags: {
     inner: null,
@@ -18,11 +18,11 @@ const ArraySchema = AnySchema.define({
     'array.max': '{label} must have at most {length} items',
   },
 
-  coerce({ value, helpers }) {
+  coerce({ value, createError }) {
     try {
       return { value: JSON.parse(value), errors: null };
     } catch (err) {
-      return { value: null, errors: [helpers.createError('array.coerce')] };
+      return { value: null, errors: [createError('array.coerce')] };
     }
   },
 
@@ -32,8 +32,8 @@ const ArraySchema = AnySchema.define({
     return value;
   },
 
-  validate({ value, helpers, state, schema, opts }) {
-    if (!Array.isArray(value)) return { value: null, errors: [helpers.createError('array.base')] };
+  validate({ value, state, schema, opts, createError }) {
+    if (!Array.isArray(value)) return { value: null, errors: [createError('array.base')] };
 
     const errors = [];
 
@@ -64,7 +64,7 @@ const ArraySchema = AnySchema.define({
     of: {
       method(inner) {
         assert(
-          this.$isValid(inner),
+          AnySchema.isValid(inner),
           'The parameter inner for array.of must be an instance of AnySchema',
         );
 

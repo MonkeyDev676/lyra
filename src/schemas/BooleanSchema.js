@@ -3,7 +3,7 @@ const AnySchema = require('./AnySchema');
 const truthyValues = ['true', '1', '+', 'on', 'enable', 'enabled', 't', 'yes', 'y', 1, true];
 const falsyValues = ['false', '0', '-', 'off', 'disable', 'disabled', 'f', 'no', 'n', 0, false];
 
-const BooleanSchema = AnySchema.define({
+const BooleanSchema = new AnySchema().define({
   type: 'boolean',
   messages: {
     'boolean.base': '{label} must be a boolean',
@@ -12,16 +12,15 @@ const BooleanSchema = AnySchema.define({
     'boolean.falsy': '{label} must be falsy',
   },
 
-  coerce({ value, helpers }) {
+  coerce({ value, createError }) {
     if (truthyValues.includes(value)) return { value: true, errors: null };
     if (falsyValues.includes(value)) return { value: false, errors: null };
 
-    return { value: null, errors: [helpers.createError('boolean.coerce')] };
+    return { value: null, errors: [createError('boolean.coerce')] };
   },
 
-  validate({ value, helpers }) {
-    if (typeof value !== 'boolean')
-      return { value: null, errors: [helpers.createError('boolean.base')] };
+  validate({ value, createError }) {
+    if (typeof value !== 'boolean') return { value: null, errors: [createError('boolean.base')] };
 
     return { value, errors: null };
   },

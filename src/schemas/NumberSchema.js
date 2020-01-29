@@ -2,7 +2,7 @@ const compare = require('@botbind/dust/src/compare');
 const AnySchema = require('./AnySchema');
 const _isNumber = require('../internals/_isNumber');
 
-const NumberSchema = AnySchema.define({
+const NumberSchema = new AnySchema().define({
   type: 'number',
   flags: {
     unsafe: false,
@@ -22,25 +22,25 @@ const NumberSchema = AnySchema.define({
     'number.unsafe': '{label} must be a safe number',
   },
 
-  coerce({ value, helpers }) {
+  coerce({ value, createError }) {
     const coerce = Number(value);
 
     if (!Number.isNaN(coerce)) return { value: coerce, errors: null };
 
-    return { value: null, errors: [helpers.createError('number.coerce')] };
+    return { value: null, errors: [createError('number.coerce')] };
   },
 
-  validate({ value, helpers, schema }) {
+  validate({ value, createError, schema }) {
     if (value === Infinity || value === -Infinity)
-      return { value: null, errors: [helpers.createError('number.infinity')] };
+      return { value: null, errors: [createError('number.infinity')] };
 
-    if (!_isNumber(value)) return { value: null, errors: [helpers.createError('number.base')] };
+    if (!_isNumber(value)) return { value: null, errors: [createError('number.base')] };
 
     if (
       !schema.$flags.unsafe &&
       (value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER)
     )
-      return { value: null, errors: [helpers.createError('number.unsafe')] };
+      return { value: null, errors: [createError('number.unsafe')] };
 
     return { value, errors: null };
   },

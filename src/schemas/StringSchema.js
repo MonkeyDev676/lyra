@@ -10,7 +10,7 @@ const alphanumRegex = /^[a-zA-Z0-9]+$/;
 const numRegex = /^[0-9]+$/;
 /* eslint-enable */
 
-const StringSchema = AnySchema.define({
+const StringSchema = new AnySchema().define({
   type: 'string',
   flags: {
     case: null,
@@ -61,9 +61,8 @@ const StringSchema = AnySchema.define({
     return value;
   },
 
-  validate({ value, helpers }) {
-    if (typeof value !== 'string')
-      return { value: null, errors: [helpers.createError('string.base')] };
+  validate({ value, createError }) {
+    if (typeof value !== 'string') return { value: null, errors: [createError('string.base')] };
 
     return { value, errors: null };
   },

@@ -19,7 +19,7 @@ function _attachMethod(value, methodName, method) {
 
 class AnySchema {
   constructor() {
-    this._type = 'any';
+    this.type = 'any';
     this._conditions = [];
     this._refs = []; // [ancestor, root]
     this._rules = [];
@@ -52,14 +52,14 @@ class AnySchema {
     };
   }
 
-  $isValid(value) {
+  static isValid(value) {
     return value != null && !!value.__SCHEMA__;
   }
 
   $clone() {
     return clone(this, {
       customizer(value) {
-        if (this.$isValid(value) && value !== this) return value;
+        if (AnySchema.isValid(value) && value !== this) return value;
 
         if (Values.isValid(value)) return value.clone();
 
@@ -76,8 +76,8 @@ class AnySchema {
       'The parameter src for AnySchema.$merge must be an instance of AnySchema',
     );
     assert(
-      this._type === 'any' || src._type === 'any' || this._type === src._type,
-      `Cannot merge a ${src._type} schema into a ${this._type} schema`,
+      this.type === 'any' || src.type === 'any' || this.type === src.type,
+      `Cannot merge a ${src.type} schema into a ${this.type} schema`,
     );
 
     const next = this.$clone();
@@ -209,9 +209,9 @@ class AnySchema {
     const next = this.$clone();
 
     // Reconstruct name
-    opts.name = `${next._type}.${opts.name}`;
+    opts.name = `${next.type}.${opts.name}`;
     // Deduce identifier. If method is present, use it as the identifier, otherwise use name
-    opts.identifier = opts.method === undefined ? opts.name : `${next._type}.${opts.method}`;
+    opts.identifier = opts.method === undefined ? opts.name : `${next.type}.${opts.method}`;
 
     // Method is no longer needed so we delete it
     delete opts.method;
@@ -285,7 +285,7 @@ class AnySchema {
     // Reconstruct the instance
     const next = Object.create(proto).$merge(this);
 
-    next._type = opts.type;
+    next.type = opts.type;
 
     for (const [flagName, flagValue] of Object.entries(opts.flags)) {
       assert(next.$flags[flagName] === undefined, 'Flag', flagName, 'has already been defined');
@@ -395,7 +395,7 @@ class AnySchema {
 
       // Only add to rule definitions if the rule has the validate method defined
       if (ruleDef.validate !== undefined)
-        next._definition.rules[`${next._type}.${ruleName}`] = ruleDef;
+        next._definition.rules[`${next.type}.${ruleName}`] = ruleDef;
 
       const method =
         typeof ruleDef.method === 'function'
@@ -521,26 +521,7 @@ class AnySchema {
     };
 
     const errors = [];
-    const helpers = {
-      createError(code, lookup) {
-        return schema.$createError(code, state, opts.context, lookup);
-      },
-      setFlag(name, flagValue) {
-        return schema.$setFlag(name, flagValue);
-      },
-      clone() {
-        return schema.$clone();
-      },
-      merge(src) {
-        return schema.$merge(src);
-      },
-      addRule(ruleOpts) {
-        return schema.$addRule(ruleOpts);
-      },
-      ref(ref) {
-        return schema.$ref(ref);
-      },
-    };
+    const createError = (code, lookup) => schema.$createError(code, state, opts.context, lookup);
 
     // Valid values
 
@@ -548,7 +529,7 @@ class AnySchema {
       if (schema.$flags.valids.has(value, state.ancestors, opts.context))
         return { value, errors: null };
 
-      const err = helpers.createError('any.valid', { values: schema.$flags.valids });
+      const err = createError('any.valid', { values: schema.$flags.valids });
 
       if (opts.abortEarly)
         return {
@@ -563,7 +544,7 @@ class AnySchema {
 
     if (schema.$flags.invalids.size > 0) {
       if (schema.$flags.invalids.has(value, state.ancestors, opts.context)) {
-        const err = helpers.createError('any.invalid', { values: schema.$flags.invalids });
+        const err = createError('any.invalid', { values: schema.$flags.invalids });
 
         if (opts.abortEarly)
           return {
@@ -581,7 +562,7 @@ class AnySchema {
       if (schema.$flags.presence === 'required')
         return {
           value: null,
-          errors: [helpers.createError('any.required')],
+          errors: [createError('any.required')],
         };
 
       let defaultValue = schema.$flags.default;
@@ -597,7 +578,7 @@ class AnySchema {
     if (schema.$flags.presence === 'forbidden') {
       return {
         value: null,
-        errors: [helpers.createError('any.forbidden', state, opts.context)],
+        errors: [createError('any.forbidden')],
       };
     }
 
@@ -605,7 +586,7 @@ class AnySchema {
     // Always exit early
 
     if (!opts.strict && schema._definition.coerce !== null && value !== null) {
-      const coerced = schema._definition.coerce({ value, schema, state, opts, helpers });
+      const coerced = schema._definition.coerce({ value, schema, state, opts, createError });
 
       if (coerced.errors === null) value = coerced.value;
       else
@@ -617,12 +598,12 @@ class AnySchema {
 
     // Transform
     if (opts.transform && schema._definition.transform !== null)
-      value = schema._definition.transform({ value, schema, state, opts, helpers });
+      value = schema._definition.transform({ value, schema, state, opts, createError });
 
     // Base check
     // Always exit early
     if (schema._definition.validate !== null) {
-      const result = schema._definition.validate({ value, schema, state, opts, helpers });
+      const result = schema._definition.validate({ value, schema, state, opts, createError });
 
       if (result.errors !== null) return { value: null, errors: [...result.errors] };
     }
@@ -643,10 +624,7 @@ class AnySchema {
         const resolved = rawParam.resolve(value, state.ancestors, opts.context);
 
         if (!param.assert(resolved)) {
-          err = helpers.createError('any.ref', {
-            ref: rawParam,
-            reason: param.reason,
-          });
+          err = createError('any.ref', { ref: rawParam, reason: param.reason });
 
           if (opts.abortEarly)
             return {
@@ -660,10 +638,10 @@ class AnySchema {
 
       if (err !== undefined) continue;
 
-      const result = definition.validate({ value, schema, state, opts, params, helpers });
+      const result = definition.validate({ value, schema, state, opts, params, createError });
 
       if (!result) {
-        err = helpers.createError(rule.name, rule.params);
+        err = createError(rule.name, rule.params);
 
         if (opts.abortEarly)
           return {
@@ -713,4 +691,4 @@ for (const [methodName, aliases] of Object.entries(methods)) {
 
 Object.defineProperty(AnySchema.prototype, '__SCHEMA__', { value: true });
 
-module.exports = new AnySchema();
+module.exports = AnySchema;
