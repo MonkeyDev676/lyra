@@ -25,7 +25,7 @@ const methods = {
   opts: ['options', 'prefs', 'preferences'],
 };
 
-function schemaSpy(fn, { proto = BaseSchema.prototype, method, args = [], equalOpts = {} }) {
+function schemaSpy(fn, { proto = BaseSchema.prototype, method, args = [], equalOpts }) {
   const spy = jest.spyOn(proto, method);
 
   fn();
