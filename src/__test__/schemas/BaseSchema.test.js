@@ -696,235 +696,198 @@ describe('BaseSchema', () => {
 
     const nextProto = Object.getPrototypeOf(next);
 
-    describe('Valids', () => {
-      it('should call BaseSchema.$createError() when the flag only is on and value is not one of the valids', () => {
-        utils.spy(
-          () =>
-            next
-              .valid(1)
-              .only()
-              .$validate(0, validateOpts, state),
-          {
-            proto: nextProto,
-            method: '$createError',
-            args: [
-              'any.only',
-              state,
-              validateOpts.context,
-              { grammar: { s: '', verb: 'is' }, values: new Values([1]) },
-            ],
-          },
-        );
+    it('should validate valid values', () => {
+      expect(next.valid(1).$validate(1, validateOpts, state).value).toBe(1);
 
-        utils.spy(
-          () =>
-            next
-              .valid(1, 3)
-              .only()
-              .$validate(0, validateOpts, state),
-          {
-            proto: nextProto,
-            method: '$createError',
-            args: [
-              'any.only',
-              state,
-              validateOpts.context,
-              { grammar: { s: 's', verb: 'are' }, values: new Values([1, 3]) },
-            ],
-          },
-        );
-      });
-
-      it('should pass if the value is one of the valid values', () => {
-        expect(next.valid(1).$validate(1, validateOpts, state).value).toBe(1);
-      });
-    });
-
-    describe('Invalids', () => {
-      it('should call BaseSchema.$createError() when value is one of the invalids', () => {
-        utils.spy(() => next.invalid(2).$validate(2, validateOpts, state), {
+      utils.spy(
+        () =>
+          next
+            .valid(1)
+            .only()
+            .$validate(0, validateOpts, state),
+        {
           proto: nextProto,
           method: '$createError',
           args: [
-            'any.invalid',
+            'any.only',
             state,
             validateOpts.context,
-            { grammar: { s: '', verb: 'is' }, values: new Values([2]) },
+            { grammar: { s: '', verb: 'is' }, values: new Values([1]) },
           ],
-        });
+        },
+      );
 
-        utils.spy(() => next.invalid(2, 4).$validate(2, validateOpts, state), {
+      utils.spy(
+        () =>
+          next
+            .valid(1, 3)
+            .only()
+            .$validate(0, validateOpts, state),
+        {
           proto: nextProto,
           method: '$createError',
           args: [
-            'any.invalid',
+            'any.only',
             state,
             validateOpts.context,
-            { grammar: { s: 's', verb: 'are' }, values: new Values([2, 4]) },
+            { grammar: { s: 's', verb: 'are' }, values: new Values([1, 3]) },
           ],
-        });
+        },
+      );
+    });
+
+    it('should validate invalid values', () => {
+      expect(next.invalid(2).$validate(4, validateOpts, state).value).toBe(4);
+
+      utils.spy(() => next.invalid(2).$validate(2, validateOpts, state), {
+        proto: nextProto,
+        method: '$createError',
+        args: [
+          'any.invalid',
+          state,
+          validateOpts.context,
+          { grammar: { s: '', verb: 'is' }, values: new Values([2]) },
+        ],
       });
 
-      it('should pass if the value is not one of the invalid values', () => {
-        expect(next.invalid(2).$validate(4, validateOpts, state).value).toBe(4);
+      utils.spy(() => next.invalid(2, 4).$validate(2, validateOpts, state), {
+        proto: nextProto,
+        method: '$createError',
+        args: [
+          'any.invalid',
+          state,
+          validateOpts.context,
+          { grammar: { s: 's', verb: 'are' }, values: new Values([2, 4]) },
+        ],
       });
     });
 
-    describe('Required', () => {
-      it('should call BaseSchema.$createError() when value is undefined', () => {
-        utils.spy(() => next.required().$validate(undefined, validateOpts, state), {
-          proto: nextProto,
-          method: '$createError',
-          args: ['any.required', state, validateOpts.context, undefined],
-        });
-      });
+    it('should validate required presence', () => {
+      expect(next.required().$validate(2, validateOpts, state).value).toBe(2);
 
-      it('should pass if the value is not undefined', () => {
-        expect(next.required().$validate(2, validateOpts, state).value).toBe(2);
+      utils.spy(() => next.required().$validate(undefined, validateOpts, state), {
+        proto: nextProto,
+        method: '$createError',
+        args: ['any.required', state, validateOpts.context, undefined],
       });
     });
 
-    describe('Optional', () => {
-      it('should return the default value', () => {
-        expect(next.default(0).$validate(undefined, validateOpts, state).value).toBe(0);
+    it('should return the default value when the presence is optional', () => {
+      expect(next.default(0).$validate(undefined, validateOpts, state).value).toBe(0);
 
-        utils.spy(
-          () => expect(next.default(ref).$validate(undefined, validateOpts, state).value).toBe(0),
-          {
-            proto: Ref.prototype,
-            method: 'resolve',
-            impl: () => 0,
-          },
-        );
-      });
-    });
-
-    describe('Forbidden', () => {
-      it('should call BaseSchema.$createError() when value is not undefined', () => {
-        utils.spy(() => next.forbidden().$validate(2, validateOpts, state), {
-          proto: nextProto,
-          method: '$createError',
-          args: ['any.forbidden', state, validateOpts.context, undefined],
-        });
-      });
-
-      it('should pass if the value is undefined', () => {
-        expect(next.forbidden().$validate(undefined, validateOpts, state).value).toBe(undefined);
-      });
-    });
-
-    describe('Validate', () => {
-      it('should pass if value meets the criteria', () => {
-        expect(next.$validate(2, validateOpts, state).value).toBe(2);
-      });
-
-      it('should call BaseSchema.$createError() when fails to validate', () => {
-        utils.spy(() => next.$validate('x', validateOpts, state), {
-          proto: nextProto,
-          method: '$createError',
-          args: ['y', state, validateOpts.context, undefined],
-        });
-      });
-    });
-
-    describe('Coerce', () => {
-      it('should not coerce if strict is set to true', () => {
-        // validation fails here, but we only need to check for value
-        expect(next.$validate('2', validateOpts, state).value).toBe(null);
-      });
-
-      it('should coerce the value if possible', () => {
-        expect(next.$validate('2', { ...validateOpts, strict: false }, state).value).toBe(2);
-      });
-
-      it('should call BaseSchema.$createError() when fails to coerce', () => {
-        utils.spy(() => next.$validate('x', { ...validateOpts, strict: false }, state), {
-          proto: nextProto,
-          method: '$createError',
-          args: ['x', state, validateOpts.context, undefined],
-        });
-      });
-    });
-
-    describe('Rules', () => {
-      it('should call BaseSchema.$createError() if parameters fail assertion', () => {
-        utils.spy(
-          () =>
-            utils.spy(() => next.min(ref).$validate(2, validateOpts, state), {
-              proto: nextProto,
-              method: '$createError',
-              args: ['any.ref', state, validateOpts.context, { ref, reason: 'must be a number' }],
-            }),
-          { proto: Ref.prototype, method: 'resolve', impl: () => 'x' },
-        );
-      });
-
-      it('should pass if the value meets the criteria', () => {
-        utils.spy(() => expect(next.min(ref).$validate(2, validateOpts, state).value).toBe(2), {
+      utils.spy(
+        () => expect(next.default(ref).$validate(undefined, validateOpts, state).value).toBe(0),
+        {
           proto: Ref.prototype,
           method: 'resolve',
-          impl: () => 2,
-        });
-      });
+          impl: () => 0,
+        },
+      );
+    });
 
-      it('should call BaseSchema.$createError() if the value fails to meet the criteria', () => {
-        utils.spy(
-          () =>
-            utils.spy(() => next.min(ref).$validate(2, validateOpts, state), {
-              proto: nextProto,
-              method: '$createError',
-              args: ['z', state, validateOpts.context, undefined],
-            }),
-          { proto: Ref.prototype, method: 'resolve', impl: () => 4 },
-        );
+    it('should validate forbidden presence', () => {
+      expect(next.forbidden().$validate(undefined, validateOpts, state).value).toBe(undefined);
+
+      utils.spy(() => next.forbidden().$validate(2, validateOpts, state), {
+        proto: nextProto,
+        method: '$createError',
+        args: ['any.forbidden', state, validateOpts.context, undefined],
       });
     });
 
-    describe('Errors', () => {
-      it('should collect all errors if abortEarly is set to false', () => {
-        expect(
-          next
-            .valid(6)
-            .invalid(2)
-            .min(4)
-            .only()
-            .$validate(2, { ...validateOpts, abortEarly: false }, state).errors.length,
-        ).toBe(3);
+    it('should not run the coerce method in definition in strict mode', () => {
+      expect(next.$validate('2', validateOpts, state).value).toBe(null);
+    });
+
+    it('should run the coerce method in definition', () => {
+      expect(next.$validate('2', { ...validateOpts, strict: false }, state).value).toBe(2);
+
+      utils.spy(() => next.$validate('x', { ...validateOpts, strict: false }, state), {
+        proto: nextProto,
+        method: '$createError',
+        args: ['x', state, validateOpts.context, undefined],
       });
     });
 
-    describe('Options', () => {
-      it('should apply options from the opts flag', () => {
-        // Coercion should happen
-        expect(next.opts({ strict: false }).$validate('2').value).toBe(2);
+    it('should run the validate method in definition', () => {
+      expect(next.$validate(2, validateOpts, state).value).toBe(2);
+
+      utils.spy(() => next.$validate('x', validateOpts, state), {
+        proto: nextProto,
+        method: '$createError',
+        args: ['y', state, validateOpts.context, undefined],
       });
     });
 
-    describe('Conditions', () => {
-      it('should resolve conditions and merge the schemas', () => {
-        utils.spy(
-          () => {
-            const nextNext = next.$clone();
+    it("should validate rules' reference parameters", () => {
+      utils.spy(
+        () =>
+          utils.spy(() => next.min(ref).$validate(2, validateOpts, state), {
+            proto: nextProto,
+            method: '$createError',
+            args: ['any.ref', state, validateOpts.context, { ref, reason: 'must be a number' }],
+          }),
+        { proto: Ref.prototype, method: 'resolve', impl: () => 'x' },
+      );
+    });
 
-            nextNext._conditions.push(() => {
-              if (ref.resolve() === 'x') return next.forbidden();
-
-              return undefined;
-            });
-
-            utils.spy(() => nextNext.$validate(2, validateOpts, state), {
-              proto: nextProto,
-              method: '$createError',
-              args: ['any.forbidden', state, validateOpts.context, undefined],
-            });
-          },
-          {
-            proto: Ref.prototype,
-            method: 'resolve',
-            impl: () => 'x',
-          },
-        );
+    it("should run rules' validation method", () => {
+      utils.spy(() => expect(next.min(ref).$validate(2, validateOpts, state).value).toBe(2), {
+        proto: Ref.prototype,
+        method: 'resolve',
+        impl: () => 2,
       });
+
+      utils.spy(
+        () =>
+          utils.spy(() => next.min(ref).$validate(2, validateOpts, state), {
+            proto: nextProto,
+            method: '$createError',
+            args: ['z', state, validateOpts.context, undefined],
+          }),
+        { proto: Ref.prototype, method: 'resolve', impl: () => 4 },
+      );
+    });
+
+    it('should collect all errors if abortEarly is set to false', () => {
+      expect(
+        next
+          .valid(6)
+          .invalid(2)
+          .min(4)
+          .only()
+          .$validate(2, { ...validateOpts, abortEarly: false }, state).errors.length,
+      ).toBe(3);
+    });
+
+    it('should apply options from the opts flag', () => {
+      // Coercion should happen
+      expect(next.opts({ strict: false }).$validate('2').value).toBe(2);
+    });
+
+    it('should resolve conditions and merge the schemas', () => {
+      utils.spy(
+        () => {
+          const nextNext = next.$clone();
+
+          nextNext._conditions.push(() => {
+            if (ref.resolve() === 'x') return next.forbidden();
+
+            return undefined;
+          });
+
+          utils.spy(() => nextNext.$validate(2, validateOpts, state), {
+            proto: nextProto,
+            method: '$createError',
+            args: ['any.forbidden', state, validateOpts.context, undefined],
+          });
+        },
+        {
+          proto: Ref.prototype,
+          method: 'resolve',
+          impl: () => 'x',
+        },
+      );
     });
   });
 
