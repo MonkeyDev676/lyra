@@ -780,7 +780,7 @@ describe('BaseSchema', () => {
       });
 
       it('should pass if the value is not undefined', () => {
-        expect(next.required().$validate(2, validateOpts, state).values).toBe(2);
+        expect(next.required().$validate(2, validateOpts, state).value).toBe(2);
       });
     });
 
@@ -809,7 +809,7 @@ describe('BaseSchema', () => {
       });
 
       it('should pass if the value is undefined', () => {
-        expect(next.forbidden().$validate(undefined, validateOpts, state).values).toBe(undefined);
+        expect(next.forbidden().$validate(undefined, validateOpts, state).value).toBe(undefined);
       });
     });
 
