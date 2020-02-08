@@ -736,7 +736,7 @@ describe('BaseSchema', () => {
       });
 
       it('should pass if the value is one of the valid values', () => {
-        expect(utils.isPass(next.valid(1).$validate(1, validateOpts, state))).toBe(true);
+        expect(next.valid(1).$validate(1, validateOpts, state).value).toBe(1);
       });
     });
 
@@ -766,7 +766,7 @@ describe('BaseSchema', () => {
       });
 
       it('should pass if the value is not one of the invalid values', () => {
-        expect(utils.isPass(next.invalid(2).$validate(4, validateOpts, state))).toBe(true);
+        expect(next.invalid(2).$validate(4, validateOpts, state).value).toBe(4);
       });
     });
 
@@ -780,7 +780,7 @@ describe('BaseSchema', () => {
       });
 
       it('should pass if the value is not undefined', () => {
-        expect(utils.isPass(next.required().$validate(2, validateOpts, state))).toBe(true);
+        expect(next.required().$validate(2, validateOpts, state).values).toBe(2);
       });
     });
 
@@ -809,13 +809,13 @@ describe('BaseSchema', () => {
       });
 
       it('should pass if the value is undefined', () => {
-        expect(utils.isPass(next.forbidden().$validate(undefined, validateOpts, state))).toBe(true);
+        expect(next.forbidden().$validate(undefined, validateOpts, state).values).toBe(undefined);
       });
     });
 
     describe('Validate', () => {
       it('should pass if value meets the criteria', () => {
-        expect(utils.isPass(next.$validate(2, validateOpts, state))).toBe(true);
+        expect(next.$validate(2, validateOpts, state).value).toBe(2);
       });
 
       it('should call BaseSchema.$createError() when fails to validate', () => {
@@ -860,10 +860,11 @@ describe('BaseSchema', () => {
       });
 
       it('should pass if the value meets the criteria', () => {
-        utils.spy(
-          () => expect(utils.isPass(next.min(ref).$validate(2, validateOpts, state))).toBe(true),
-          { proto: Ref.prototype, method: 'resolve', impl: () => 2 },
-        );
+        utils.spy(() => expect(next.min(ref).$validate(2, validateOpts, state).value).toBe(2), {
+          proto: Ref.prototype,
+          method: 'resolve',
+          impl: () => 2,
+        });
       });
 
       it('should call BaseSchema.$createError() if the value fails to meet the criteria', () => {

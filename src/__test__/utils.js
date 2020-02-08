@@ -24,6 +24,5 @@ function _spy(fn, { proto, method, args = [], equalOpts, impl }) {
 module.exports = {
   toHaveBeenCalled: _toHaveBeenCalled,
   toHaveBeenCalledWith: _toHaveBeenCalledWith,
-  isPass: result => result.errors === null,
   spy: _spy,
 };
