@@ -1,4 +1,9 @@
+const BaseSchema = require('../../schemas/BaseSchema');
 const any = require('../../schemas/any');
+const State = require('../../State');
+const utils = require('../utils');
+
+const state = new State();
 
 describe('any', () => {
   describe('any.custom()', () => {
@@ -8,10 +13,10 @@ describe('any', () => {
     });
 
     it('should validate using custom method', () => {
-      const error = new Error('nope');
+      const err = new Error('nope');
       const schema = any.custom((value, helpers) => {
         if (value === '1') {
-          throw error;
+          throw err;
         }
 
         if (value === '2') {
@@ -29,13 +34,21 @@ describe('any', () => {
         return { value, errors: null };
       }, 'custom method');
 
-      expect(schema.validate('1').errors[0].message).toBe(
-        "unknown fails because validation 'custom method' throws 'Error: nope'",
-      );
       expect(schema.validate('2').value).toBe('3');
-      expect(schema.validate('4').errors[0].code).toBe('any.required');
       expect(schema.validate('5').value).toBe(undefined);
       expect(schema.validate('x').value).toBe('x');
+
+      utils.spy(() => schema.validate('1'), {
+        proto: BaseSchema.prototype,
+        method: '$createError',
+        args: ['any.custom', state, {}, { name: 'custom method', error: err }],
+      });
+
+      utils.spy(() => schema.validate('4'), {
+        proto: BaseSchema.prototype,
+        method: '$createError',
+        args: ['any.required', state, {}, undefined],
+      });
     });
   });
 });
