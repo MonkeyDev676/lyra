@@ -654,14 +654,14 @@ describe('BaseSchema', () => {
         y: 'y',
         z: 'z',
       },
-      coerce: ({ value, helpers }) => {
+      coerce: (value, helpers) => {
         const coerced = Number(value);
 
         if (!Number.isNaN(coerced)) return { value: coerced, errors: null };
 
         return { value: null, errors: [helpers.createError('x')] };
       },
-      validate: ({ value, helpers }) => {
+      validate: (value, helpers) => {
         if (typeof value !== 'number') return { value: null, errors: [helpers.createError('y')] };
 
         if (value % 2 !== 0) return { value: null, errors: [helpers.createError('y')] };
@@ -674,8 +674,8 @@ describe('BaseSchema', () => {
           method(min) {
             return this.$addRule({ name: 'min', params: { min } });
           },
-          validate: ({ value, params, helpers }) => {
-            if (value >= params.min) return { value, errors: null };
+          validate: (value, helpers) => {
+            if (value >= helpers.params.min) return { value, errors: null };
 
             return { value: null, errors: [helpers.createError('z')] };
           },

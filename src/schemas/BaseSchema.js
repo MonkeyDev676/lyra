@@ -654,8 +654,11 @@ class BaseSchema {
     const errors = [];
     const helpers = {};
 
-    helpers.createError = (code, lookup) => schema.$createError(code, state, opts.context, lookup);
+    helpers.schema = schema;
+    helpers.state = state;
+    helpers.opts = opts;
     helpers.original = value;
+    helpers.createError = (code, lookup) => schema.$createError(code, state, opts.context, lookup);
 
     // Valid values
 
@@ -732,19 +735,19 @@ class BaseSchema {
     // Always exit early
 
     if (!opts.strict && schema._definition.coerce !== null) {
-      const coerced = schema._definition.coerce({ value, schema, state, opts, helpers });
+      const coerced = schema._definition.coerce(value, helpers);
 
       if (coerced.errors === null) value = coerced.value;
-      else return { value: null, errors: coerced.errors };
+      else return coerced;
     }
 
     // Base check
     // Always exit early
     if (schema._definition.validate !== null) {
-      const result = schema._definition.validate({ value, schema, state, opts, helpers });
+      const result = schema._definition.validate(value, helpers);
 
       if (result.errors === null) value = result.value;
-      else return { value: null, errors: result.errors };
+      else return result;
     }
 
     // Rules
@@ -776,11 +779,11 @@ class BaseSchema {
 
       if (err !== undefined) continue;
 
-      const result = ruleDef.validate({ value, schema, state, opts, params, helpers });
+      const result = ruleDef.validate(value, { ...helpers, params });
 
       if (result.errors === null) value = result.value;
       else {
-        if (opts.abortEarly) return { value: null, errors: result.errors };
+        if (opts.abortEarly) return result;
 
         errors.push(...result.errors);
       }
