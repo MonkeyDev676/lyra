@@ -23,8 +23,6 @@ const methods = {
   invalid: ['deny', 'disallow', 'not'],
   opts: ['options', 'prefs', 'preferences'],
 };
-const baseProto = BaseSchema.prototype;
-const refProto = Ref.prototype;
 
 describe('BaseSchema', () => {
   let schema;
@@ -122,7 +120,7 @@ describe('BaseSchema', () => {
 
       // test2.$merge(test2)
       utils.spy(() => schema.$merge(schema3), {
-        proto: baseProto,
+        proto: BaseSchema.prototype,
         method: '$merge',
         args: [schema2],
       });
@@ -157,7 +155,10 @@ describe('BaseSchema', () => {
     });
 
     it('should call BaseSchema.$clone()', () => {
-      utils.spy(() => schema.$setFlag('x', 'x'), { proto: baseProto, method: '$clone' });
+      utils.spy(() => schema.$setFlag('x', 'x'), {
+        proto: BaseSchema.prototype,
+        method: '$clone',
+      });
     });
 
     it('should run the function if passed as value and literal is false', () => {
@@ -323,7 +324,10 @@ describe('BaseSchema', () => {
     };
 
     it('should call BaseSchema.$clone()', () => {
-      utils.spy(() => next.$addRule({ name: 'x' }), { proto: baseProto, method: '$clone' });
+      utils.spy(() => next.$addRule({ name: 'x' }), {
+        proto: BaseSchema.prototype,
+        method: '$clone',
+      });
     });
 
     it('should add to the rule queue', () => {
@@ -348,7 +352,7 @@ describe('BaseSchema', () => {
 
     it('should call BaseSchema.$mutateRef()', () => {
       utils.spy(() => next.$addRule({ name: 'x', params: { x: ref } }), {
-        proto: baseProto,
+        proto: BaseSchema.prototype,
         method: '$mutateRef',
         args: [ref],
       });
@@ -375,8 +379,8 @@ describe('BaseSchema', () => {
     it('should clone the prototype', () => {
       const proto = Object.getPrototypeOf(schema.define({}));
 
-      expect(proto).not.toBe(baseProto);
-      expect(equal(proto, baseProto, { compareDescriptors: true })).toBe(true);
+      expect(proto).not.toBe(BaseSchema.prototype);
+      expect(equal(proto, BaseSchema.prototype, { compareDescriptors: true })).toBe(true);
     });
 
     it('should define the type', () => {
@@ -515,7 +519,7 @@ describe('BaseSchema', () => {
         () => {
           schema = schema.opts({ strict: false });
         },
-        { proto: baseProto, method: '$setFlag' },
+        { proto: BaseSchema.prototype, method: '$setFlag' },
       );
 
       expect(
@@ -530,7 +534,7 @@ describe('BaseSchema', () => {
   describe('BaseSchema.strip()', () => {
     it('should call BaseSchema.$setFlag()', () => {
       utils.spy(() => schema.strip(), {
-        proto: baseProto,
+        proto: BaseSchema.prototype,
         method: '$setFlag',
         args: ['strip', true],
       });
@@ -540,7 +544,7 @@ describe('BaseSchema', () => {
   describe('BaseSchema.optional()', () => {
     it('should call BaseSchema.$setFlag()', () => {
       utils.spy(() => schema.optional(), {
-        proto: baseProto,
+        proto: BaseSchema.prototype,
         method: '$setFlag',
         args: ['presence', 'optional'],
       });
@@ -550,7 +554,7 @@ describe('BaseSchema', () => {
   describe('BaseSchema.required()', () => {
     it('should call BaseSchema.$setFlag()', () => {
       utils.spy(() => schema.required(), {
-        proto: baseProto,
+        proto: BaseSchema.prototype,
         method: '$setFlag',
         args: ['presence', 'required'],
       });
@@ -560,7 +564,7 @@ describe('BaseSchema', () => {
   describe('BaseSchema.forbidden()', () => {
     it('should call BaseSchema.$setFlag()', () => {
       utils.spy(() => schema.forbidden(), {
-        proto: baseProto,
+        proto: BaseSchema.prototype,
         method: '$setFlag',
         args: ['presence', 'forbidden'],
       });
@@ -575,7 +579,7 @@ describe('BaseSchema', () => {
         () => {
           schema = schema.default(obj);
         },
-        { proto: baseProto, method: '$setFlag' },
+        { proto: BaseSchema.prototype, method: '$setFlag' },
       );
 
       expect(schema.$flags.default).not.toBe(obj);
@@ -590,7 +594,7 @@ describe('BaseSchema', () => {
 
     it('should call BaseSchema.$setFlag()', () => {
       utils.spy(() => schema.label('x'), {
-        proto: baseProto,
+        proto: BaseSchema.prototype,
         method: '$setFlag',
         args: ['label', 'x'],
       });
@@ -600,7 +604,7 @@ describe('BaseSchema', () => {
   describe('BaseSchema.only()', () => {
     it('should call BaseSchema.$setFlag()', () => {
       utils.spy(() => schema.only(), {
-        proto: baseProto,
+        proto: BaseSchema.prototype,
         method: '$setFlag',
         args: ['only', true],
       });
@@ -610,7 +614,7 @@ describe('BaseSchema', () => {
   describe('BaseSchema.valid()', () => {
     it('should calls BaseSchema.$value()', () => {
       utils.spy(() => schema.valid(1, 2, 3), {
-        proto: baseProto,
+        proto: BaseSchema.prototype,
         method: '$values',
         args: [[1, 2, 3], 'valid'],
       });
@@ -620,7 +624,7 @@ describe('BaseSchema', () => {
   describe('BaseSchema.invalid()', () => {
     it('should calls BaseSchema.$values()', () => {
       utils.spy(() => schema.invalid(1, 2, 3), {
-        proto: baseProto,
+        proto: BaseSchema.prototype,
         method: '$values',
         args: [[1, 2, 3], 'invalid'],
       });
@@ -787,7 +791,7 @@ describe('BaseSchema', () => {
         utils.spy(
           () => expect(next.default(ref).$validate(undefined, validateOpts, state).value).toBe(0),
           {
-            proto: refProto,
+            proto: Ref.prototype,
             method: 'resolve',
             impl: () => 0,
           },
@@ -851,14 +855,14 @@ describe('BaseSchema', () => {
               method: '$createError',
               args: ['any.ref', state, validateOpts.context, { ref, reason: 'must be a number' }],
             }),
-          { proto: refProto, method: 'resolve', impl: () => 'x' },
+          { proto: Ref.prototype, method: 'resolve', impl: () => 'x' },
         );
       });
 
       it('should pass if the value meets the criteria', () => {
         utils.spy(
           () => expect(utils.isPass(next.min(ref).$validate(2, validateOpts, state))).toBe(true),
-          { proto: refProto, method: 'resolve', impl: () => 2 },
+          { proto: Ref.prototype, method: 'resolve', impl: () => 2 },
         );
       });
 
@@ -870,7 +874,7 @@ describe('BaseSchema', () => {
               method: '$createError',
               args: ['z', state, validateOpts.context, undefined],
             }),
-          { proto: refProto, method: 'resolve', impl: () => 4 },
+          { proto: Ref.prototype, method: 'resolve', impl: () => 4 },
         );
       });
     });
@@ -914,7 +918,7 @@ describe('BaseSchema', () => {
             });
           },
           {
-            proto: refProto,
+            proto: Ref.prototype,
             method: 'resolve',
             impl: () => 'x',
           },
@@ -938,7 +942,7 @@ describe('BaseSchema', () => {
       const opts = { strict: false };
 
       utils.spy(() => schema.validate('x', opts), {
-        proto: baseProto,
+        proto: BaseSchema.prototype,
         method: '$validate',
         args: [
           'x',
@@ -964,14 +968,14 @@ describe('BaseSchema', () => {
 
     it('should call BaseSchema.$clone()', () => {
       utils.spy(() => schema.when(ref, { is: schema, then: schema }), {
-        proto: baseProto,
+        proto: BaseSchema.prototype,
         method: '$clone',
       });
     });
 
     it('should call BaseSchema.$mutateRef()', () => {
       utils.spy(() => schema.when(ref, { is: schema, then: schema }), {
-        proto: baseProto,
+        proto: BaseSchema.prototype,
         method: '$mutateRef',
         args: [ref],
       });
@@ -987,12 +991,12 @@ describe('BaseSchema', () => {
       utils.spy(
         () =>
           utils.spy(() => schema.validate('x'), {
-            proto: baseProto,
+            proto: BaseSchema.prototype,
             method: '$createError',
             args: ['any.forbidden', state, validateOpts.context, undefined],
           }),
         {
-          proto: refProto,
+          proto: Ref.prototype,
           method: 'resolve',
           impl: () => 'x',
         },
@@ -1001,12 +1005,12 @@ describe('BaseSchema', () => {
       utils.spy(
         () =>
           utils.spy(() => schema.validate('y'), {
-            proto: baseProto,
+            proto: BaseSchema.prototype,
             method: '$createError',
             args: ['any.invalid', state, validateOpts.context, undefined],
           }),
         {
-          proto: refProto,
+          proto: Ref.prototype,
           method: 'resolve',
           impl: () => 'y',
         },
