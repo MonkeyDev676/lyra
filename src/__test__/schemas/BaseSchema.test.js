@@ -501,6 +501,19 @@ describe('BaseSchema', () => {
       expect(typeof schema.x).toBe('function');
       expect(typeof schema.y).toBe('function');
     });
+
+    it('should not attach a method if method is set to false', () => {
+      expect(
+        schema.define({
+          rules: {
+            x: {
+              method: false,
+              validate: () => {},
+            },
+          },
+        }).x,
+      ).toBe(undefined);
+    });
   });
 
   describe('BaseSchema.opts()', () => {
