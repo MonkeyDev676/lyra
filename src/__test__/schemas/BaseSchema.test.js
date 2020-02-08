@@ -13,7 +13,6 @@ const validateOpts = {
   stripUnknown: false,
   context: {},
 };
-
 const state = new State();
 const ref = new Ref('..a');
 const contextRef = new Ref('$a');
@@ -24,23 +23,8 @@ const methods = {
   invalid: ['deny', 'disallow', 'not'],
   opts: ['options', 'prefs', 'preferences'],
 };
-
-function schemaSpy(fn, { proto = BaseSchema.prototype, method, args = [], equalOpts }) {
-  const spy = jest.spyOn(proto, method);
-
-  fn();
-
-  if (args.length === 0) expect(utils.toHaveBeenCalled(spy)).toBe(true);
-  else expect(utils.toHaveBeenCalledWith(spy, { args, equalOpts }));
-
-  spy.mockRestore();
-}
-
-function resolveSpy(value) {
-  const spy = jest.spyOn(Ref.prototype, 'resolve').mockImplementation(() => value);
-
-  return spy;
-}
+const baseProto = BaseSchema.prototype;
+const refProto = Ref.prototype;
 
 describe('BaseSchema', () => {
   let schema;
@@ -72,13 +56,7 @@ describe('BaseSchema', () => {
     });
 
     it('should call Values.clone()', () => {
-      const spy = jest.spyOn(Values.prototype, 'clone');
-
-      schema.$clone();
-
-      expect(utils.toHaveBeenCalled(spy)).toBe(true);
-
-      spy.mockRestore();
+      utils.spy(() => schema.$clone(), { proto: Values.prototype, method: 'clone' });
     });
 
     it('should clone the schema', () => {
@@ -143,7 +121,11 @@ describe('BaseSchema', () => {
       schema3.$flags.inner = schema2;
 
       // test2.$merge(test2)
-      schemaSpy(() => schema.$merge(schema3), { method: '$merge', args: [schema2] });
+      utils.spy(() => schema.$merge(schema3), {
+        proto: baseProto,
+        method: '$merge',
+        args: [schema2],
+      });
     });
 
     it('should merge 2 schemas', () => {
@@ -175,7 +157,7 @@ describe('BaseSchema', () => {
     });
 
     it('should call BaseSchema.$clone()', () => {
-      schemaSpy(() => schema.$setFlag('x', 'x'), { method: '$clone' });
+      utils.spy(() => schema.$setFlag('x', 'x'), { proto: baseProto, method: '$clone' });
     });
 
     it('should run the function if passed as value and literal is false', () => {
@@ -341,7 +323,7 @@ describe('BaseSchema', () => {
     };
 
     it('should call BaseSchema.$clone()', () => {
-      schemaSpy(() => next.$addRule({ name: 'x' }), { method: '$clone' });
+      utils.spy(() => next.$addRule({ name: 'x' }), { proto: baseProto, method: '$clone' });
     });
 
     it('should add to the rule queue', () => {
@@ -365,7 +347,8 @@ describe('BaseSchema', () => {
     });
 
     it('should call BaseSchema.$mutateRef()', () => {
-      schemaSpy(() => next.$addRule({ name: 'x', params: { x: ref } }), {
+      utils.spy(() => next.$addRule({ name: 'x', params: { x: ref } }), {
+        proto: baseProto,
         method: '$mutateRef',
         args: [ref],
       });
@@ -392,8 +375,8 @@ describe('BaseSchema', () => {
     it('should clone the prototype', () => {
       const proto = Object.getPrototypeOf(schema.define({}));
 
-      expect(proto).not.toBe(BaseSchema.prototype);
-      expect(equal(proto, BaseSchema.prototype, { compareDescriptors: true })).toBe(true);
+      expect(proto).not.toBe(baseProto);
+      expect(equal(proto, baseProto, { compareDescriptors: true })).toBe(true);
     });
 
     it('should define the type', () => {
@@ -528,11 +511,11 @@ describe('BaseSchema', () => {
     });
 
     it('should call BaseSchema.$setFlag()', () => {
-      schemaSpy(
+      utils.spy(
         () => {
           schema = schema.opts({ strict: false });
         },
-        { method: '$setFlag' },
+        { proto: baseProto, method: '$setFlag' },
       );
 
       expect(
@@ -546,13 +529,18 @@ describe('BaseSchema', () => {
 
   describe('BaseSchema.strip()', () => {
     it('should call BaseSchema.$setFlag()', () => {
-      schemaSpy(() => schema.strip(), { method: '$setFlag', args: ['strip', true] });
+      utils.spy(() => schema.strip(), {
+        proto: baseProto,
+        method: '$setFlag',
+        args: ['strip', true],
+      });
     });
   });
 
   describe('BaseSchema.optional()', () => {
     it('should call BaseSchema.$setFlag()', () => {
-      schemaSpy(() => schema.optional(), {
+      utils.spy(() => schema.optional(), {
+        proto: baseProto,
         method: '$setFlag',
         args: ['presence', 'optional'],
       });
@@ -561,7 +549,8 @@ describe('BaseSchema', () => {
 
   describe('BaseSchema.required()', () => {
     it('should call BaseSchema.$setFlag()', () => {
-      schemaSpy(() => schema.required(), {
+      utils.spy(() => schema.required(), {
+        proto: baseProto,
         method: '$setFlag',
         args: ['presence', 'required'],
       });
@@ -570,7 +559,8 @@ describe('BaseSchema', () => {
 
   describe('BaseSchema.forbidden()', () => {
     it('should call BaseSchema.$setFlag()', () => {
-      schemaSpy(() => schema.forbidden(), {
+      utils.spy(() => schema.forbidden(), {
+        proto: baseProto,
         method: '$setFlag',
         args: ['presence', 'forbidden'],
       });
@@ -581,11 +571,11 @@ describe('BaseSchema', () => {
     it('should call BaseSchema.$setFlag() and clone the value', () => {
       const obj = {};
 
-      schemaSpy(
+      utils.spy(
         () => {
           schema = schema.default(obj);
         },
-        { method: '$setFlag' },
+        { proto: baseProto, method: '$setFlag' },
       );
 
       expect(schema.$flags.default).not.toBe(obj);
@@ -599,19 +589,28 @@ describe('BaseSchema', () => {
     });
 
     it('should call BaseSchema.$setFlag()', () => {
-      schemaSpy(() => schema.label('x'), { method: '$setFlag', args: ['label', 'x'] });
+      utils.spy(() => schema.label('x'), {
+        proto: baseProto,
+        method: '$setFlag',
+        args: ['label', 'x'],
+      });
     });
   });
 
   describe('BaseSchema.only()', () => {
     it('should call BaseSchema.$setFlag()', () => {
-      schemaSpy(() => schema.only(), { method: '$setFlag', args: ['only', true] });
+      utils.spy(() => schema.only(), {
+        proto: baseProto,
+        method: '$setFlag',
+        args: ['only', true],
+      });
     });
   });
 
   describe('BaseSchema.valid()', () => {
     it('should calls BaseSchema.$value()', () => {
-      schemaSpy(() => schema.valid(1, 2, 3), {
+      utils.spy(() => schema.valid(1, 2, 3), {
+        proto: baseProto,
         method: '$values',
         args: [[1, 2, 3], 'valid'],
       });
@@ -620,7 +619,8 @@ describe('BaseSchema', () => {
 
   describe('BaseSchema.invalid()', () => {
     it('should calls BaseSchema.$values()', () => {
-      schemaSpy(() => schema.invalid(1, 2, 3), {
+      utils.spy(() => schema.invalid(1, 2, 3), {
+        proto: baseProto,
         method: '$values',
         args: [[1, 2, 3], 'invalid'],
       });
@@ -690,18 +690,18 @@ describe('BaseSchema', () => {
       },
     });
 
-    const proto = Object.getPrototypeOf(next);
+    const nextProto = Object.getPrototypeOf(next);
 
     describe('Valids', () => {
       it('should call BaseSchema.$createError() when the flag only is on and value is not one of the valids', () => {
-        schemaSpy(
+        utils.spy(
           () =>
             next
               .valid(1)
               .only()
               .$validate(0, validateOpts, state),
           {
-            proto,
+            proto: nextProto,
             method: '$createError',
             args: [
               'any.only',
@@ -712,14 +712,14 @@ describe('BaseSchema', () => {
           },
         );
 
-        schemaSpy(
+        utils.spy(
           () =>
             next
               .valid(1, 3)
               .only()
               .$validate(0, validateOpts, state),
           {
-            proto,
+            proto: nextProto,
             method: '$createError',
             args: [
               'any.only',
@@ -732,14 +732,14 @@ describe('BaseSchema', () => {
       });
 
       it('should pass if the value is one of the valid values', () => {
-        expect(next.valid(1).$validate(1, validateOpts, state).errors).toBe(null);
+        expect(utils.isPass(next.valid(1).$validate(1, validateOpts, state))).toBe(true);
       });
     });
 
     describe('Invalids', () => {
       it('should call BaseSchema.$createError() when value is one of the invalids', () => {
-        schemaSpy(() => next.invalid(2).$validate(2, validateOpts, state), {
-          proto,
+        utils.spy(() => next.invalid(2).$validate(2, validateOpts, state), {
+          proto: nextProto,
           method: '$createError',
           args: [
             'any.invalid',
@@ -749,8 +749,8 @@ describe('BaseSchema', () => {
           ],
         });
 
-        schemaSpy(() => next.invalid(2, 4).$validate(2, validateOpts, state), {
-          proto,
+        utils.spy(() => next.invalid(2, 4).$validate(2, validateOpts, state), {
+          proto: nextProto,
           method: '$createError',
           args: [
             'any.invalid',
@@ -762,21 +762,21 @@ describe('BaseSchema', () => {
       });
 
       it('should pass if the value is not one of the invalid values', () => {
-        expect(next.invalid(2).$validate(4, validateOpts, state).errors).toBe(null);
+        expect(utils.isPass(next.invalid(2).$validate(4, validateOpts, state))).toBe(true);
       });
     });
 
     describe('Required', () => {
       it('should call BaseSchema.$createError() when value is undefined', () => {
-        schemaSpy(() => next.required().$validate(undefined, validateOpts, state), {
-          proto,
+        utils.spy(() => next.required().$validate(undefined, validateOpts, state), {
+          proto: nextProto,
           method: '$createError',
           args: ['any.required', state, validateOpts.context, undefined],
         });
       });
 
       it('should pass if the value is not undefined', () => {
-        expect(next.required().$validate(2, validateOpts, state).errors).toBe(null);
+        expect(utils.isPass(next.required().$validate(2, validateOpts, state))).toBe(true);
       });
     });
 
@@ -784,28 +784,42 @@ describe('BaseSchema', () => {
       it('should return the default value', () => {
         expect(next.default(0).$validate(undefined, validateOpts, state).value).toBe(0);
 
-        const spy = resolveSpy(0);
-
-        expect(next.default(ref).$validate(undefined, validateOpts, state).value).toBe(0);
-        expect(
-          utils.toHaveBeenCalledWith(spy, { args: [undefined, [], validateOpts.context] }),
-        ).toBe(true);
-
-        spy.mockRestore();
+        utils.spy(
+          () => expect(next.default(ref).$validate(undefined, validateOpts, state).value).toBe(0),
+          {
+            proto: refProto,
+            method: 'resolve',
+            impl: () => 0,
+          },
+        );
       });
     });
 
     describe('Forbidden', () => {
       it('should call BaseSchema.$createError() when value is not undefined', () => {
-        schemaSpy(() => next.forbidden().$validate(2, validateOpts, state), {
-          proto,
+        utils.spy(() => next.forbidden().$validate(2, validateOpts, state), {
+          proto: nextProto,
           method: '$createError',
           args: ['any.forbidden', state, validateOpts.context, undefined],
         });
       });
 
       it('should pass if the value is undefined', () => {
-        expect(next.forbidden().$validate(undefined, validateOpts, state).errors).toBe(null);
+        expect(utils.isPass(next.forbidden().$validate(undefined, validateOpts, state))).toBe(true);
+      });
+    });
+
+    describe('Validate', () => {
+      it('should pass if value meets the criteria', () => {
+        expect(utils.isPass(next.$validate(2, validateOpts, state))).toBe(true);
+      });
+
+      it('should call BaseSchema.$createError() when fails to validate', () => {
+        utils.spy(() => next.$validate('x', validateOpts, state), {
+          proto: nextProto,
+          method: '$createError',
+          args: ['y', state, validateOpts.context, undefined],
+        });
       });
     });
 
@@ -820,59 +834,44 @@ describe('BaseSchema', () => {
       });
 
       it('should call BaseSchema.$createError() when fails to coerce', () => {
-        schemaSpy(() => next.$validate('x', { ...validateOpts, strict: false }, state), {
-          proto,
+        utils.spy(() => next.$validate('x', { ...validateOpts, strict: false }, state), {
+          proto: nextProto,
           method: '$createError',
           args: ['x', state, validateOpts.context, undefined],
         });
       });
     });
 
-    describe('Validate', () => {
-      it('should pass if value meets the criteria', () => {
-        expect(next.$validate(2, validateOpts, state).errors).toBe(null);
-      });
-
-      it('should call BaseSchema.$createError() when fails to validate', () => {
-        schemaSpy(() => next.$validate('x', validateOpts, state), {
-          proto,
-          method: '$createError',
-          args: ['y', state, validateOpts.context, undefined],
-        });
-      });
-    });
-
     describe('Rules', () => {
       it('should call BaseSchema.$createError() if parameters fail assertion', () => {
-        const spy = resolveSpy('x');
-
-        schemaSpy(() => next.min(ref).$validate(2, validateOpts, state), {
-          proto,
-          method: '$createError',
-          args: ['any.ref', state, validateOpts.context, { ref, reason: 'must be a number' }],
-        });
-
-        spy.mockRestore();
+        utils.spy(
+          () =>
+            utils.spy(() => next.min(ref).$validate(2, validateOpts, state), {
+              proto: nextProto,
+              method: '$createError',
+              args: ['any.ref', state, validateOpts.context, { ref, reason: 'must be a number' }],
+            }),
+          { proto: refProto, method: 'resolve', impl: () => 'x' },
+        );
       });
 
       it('should pass if the value meets the criteria', () => {
-        const spy = resolveSpy(2);
-
-        expect(next.min(ref).$validate(2, validateOpts, state).errors).toBe(null);
-
-        spy.mockRestore();
+        utils.spy(
+          () => expect(utils.isPass(next.min(ref).$validate(2, validateOpts, state))).toBe(true),
+          { proto: refProto, method: 'resolve', impl: () => 2 },
+        );
       });
 
       it('should call BaseSchema.$createError() if the value fails to meet the criteria', () => {
-        const spy = resolveSpy(4);
-
-        schemaSpy(() => next.min(ref).$validate(2, validateOpts, state), {
-          proto,
-          method: '$createError',
-          args: ['z', state, validateOpts.context, undefined],
-        });
-
-        spy.mockRestore();
+        utils.spy(
+          () =>
+            utils.spy(() => next.min(ref).$validate(2, validateOpts, state), {
+              proto: nextProto,
+              method: '$createError',
+              args: ['z', state, validateOpts.context, undefined],
+            }),
+          { proto: refProto, method: 'resolve', impl: () => 4 },
+        );
       });
     });
 
@@ -898,22 +897,28 @@ describe('BaseSchema', () => {
 
     describe('Conditions', () => {
       it('should resolve conditions and merge the schemas', () => {
-        const spy = resolveSpy('x');
-        const nextNext = next.$clone();
+        utils.spy(
+          () => {
+            const nextNext = next.$clone();
 
-        nextNext._conditions.push(() => {
-          if (ref.resolve() === 'x') return next.forbidden();
+            nextNext._conditions.push(() => {
+              if (ref.resolve() === 'x') return next.forbidden();
 
-          return undefined;
-        });
+              return undefined;
+            });
 
-        schemaSpy(() => nextNext.$validate(2, validateOpts, state), {
-          proto,
-          method: '$createError',
-          args: ['any.forbidden', state, validateOpts.context, undefined],
-        });
-
-        spy.mockRestore();
+            utils.spy(() => nextNext.$validate(2, validateOpts, state), {
+              proto: nextProto,
+              method: '$createError',
+              args: ['any.forbidden', state, validateOpts.context, undefined],
+            });
+          },
+          {
+            proto: refProto,
+            method: 'resolve',
+            impl: () => 'x',
+          },
+        );
       });
     });
   });
@@ -932,7 +937,8 @@ describe('BaseSchema', () => {
     it('should call BaseSchema.$validate()', () => {
       const opts = { strict: false };
 
-      schemaSpy(() => schema.validate('x', opts), {
+      utils.spy(() => schema.validate('x', opts), {
+        proto: baseProto,
         method: '$validate',
         args: [
           'x',
@@ -957,40 +963,54 @@ describe('BaseSchema', () => {
     });
 
     it('should call BaseSchema.$clone()', () => {
-      schemaSpy(() => schema.when(ref, { is: schema, then: schema }), {
+      utils.spy(() => schema.when(ref, { is: schema, then: schema }), {
+        proto: baseProto,
         method: '$clone',
       });
     });
 
     it('should call BaseSchema.$mutateRef()', () => {
-      schemaSpy(() => schema.when(ref, { is: schema, then: schema }), {
+      utils.spy(() => schema.when(ref, { is: schema, then: schema }), {
+        proto: baseProto,
         method: '$mutateRef',
         args: [ref],
       });
     });
 
     it('should resolve to the correct schema', () => {
-      const spy = resolveSpy('x');
-
       schema = schema.when(ref, {
         is: schema.valid('x').only(),
         then: schema.forbidden(),
         else: schema.invalid('y'),
       });
 
-      schemaSpy(() => schema.validate('x'), {
-        method: '$createError',
-        args: ['any.forbidden', state, validateOpts.context, undefined],
-      });
+      utils.spy(
+        () =>
+          utils.spy(() => schema.validate('x'), {
+            proto: baseProto,
+            method: '$createError',
+            args: ['any.forbidden', state, validateOpts.context, undefined],
+          }),
+        {
+          proto: refProto,
+          method: 'resolve',
+          impl: () => 'x',
+        },
+      );
 
-      spy.mockImplementation(() => 'y');
-
-      schemaSpy(() => schema.validate('y'), {
-        method: '$createError',
-        args: ['any.invalid', state, validateOpts.context, undefined],
-      });
-
-      spy.mockRestore();
+      utils.spy(
+        () =>
+          utils.spy(() => schema.validate('y'), {
+            proto: baseProto,
+            method: '$createError',
+            args: ['any.invalid', state, validateOpts.context, undefined],
+          }),
+        {
+          proto: refProto,
+          method: 'resolve',
+          impl: () => 'y',
+        },
+      );
     });
   });
 
