@@ -8,14 +8,14 @@ const state = new State();
 describe('boolean', () => {
   describe('Validate', () => {
     it('should validate correctly', () => {
+      expect(boolean.validate(true).value).toBe(true);
+      expect(boolean.validate(false).value).toBe(false);
+
       utils.spy(() => boolean.validate('x'), {
         proto: BaseSchema.prototype,
         method: '$createError',
         args: ['boolean.base', state, {}, undefined],
       });
-
-      expect(boolean.validate(true).value).toBe(true);
-      expect(boolean.validate(false).value).toBe(false);
     });
   });
 
