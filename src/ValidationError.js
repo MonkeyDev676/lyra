@@ -1,4 +1,4 @@
-module.exports = class ValidationError extends Error {
+class ValidationError extends Error {
   constructor(message, code, state) {
     super(message);
 
@@ -8,4 +8,12 @@ module.exports = class ValidationError extends Error {
     this.depth = state.depth;
     this.ancestors = state.ancestors;
   }
-};
+
+  static isValid(value) {
+    return value != null && !!value.__VALIDATION_ERROR__;
+  }
+}
+
+Object.defineProperty(ValidationError.prototype, '__VALIDATION_ERROR__', { value: true });
+
+module.exports = ValidationError;

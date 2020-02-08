@@ -33,7 +33,7 @@
     "typescript": "^3.7.3"
   },
   "dependencies": {
-    "@botbind/constellation": "0.0.8",
-    "@botbind/dust": "0.0.7"
+    "@botbind/constellation": "0.0.10",
+    "@botbind/dust": "0.0.10"
   }
 }

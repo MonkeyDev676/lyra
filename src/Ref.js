@@ -26,11 +26,11 @@ class Ref {
       // Context
       this._ancestor = 'context';
     } else if (path[0] !== opts.separator) {
-      // a.b => root
+      // a.b => sibling
       this._ancestor = 1;
       slice = 0;
     } else if (path[1] !== opts.separator) {
-      // .a.b => current parent
+      // .a.b => self
       this._ancestor = 0;
     } else {
       // We now scan for the separator starting from the third character

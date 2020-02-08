@@ -10,7 +10,7 @@ const _isNumber = require('../internals/_isNumber');
 function _dependency(schema, peers, type, validate) {
   assert(peers.length > 0, `The parameter peers for object.${type} must have at least one item`);
   assert(
-    peers.every(peer => Ref.isRef(peer)),
+    peers.every(peer => Ref.isValid(peer)),
     `The parameter peers for object.${type} must contain only instances of Ref`,
   );
   // Improve consistency

@@ -16,6 +16,10 @@ class Values {
     return this._values.size + this._refs.size;
   }
 
+  clone() {
+    return new Values(this._values, this._refs);
+  }
+
   merge(src, remove) {
     assert(Values.isValid(src), 'The parameter src for Values.merge must be an instance of Values');
     assert(
@@ -32,7 +36,7 @@ class Values {
 
   add(...items) {
     for (const item of items) {
-      if (Ref.isRef(item)) this._refs.add(item);
+      if (Ref.isValid(item)) this._refs.add(item);
       else this._values.add(item);
     }
 
@@ -41,7 +45,7 @@ class Values {
 
   delete(...items) {
     for (const item of items) {
-      if (Ref.isRef(item)) this._refs.delete(item);
+      if (Ref.isValid(item)) this._refs.delete(item);
       else this._values.delete(item);
     }
 
@@ -62,10 +66,6 @@ class Values {
     }
 
     return false;
-  }
-
-  clone() {
-    return new Values(this._values, this._refs);
   }
 
   values() {
