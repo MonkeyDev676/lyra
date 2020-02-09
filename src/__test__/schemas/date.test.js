@@ -83,4 +83,10 @@ describe('date', () => {
       });
     });
   });
+
+  describe('Aliases', () => {
+    it('date.smaller() aliases', () => {
+      expect(date.smaller).toBe(date.less);
+    });
+  });
 });

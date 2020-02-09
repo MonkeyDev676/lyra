@@ -97,6 +97,7 @@ module.exports = new BaseSchema().define({
     },
 
     smaller: {
+      alias: ['less'],
       method(date) {
         return this.$addRule({
           name: 'smaller',
