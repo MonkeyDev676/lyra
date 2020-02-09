@@ -328,6 +328,10 @@ class BaseSchema {
     });
   }
 
+  $hasRule(name) {
+    return this._singleRules.has(name);
+  }
+
   $addRule(opts) {
     assert(
       isPlainObject(opts),
