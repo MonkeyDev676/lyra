@@ -19,6 +19,12 @@ describe('date', () => {
         method: '$createError',
         args: ['date.base', state, {}, undefined],
       });
+
+      utils.spy(() => date.validate(new Date(NaN)), {
+        proto,
+        method: '$createError',
+        args: ['date.base', state, {}, undefined],
+      });
     });
   });
 
