@@ -105,6 +105,39 @@ describe('BaseSchema', () => {
       expect(equal(merged.$flags.invalids, new Values([2, 3, 6]))).toBe(true);
     });
 
+    it('should properly merge rules', () => {
+      schema._singleRules.add('parity');
+      schema._singleRules.add('prime');
+      schema._rules.push(
+        { name: 'odd', identifier: 'parity' },
+        { name: 'greater', identifier: 'compare' },
+        { name: 'prime', identifier: 'prime' },
+      );
+
+      const schema2 = new BaseSchema();
+
+      schema2._singleRules.add('parity');
+      schema2._singleRules.add('integer');
+      schema2._rules.push(
+        { name: 'even', identifier: 'parity' },
+        { name: 'smaller', identifier: 'compare' },
+        { name: 'integer', identifier: 'integer' },
+      );
+
+      const merged = schema.$merge(schema2);
+
+      expect(equal(merged._singleRules, new Set(['parity', 'prime', 'integer']))).toBe(true);
+      expect(
+        equal(merged._rules, [
+          { name: 'greater', identifier: 'compare' },
+          { name: 'prime', identifier: 'prime' },
+          { name: 'even', identifier: 'parity' },
+          { name: 'smaller', identifier: 'compare' },
+          { name: 'integer', identifier: 'integer' },
+        ]),
+      );
+    });
+
     it('should reset registered refs', () => {
       expect(schema.$merge(new BaseSchema())._refs.length).toBe(0);
     });
@@ -142,7 +175,7 @@ describe('BaseSchema', () => {
       const merged = schema.$merge(schema2);
 
       expect(merged).not.toBe(schema);
-      expect(equal(schema.$merge(schema2), result, { compareDescriptors: true })).toBe(true);
+      expect(equal(merged, result, { compareDescriptors: true })).toBe(true);
     });
   });
 
@@ -283,8 +316,16 @@ describe('BaseSchema', () => {
       expect(() => schema.$values([1], 'x')).toThrow();
     });
 
-    it('should correctly register values', () => {
-      schema = schema.$values([1, 2], 'valid').$values([2, 3], 'invalid');
+    it('should call BaseSchema.$setFlag() and correctly register values', () => {
+      utils.spy(
+        () => {
+          schema = schema.$values([1, 2], 'valids').$values([2, 3], 'invalids');
+        },
+        {
+          proto: BaseSchema.prototype,
+          method: '$setFlag',
+        },
+      );
 
       expect(equal(schema.$flags.valids, new Values([1]))).toBe(true);
       expect(equal(schema.$flags.invalids, new Values([2, 3]))).toBe(true);
@@ -313,12 +354,26 @@ describe('BaseSchema', () => {
 
     next._definition.rules = {
       x: {
+        single: true,
+        priority: false,
         params: {
           x: paramDef,
           y: {
             ...paramDef,
             ref: false,
           },
+        },
+      },
+      y: {
+        single: true,
+        priority: true,
+        params: {},
+      },
+      z: {
+        single: false,
+        priority: false,
+        params: {
+          x: paramDef,
         },
       },
     };
@@ -362,6 +417,36 @@ describe('BaseSchema', () => {
       expect(() => next.$addRule({ name: 'x', params: { y: ref } })).toThrow(
         'The parameter y of any.x must be a string',
       );
+    });
+
+    it('should override single rule', () => {
+      const ruleOpts = { name: 'x', params: { x: 'b' } };
+
+      expect(
+        equal(next.$addRule({ name: 'x', params: { x: 'a' } }).$addRule(ruleOpts)._rules, [
+          { ...ruleOpts, identifier: 'x' },
+        ]),
+      ).toBe(true);
+    });
+
+    it('should unshift the rules array if priority is set to true', () => {
+      expect(
+        equal(next.$addRule({ name: 'x' }).$addRule({ name: 'y' })._rules, [
+          { name: 'y', identifier: 'y', params: {} },
+          { name: 'x', identifier: 'x', params: {} },
+        ]),
+      ).toBe(true);
+    });
+
+    it('should concat multiple rules if not single', () => {
+      const ruleOpts = { name: 'z', params: { x: 'a' } };
+      const ruleOpts2 = { name: 'z', params: { x: 'b' } };
+      expect(
+        equal(next.$addRule(ruleOpts).$addRule(ruleOpts2)._rules, [
+          { ...ruleOpts, identifier: 'z' },
+          { ...ruleOpts2, identifier: 'z' },
+        ]),
+      ).toBe(true);
     });
   });
 
@@ -412,22 +497,42 @@ describe('BaseSchema', () => {
     });
 
     it('should throw when incorrect options are passed for rules', () => {
+      const validate = () => {};
+
+      // Either method or validate must be defined
       expect(() => schema.define({ rules: { x: {} } })).toThrow();
-      expect(() => schema.define({ rules: { x: { params: 'x' } } })).toThrow();
-      expect(() => schema.define({ rules: { x: { params: [{ name: 1 }] } } })).toThrow();
-      expect(() => schema.define({ rules: { x: { params: [{ name: 'x', ref: 1 }] } } })).toThrow();
-      expect(() =>
-        schema.define({ rules: { x: { params: [{ name: 'x', assert: 'x' }] } } }),
-      ).toThrow();
-      expect(() =>
-        schema.define({ rules: { x: { params: [{ name: 'x', reason: 1 }] } } }),
-      ).toThrow();
-      expect(() => schema.define({ rules: { x: { alias: 'x' } } })).toThrow();
-      expect(() => schema.define({ rules: { x: { alias: ['x', 1] } } })).toThrow();
       expect(() => schema.define({ rules: { x: { validate: 'x' } } })).toThrow();
       expect(() => schema.define({ rules: { x: { method: 'x' } } })).toThrow();
+      // Method false cannot have aliases
       expect(() => schema.define({ rules: { x: { method: false, alias: ['x'] } } })).toThrow();
+      // Validate must be defined
       expect(() => schema.define({ rules: { x: { method: false } } })).toThrow();
+
+      // We need to provide the rest with a validate method, otherwise it's just gonna be the
+      // first expect
+      expect(() => schema.define({ rules: { x: { validate, params: 'x' } } })).toThrow();
+      expect(() => schema.define({ rules: { x: { validate, params: [{ name: 1 }] } } })).toThrow();
+      expect(() =>
+        schema.define({ rules: { x: { validate, params: [{ name: 'x', ref: 1 }] } } }),
+      ).toThrow();
+      expect(() =>
+        schema.define({ rules: { x: { validate, params: [{ name: 'x', assert: 'x' }] } } }),
+      ).toThrow();
+      expect(() =>
+        schema.define({ rules: { x: { validate, params: [{ name: 'x', reason: 1 }] } } }),
+      ).toThrow();
+      // Assert must be with reason
+      expect(() =>
+        schema.define({ rules: { x: { validate, params: [{ name: 'x', assert: () => {} }] } } }),
+      ).toThrow();
+      // Reason must be with assert
+      expect(() =>
+        schema.define({ rules: { x: { validate, params: [{ name: 'x', reason: 'x' }] } } }),
+      ).toThrow();
+      expect(() => schema.define({ rules: { x: { validate, single: 'x' } } })).toThrow();
+      expect(() => schema.define({ rules: { x: { validate, priority: 'x' } } })).toThrow();
+      expect(() => schema.define({ rules: { x: { validate, alias: 'x' } } })).toThrow();
+      expect(() => schema.define({ rules: { x: { validate, alias: ['x', 1] } } })).toThrow();
     });
 
     it('should throw if a rule has method property and has already been defined', () => {
@@ -442,6 +547,8 @@ describe('BaseSchema', () => {
           validate: fn,
           alias: [],
           params: {},
+          priority: false,
+          single: true,
         }),
       ).toBe(true);
     });
@@ -625,21 +732,21 @@ describe('BaseSchema', () => {
   });
 
   describe('BaseSchema.valid()', () => {
-    it('should calls BaseSchema.$value()', () => {
+    it('should call BaseSchema.$value()', () => {
       utils.spy(() => schema.valid(1, 2, 3), {
         proto: BaseSchema.prototype,
         method: '$values',
-        args: [[1, 2, 3], 'valid'],
+        args: [[1, 2, 3], 'valids'],
       });
     });
   });
 
   describe('BaseSchema.invalid()', () => {
-    it('should calls BaseSchema.$values()', () => {
+    it('should call BaseSchema.$values()', () => {
       utils.spy(() => schema.invalid(1, 2, 3), {
         proto: BaseSchema.prototype,
         method: '$values',
-        args: [[1, 2, 3], 'invalid'],
+        args: [[1, 2, 3], 'invalids'],
       });
     });
   });

@@ -29,16 +29,6 @@ function _attachMethod(value, methodName, method) {
   });
 }
 
-function _cloneCustomizer(value) {
-  if (BaseSchema.isValid(value) && value !== this) return value;
-
-  // We don't want to let dust/clone do the work because it will clone _refs as well,
-  // which is not what we want
-  if (Values.isValid(value)) return value.clone();
-
-  return undefined;
-}
-
 function _opts(methodName, opts = {}) {
   assert(isPlainObject(opts), 'The parameter opts for', methodName, 'must be a plain object');
 
@@ -97,6 +87,32 @@ function _opts(methodName, opts = {}) {
   return opts;
 }
 
+function _assign(target, src) {
+  target.type = src.type;
+  target._refs = [...src._refs];
+  target._conditions = [...src._conditions];
+  target._rules = [...src._rules];
+  target._singleRules = clone(src._singleRules);
+  target._definition = {
+    ...src._definition,
+    rules: { ...src._definition.rules },
+    messages: { ...src._definition.messages },
+  };
+  target.$flags = clone(src.$flags, {
+    customizer: value => {
+      if (BaseSchema.isValid(value)) return value;
+
+      // We don't want to let dust/clone do the work because it will clone _refs as well,
+      // which is not what we want
+      if (Values.isValid(value)) return value.clone();
+
+      return undefined;
+    },
+  });
+
+  return target;
+}
+
 class BaseSchema {
   constructor() {
     this.type = 'any';
@@ -104,6 +120,7 @@ class BaseSchema {
     this._refs = []; // [ancestor, root]
     this._conditions = [];
     this._rules = [];
+    this._singleRules = new Set(); // non-chainable rules
 
     // Defined variables that affect the validation internally
     this._definition = {
@@ -139,9 +156,12 @@ class BaseSchema {
   }
 
   $clone() {
-    return clone(this, {
-      customizer: _cloneCustomizer.bind(this),
-    });
+    // Can't use BaseSchema.prototype since define creates new prototypes
+    // Therefore cloning on these newly defined schemas will not clone their methods
+    // const next = Object.create(BaseSchema.prototype);
+    const next = Object.create(Object.getPrototypeOf(this));
+
+    return _assign(next, this);
   }
 
   $merge(src) {
@@ -157,28 +177,35 @@ class BaseSchema {
       `Cannot merge a ${src.type} schema into a ${this.type} schema`,
     );
 
-    const next = merge(this, src, {
-      customizer: (target, src2, key) => {
-        // If target is not any and source is any, keep the target type
-        if (key === 'type' && target !== 'any' && src2 === 'any') return target;
+    const next = this.$clone();
 
-        if (BaseSchema.isValid(target) && BaseSchema.isValid(src2) && target !== this)
-          return target.$merge(src2);
+    if (src.type !== 'any') next.type = src.type;
 
-        if (key === 'valids') return target.merge(src2, src.$flags.invalids);
+    next._refs = [];
+    next._conditions.push(...src._conditions);
 
-        if (key === 'invalids') return target.merge(src2, src.$flags.valids);
+    for (const ruleIdentifier of src._singleRules) {
+      if (next._singleRules.has(ruleIdentifier))
+        next._rules = next._rules.filter(rule => rule.identifier !== ruleIdentifier);
+    }
 
-        // Reset refs
-        if (key === '_refs') return [];
+    next._rules.push(...src._rules);
+    next._singleRules = new Set([...next._singleRules, ...src._singleRules]);
+    next._definition = {
+      ...next._definition,
+      ...src._definition,
+      rules: { ...next._definition.rules, ...src._definition.rules },
+      messages: { ...next._definition.messages, ...src._definition.messages },
+    };
+    next.$flags = merge(next.$flags, src.$flags, {
+      customizer: (target, src2) => {
+        if (BaseSchema.isValid(target) && BaseSchema.isValid(src2)) return target.$merge(src2);
+
+        if (target === next.$flags.valids) return target.merge(src2, src.$flags.invalids);
+
+        if (target === next.$flags.invalids) return target.merge(src2, src.$flags.valids);
 
         return undefined;
-      },
-
-      // merge invokes clone internally, so we have to pass the customizer through
-      // this option
-      cloneOptions: {
-        customizer: _cloneCustomizer.bind(this),
       },
     });
 
@@ -288,16 +315,16 @@ class BaseSchema {
     );
 
     assert(
-      type === 'valid' || type === 'invalid',
-      'The parameter type for BaseSchema.$values must be either valid or invalid',
+      type === 'valids' || type === 'invalids',
+      'The parameter type for BaseSchema.$values must be either valids or invalids',
     );
 
-    const other = type === 'valid' ? 'invalid' : 'valid';
+    const other = type === 'valids' ? 'invalids' : 'valids';
 
     return this.$setFlag(type, next => {
-      next.$flags[`${other}s`].delete(...values);
+      next.$flags[other].delete(...values);
 
-      return next.$flags[`${type}s`].add(...values);
+      return next.$flags[type].add(...values);
     });
   }
 
@@ -361,7 +388,16 @@ class BaseSchema {
       }
     }
 
-    next._rules.push(opts);
+    if (ruleDef.single) {
+      // Remove duplicate rules
+      next._rules = next._rules.filter(rule => rule.identifier !== opts.identifier);
+
+      // Set single rules
+      next._singleRules.add(opts.identifier);
+    }
+
+    if (ruleDef.priority) next._rules.unshift(opts);
+    else next._rules.push(opts);
 
     return next;
   }
@@ -411,9 +447,11 @@ class BaseSchema {
     );
 
     // Clone the proto so we don't attach methods to all the instances
-    const proto = clone(BaseSchema.prototype);
+    // Can't use BaseSchema.prototype here either, same reason as $clone
+    // const proto = clone(BaseSchema.prototype);
+    const proto = clone(Object.getPrototypeOf(this));
     // Reconstruct the instance
-    const next = Object.create(proto).$merge(this);
+    const next = _assign(Object.create(proto), this);
 
     next.type = opts.type;
 
@@ -448,6 +486,8 @@ class BaseSchema {
       ruleDef = {
         params: [],
         alias: [],
+        single: true,
+        priority: false,
         ...ruleDef,
       };
 
@@ -463,6 +503,20 @@ class BaseSchema {
         'The options alias for rule',
         ruleName,
         'must be an array of strings',
+      );
+
+      assert(
+        typeof ruleDef.single === 'boolean',
+        'The option single for rule',
+        ruleName,
+        'must be a boolean',
+      );
+
+      assert(
+        typeof ruleDef.priority === 'boolean',
+        'The option priority for rule',
+        ruleName,
+        'must be a boolean',
       );
 
       assert(
@@ -484,7 +538,7 @@ class BaseSchema {
       // Make sure either validate or method is provided
       assert(
         typeof ruleDef.method === 'function' || ruleDef.validate !== undefined,
-        'The option method must be defined if the validate method is defined',
+        'Either option method or option validate must be defined',
       );
 
       // Cannot have alias if method is false (a hidden rule)
@@ -514,7 +568,6 @@ class BaseSchema {
 
         const def = {
           ref: true,
-          assert: () => true,
           ...rest,
         };
 
@@ -527,7 +580,7 @@ class BaseSchema {
           'must be a boolean',
         );
         assert(
-          typeof def.assert === 'function',
+          def.assert === undefined || typeof def.assert === 'function',
           'The option assert for param',
           paramName,
           'of rule',
@@ -535,12 +588,18 @@ class BaseSchema {
           'must be a function',
         );
         assert(
-          typeof def.reason === 'string',
+          def.reason === undefined || typeof def.reason === 'string',
           'The option reason for param',
           paramName,
           'of rule',
           ruleName,
           'must be a function',
+        );
+        assert(
+          def.assert === undefined ? def.reason === undefined : def.reason !== undefined,
+          'The option assert and reason for param',
+          paramName,
+          'must be defined together',
         );
 
         paramDef[paramName] = def;
@@ -555,7 +614,9 @@ class BaseSchema {
 
       // ruleDef.validate is defined
       if (ruleDef.method === undefined)
-        _attachMethod(proto, ruleName, () => next.$addRule({ name: ruleName }));
+        _attachMethod(proto, ruleName, function defaultMethod() {
+          return this.$addRule({ name: ruleName });
+        });
 
       for (const alias of ruleDef.alias) {
         _attachMethod(proto, alias, proto[ruleName]);
@@ -607,11 +668,11 @@ class BaseSchema {
   }
 
   valid(...values) {
-    return this.$values(values, 'valid');
+    return this.$values(values, 'valids');
   }
 
   invalid(...values) {
-    return this.$values(values, 'invalid');
+    return this.$values(values, 'invalids');
   }
 
   error(customizer) {
