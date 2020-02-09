@@ -984,7 +984,12 @@ describe('BaseSchema', () => {
           utils.spy(() => schema.validate('y'), {
             proto: BaseSchema.prototype,
             method: '$createError',
-            args: ['any.invalid', state, validateOpts.context, undefined],
+            args: [
+              'any.invalid',
+              state,
+              validateOpts.context,
+              { values: new Values(['y']), grammar: { s: '', verb: 'is' } },
+            ],
           }),
         {
           proto: Ref.prototype,

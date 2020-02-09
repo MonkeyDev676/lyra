@@ -1,8 +1,8 @@
-const BaseSchema = require('../../schemas/BaseSchema');
 const any = require('../../schemas/any');
 const State = require('../../State');
 const utils = require('../utils');
 
+const proto = Object.getPrototypeOf(any);
 const state = new State();
 
 describe('any', () => {
@@ -39,13 +39,13 @@ describe('any', () => {
       expect(schema.validate('x').value).toBe('x');
 
       utils.spy(() => schema.validate('1'), {
-        proto: BaseSchema.prototype,
+        proto,
         method: '$createError',
         args: ['any.custom', state, {}, { name: 'custom method', error: err }],
       });
 
       utils.spy(() => schema.validate('4'), {
-        proto: BaseSchema.prototype,
+        proto,
         method: '$createError',
         args: ['any.required', state, {}, undefined],
       });

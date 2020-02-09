@@ -1,8 +1,8 @@
-const BaseSchema = require('../../schemas/BaseSchema');
 const functionSchema = require('../../schemas/function');
 const State = require('../../State');
 const utils = require('../utils');
 
+const proto = Object.getPrototypeOf(functionSchema);
 const state = new State();
 
 describe('function', () => {
@@ -13,7 +13,7 @@ describe('function', () => {
       expect(functionSchema.validate(fn).value).toBe(fn);
 
       utils.spy(() => functionSchema.validate('x'), {
-        proto: BaseSchema.prototype,
+        proto,
         method: '$createError',
         args: ['function.base', state, {}, undefined],
       });
@@ -30,7 +30,7 @@ describe('function', () => {
       expect(schema.validate(Y).value).toBe(Y);
 
       utils.spy(() => schema.validate(() => {}), {
-        proto: BaseSchema.prototype,
+        proto,
         method: '$createError',
         args: ['function.inherit', state, {}, { ctor: X }],
       });
