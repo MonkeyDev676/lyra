@@ -32,6 +32,12 @@ describe('date', () => {
         method: '$createError',
         args: ['date.coerce', state, {}, undefined],
       });
+
+      utils.spy(() => date.validate(Infinity, { strict: false }), {
+        proto,
+        method: '$createError',
+        args: ['date.coerce', state, {}, undefined],
+      });
     });
   });
 
