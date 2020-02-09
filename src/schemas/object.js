@@ -19,7 +19,7 @@ function _dependency(schema, peers, type, validate) {
     `The parameter peers for object.${type} must contain only self references`,
   );
 
-  return schema.$setFlag('dependecies', next =>
+  return schema.$setFlag('dependencies', next =>
     next.$flags.dependencies.push({
       type,
       validate,
