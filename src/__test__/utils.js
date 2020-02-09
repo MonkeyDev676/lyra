@@ -5,7 +5,9 @@ function _toHaveBeenCalled(mock) {
 }
 
 function _toHaveBeenCalledWith(mock, { args, equalOpts }) {
-  return mock.mock.calls.some(callArgs => equal(callArgs, args, equalOpts));
+  return (
+    _toHaveBeenCalled(mock) && mock.mock.calls.some(callArgs => equal(callArgs, args, equalOpts))
+  );
 }
 
 function _spy(fn, { proto, method, args = [], equalOpts, impl }) {
@@ -16,7 +18,7 @@ function _spy(fn, { proto, method, args = [], equalOpts, impl }) {
   fn(spy);
 
   if (args.length === 0) expect(_toHaveBeenCalled(spy)).toBe(true);
-  else expect(_toHaveBeenCalledWith(spy, { args, equalOpts }));
+  else expect(_toHaveBeenCalledWith(spy, { args, equalOpts })).toBe(true);
 
   spy.mockRestore();
 }
