@@ -18,11 +18,11 @@ module.exports = new BaseSchema().define({
     }
 
     if (typeof value === 'string') {
-      const normalize = helpers.schema.$flags.sensitive ? value.toLowerCase() : value;
+      value = helpers.schema.$flags.sensitive ? value.toLowerCase() : value;
 
-      if (normalize === 'true') return { value: true, errors: null };
+      if (value === 'true') return { value: true, errors: null };
 
-      if (normalize === 'false') return { value: false, errors: null };
+      if (value === 'false') return { value: false, errors: null };
     }
 
     return { value: null, errors: [helpers.createError('boolean.coerce')] };
