@@ -7,6 +7,7 @@ module.exports = new BaseSchema().define({
 
   rules: {
     custom: {
+      single: false,
       method(method, name = 'unknown') {
         return this.$addRule({ name: 'custom', params: { method, name } });
       },

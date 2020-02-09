@@ -27,15 +27,10 @@ describe('any', () => {
           return { value: null, errors: [helpers.createError('any.required')] };
         }
 
-        if (value === '5') {
-          return { value: undefined, errors: null };
-        }
-
         return { value, errors: null };
       }, 'custom method');
 
       expect(schema.validate('2').value).toBe('3');
-      expect(schema.validate('5').value).toBe(undefined);
       expect(schema.validate('x').value).toBe('x');
 
       utils.spy(() => schema.validate('1'), {
@@ -48,6 +43,38 @@ describe('any', () => {
         proto,
         method: '$createError',
         args: ['any.required', state, {}, undefined],
+      });
+    });
+
+    it('should validate multiple custom methods', () => {
+      const err = new Error('not a or b');
+      const err2 = new Error('not x');
+      const schema = any
+        .custom(value => {
+          if (value === 'a') return { value: 'x', errors: null };
+
+          if (value === 'b') return { value: 'y', errors: null };
+
+          throw err;
+        }, 'custom method 1')
+        .custom(value => {
+          if (value === 'x') return { value: 'z', errors: null };
+
+          throw err2;
+        }, 'custom method 2');
+
+      expect(schema.validate('a').value).toBe('z');
+
+      utils.spy(() => schema.validate('c'), {
+        proto,
+        method: '$createError',
+        args: ['any.custom', state, {}, { name: 'custom method 1', error: err }],
+      });
+
+      utils.spy(() => schema.validate('b'), {
+        proto,
+        method: '$createError',
+        args: ['any.custom', state, {}, { name: 'custom method 2', error: err2 }],
       });
     });
   });
