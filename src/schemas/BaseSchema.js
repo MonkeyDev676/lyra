@@ -242,7 +242,7 @@ class BaseSchema {
 
     const template = this._definition.messages[code];
 
-    assert(template !== undefined, 'Message template', template, 'not found');
+    assert(template !== undefined, 'Message template', code, 'not found');
 
     let label = this.$flags.label;
 
