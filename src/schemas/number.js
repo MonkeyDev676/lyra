@@ -1,8 +1,8 @@
 const compare = require('@botbind/dust/src/compare');
-const AnySchema = require('./AnySchema');
+const BaseSchema = require('./BaseSchema');
 const _isNumber = require('../internals/_isNumber');
 
-const NumberSchema = new AnySchema().define({
+const NumberSchema = new BaseSchema().define({
   type: 'number',
   flags: {
     unsafe: false,
@@ -22,7 +22,7 @@ const NumberSchema = new AnySchema().define({
     'number.unsafe': '{label} must be a safe number',
   },
 
-  coerce({ value, createError }) {
+  coerce: (value, { createError }) => {
     const coerce = Number(value);
 
     if (!Number.isNaN(coerce)) return { value: coerce, errors: null };
@@ -30,7 +30,7 @@ const NumberSchema = new AnySchema().define({
     return { value: null, errors: [createError('number.coerce')] };
   },
 
-  validate({ value, createError, schema }) {
+  validate: (value, { schema, createError }) => {
     if (value === Infinity || value === -Infinity)
       return { value: null, errors: [createError('number.infinity')] };
 
@@ -54,8 +54,13 @@ const NumberSchema = new AnySchema().define({
 
     compare: {
       method: false,
-      validate({ value, params }) {
-        return compare(value, params.num, params.operator);
+      validate: (value, { params, name, createError }) => {
+        if (compare(value, params.num, params.operator)) return { value, errors: null };
+
+        return {
+          value: null,
+          errors: [createError(`number.${name}`, { num: params.num })],
+        };
       },
       params: [
         {
@@ -67,8 +72,10 @@ const NumberSchema = new AnySchema().define({
     },
 
     integer: {
-      validate({ value }) {
-        return Number.isInteger(value);
+      validate: (value, { createError }) => {
+        if (Number.isInteger(value)) return { value, errors: null };
+
+        return { value: null, errors: [createError('number.integer')] };
       },
     },
 
@@ -95,6 +102,7 @@ const NumberSchema = new AnySchema().define({
     },
 
     smaller: {
+      alias: ['less'],
       method(num) {
         return this.$addRule({
           name: 'smaller',
@@ -102,17 +110,21 @@ const NumberSchema = new AnySchema().define({
           params: { num, operator: '<' },
         });
       },
-      alias: ['less'],
     },
 
     multiple: {
+      alias: ['divisible', 'factor'],
       method(num) {
         return this.$addRule({ name: 'multiple', params: { num } });
       },
-      validate({ value, params }) {
-        return value % params.num === 0;
+      validate: (value, { params, createError }) => {
+        if (value % params.num === 0) return { value, errors: null };
+
+        return {
+          value: null,
+          errors: [createError('number.multiple', { num: params.num })],
+        };
       },
-      alias: ['divisible', 'factor'],
       params: [
         {
           name: 'num',
@@ -132,8 +144,13 @@ const NumberSchema = new AnySchema().define({
       method(num) {
         return this.$addRule({ name: 'divide', params: { num } });
       },
-      validate({ value, params }) {
-        return value % params.num === 0;
+      validate: (value, { params, createError }) => {
+        if (params.num % value === 0) return { value, errors: null };
+
+        return {
+          value,
+          errors: [createError('number.divide', { num: params.num })],
+        };
       },
       params: [
         {

@@ -1,6 +1,6 @@
 const assert = require('@botbind/dust/src/assert');
 const compare = require('@botbind/dust/src/compare');
-const AnySchema = require('./AnySchema');
+const BaseSchema = require('./BaseSchema');
 const _isNumber = require('../internals/_isNumber');
 
 /* eslint-disable no-control-regex, no-useless-escape */
@@ -10,7 +10,7 @@ const alphanumRegex = /^[a-zA-Z0-9]+$/;
 const numRegex = /^[0-9]+$/;
 /* eslint-enable */
 
-const StringSchema = new AnySchema().define({
+module.exports = new BaseSchema().define({
   type: 'string',
   flags: {
     case: null,
@@ -35,11 +35,9 @@ const StringSchema = new AnySchema().define({
     'string.trim': '{label} must not contain leading and trailing whitespaces',
   },
 
-  coerce({ value }) {
-    return { value: String(value), errors: null };
-  },
+  coerce: (value, { schema }) => {
+    value = String(value);
 
-  transform({ value, schema }) {
     if (schema.$flags.case === 'upper') value = value.toLocaleUpperCase();
 
     if (schema.$flags.case === 'lower') value = value.toLocaleLowerCase();
@@ -58,10 +56,10 @@ const StringSchema = new AnySchema().define({
       value = value.replace(pattern, replacement);
     }
 
-    return value;
+    return { value, errors: null };
   },
 
-  validate({ value, createError }) {
+  validate: (value, { createError }) => {
     if (typeof value !== 'string') return { value: null, errors: [createError('string.base')] };
 
     return { value, errors: null };
@@ -70,8 +68,10 @@ const StringSchema = new AnySchema().define({
   rules: {
     compare: {
       method: false,
-      validate({ value, params }) {
-        return compare(value.length, params.length, params.operator);
+      validate: (value, { params, createError, name }) => {
+        if (compare(value.length, params.length, params.operator)) return { value, errors: null };
+
+        return { value: null, errors: [createError(`string.${name}`, { length: params.length })] };
       },
       params: [
         {
@@ -113,7 +113,7 @@ const StringSchema = new AnySchema().define({
     },
 
     creditCard: {
-      validate({ value }) {
+      validate: (value, { createError }) => {
         let i = value.length;
         let sum = 0;
         let mul = 1;
@@ -126,23 +126,25 @@ const StringSchema = new AnySchema().define({
           mul ^= 3;
         }
 
-        return sum > 0 && sum % 10 === 0;
+        if (sum > 0 && sum % 10 === 0) return { value, errors: null };
+
+        return { value: null, errors: [createError('string.creditCard')] };
       },
     },
 
     pattern: {
       method: regex => {
-        return this.$addRule({ name: 'regex', params: { regex } });
+        return this.$addRule({ name: 'pattern', params: { regex } });
       },
-      validate({ value, params }) {
-        return params.regex.test(value);
+      validate: (value, { params, createError, name }) => {
+        if (params.regex.test(value)) return { value, errors: null };
+
+        return { value: null, errors: [createError(`string.${name}`)] };
       },
       params: [
         {
           name: 'regex',
-          assert(resolved) {
-            return resolved instanceof RegExp;
-          },
+          assert: resolved => resolved instanceof RegExp,
           reason: 'must be a regular expression',
         },
       ],
@@ -178,20 +180,14 @@ const StringSchema = new AnySchema().define({
 
     case: {
       method: false,
-      validate({ value, params }) {
-        if (params.dir === 'lower') return value.toLocaleLowerCase() === value;
+      validate: (value, { params, name, createError }) => {
+        if (params.dir === 'lower' && value.toLocaleLowerCase() === value)
+          return { value, errors: null };
 
-        return value.toLocaleUpperCase() === value;
+        if (value.toLocaleUpperCase() === value) return { value, errors: null };
+
+        return { value: null, errors: [createError(`string.${name}`)] };
       },
-      params: [
-        {
-          name: 'dir',
-          assert(resolved) {
-            return ['lower', 'upper'].includes(resolved);
-          },
-          reason: 'must be either lower or upper',
-        },
-      ],
     },
 
     uppercase: {
@@ -223,8 +219,10 @@ const StringSchema = new AnySchema().define({
 
         return next;
       },
-      validate({ value }) {
-        return value === value.trim();
+      validate: (value, { createError }) => {
+        if (value === value.trim()) return { value, errors: null };
+
+        return { value: null, errors: [createError('string.trim')] };
       },
     },
 
@@ -251,5 +249,3 @@ const StringSchema = new AnySchema().define({
     },
   },
 });
-
-module.exports = StringSchema;
