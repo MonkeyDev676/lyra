@@ -11,12 +11,14 @@ module.exports = new BaseSchema().define({
         return this.$addRule({ name: 'custom', params: { method, name } });
       },
       validate: (value, helpers) => {
+        const { params } = helpers;
+
         try {
-          return helpers.params.method(value, helpers);
+          return params.method(value, helpers);
         } catch (err) {
           return {
             value: null,
-            errors: [helpers.createError('any.custom', { error: err, name: helpers.params.name })],
+            errors: [helpers.createError('any.custom', { error: err, name: params.name })],
           };
         }
       },

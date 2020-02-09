@@ -12,25 +12,24 @@ module.exports = new BaseSchema().define({
     'boolean.falsy': '{label} must be falsy',
   },
 
-  coerce: (value, helpers) => {
+  coerce: (value, { schema, createError }) => {
     if (typeof value === 'boolean') {
       return { value, errors: null };
     }
 
     if (typeof value === 'string') {
-      value = helpers.schema.$flags.sensitive ? value.toLowerCase() : value;
+      value = schema.$flags.sensitive ? value.toLowerCase() : value;
 
       if (value === 'true') return { value: true, errors: null };
 
       if (value === 'false') return { value: false, errors: null };
     }
 
-    return { value: null, errors: [helpers.createError('boolean.coerce')] };
+    return { value: null, errors: [createError('boolean.coerce')] };
   },
 
-  validate: (value, helpers) => {
-    if (typeof value !== 'boolean')
-      return { value: null, errors: [helpers.createError('boolean.base')] };
+  validate: (value, { createError }) => {
+    if (typeof value !== 'boolean') return { value: null, errors: [createError('boolean.base')] };
 
     return { value, errors: null };
   },
@@ -43,18 +42,18 @@ module.exports = new BaseSchema().define({
     },
 
     truthy: {
-      validate: (value, helpers) => {
+      validate: (value, { createError }) => {
         if (value) return { value, errors: null };
 
-        return { value: null, errors: [helpers.createError('boolean.truthy')] };
+        return { value: null, errors: [createError('boolean.truthy')] };
       },
     },
 
     falsy: {
-      validate: (value, helpers) => {
+      validate: (value, { createError }) => {
         if (!value) return { value, errors: null };
 
-        return { value: null, errors: [helpers.createError('boolean.falsy')] };
+        return { value: null, errors: [createError('boolean.falsy')] };
       },
     },
   },

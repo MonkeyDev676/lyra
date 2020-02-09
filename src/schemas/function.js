@@ -7,9 +7,8 @@ module.exports = new BaseSchema().define({
     'function.inherit': '{label} must inherit {ctor}',
   },
 
-  validate: (value, helpers) => {
-    if (typeof value !== 'function')
-      return { value: null, errors: [helpers.createError('function.base')] };
+  validate: (value, { createError }) => {
+    if (typeof value !== 'function') return { value: null, errors: [createError('function.base')] };
 
     return { value, errors: null };
   },
@@ -19,12 +18,12 @@ module.exports = new BaseSchema().define({
       method(Ctor) {
         return this.$addRule({ name: 'inherit', params: { Ctor } });
       },
-      validate: (value, helpers) => {
-        if (value.prototype instanceof helpers.params.Ctor) return { value, errors: null };
+      validate: (value, { params, createError }) => {
+        if (value.prototype instanceof params.Ctor) return { value, errors: null };
 
         return {
           value: null,
-          errors: [helpers.createError('function.inherit', { ctor: helpers.params.Ctor })],
+          errors: [createError('function.inherit', { ctor: params.Ctor })],
         };
       },
       params: [

@@ -16,7 +16,7 @@ module.exports = new BaseSchema().define({
     'date.smaller': '{label} must be smaller than {date}',
   },
 
-  coerce: (value, helpers) => {
+  coerce: (value, { createError }) => {
     if (typeof value === 'number') {
       value = new Date(value);
 
@@ -31,30 +31,30 @@ module.exports = new BaseSchema().define({
       }
     }
 
-    return { value: null, errors: [helpers.createError('date.coerce')] };
+    return { value: null, errors: [createError('date.coerce')] };
   },
 
-  validate: (value, helpers) => {
+  validate: (value, { createError }) => {
     // Check for invalid dates
     if (_isValidDate(value)) return { value, errors: null };
 
-    return { value: null, errors: [helpers.createError('date.base')] };
+    return { value: null, errors: [createError('date.base')] };
   },
 
   rules: {
     compare: {
       method: false,
-      validate: (value, helpers) => {
+      validate: (value, { params, createError, name }) => {
         let date;
 
-        if (helpers.params.date === 'now') date = Date.now();
-        else date = helpers.params.date.getTime();
+        if (params.date === 'now') date = Date.now();
+        else date = params.date.getTime();
 
-        if (compare(value.getTime(), date, helpers.params.operator)) return { value, errors: null };
+        if (compare(value.getTime(), date, params.operator)) return { value, errors: null };
 
         return {
           value: null,
-          errors: helpers.createError(`date.${helpers.name}`, { date: helpers.params.date }),
+          errors: createError(`date.${name}`, { date: params.date }),
         };
       },
       params: [
