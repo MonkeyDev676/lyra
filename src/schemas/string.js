@@ -13,9 +13,6 @@ const numRegex = /^[0-9]+$/;
 module.exports = new BaseSchema().define({
   type: 'string',
   flags: {
-    case: null,
-    reverse: false,
-    trim: false,
     replace: null,
   },
   messages: {
@@ -38,17 +35,11 @@ module.exports = new BaseSchema().define({
   coerce: (value, { schema }) => {
     value = String(value);
 
-    if (schema.$flags.case === 'upper') value = value.toLocaleUpperCase();
+    if (schema.$hasRule('uppercase')) value = value.toLocaleUpperCase();
 
-    if (schema.$flags.case === 'lower') value = value.toLocaleLowerCase();
+    if (schema.$hasRule('lowercase')) value = value.toLocaleLowerCase();
 
-    if (schema.$flags.trim) value = value.trim();
-
-    if (schema.$flags.reverse)
-      value = value
-        .split('')
-        .reverse()
-        .join('');
+    if (schema.$hasRule('trim')) value = value.trim();
 
     if (schema.$flags.replace !== null) {
       const [pattern, replacement] = schema.$flags.replace;
@@ -133,6 +124,7 @@ module.exports = new BaseSchema().define({
     },
 
     pattern: {
+      single: false,
       method: regex => {
         return this.$addRule({ name: 'pattern', params: { regex } });
       },
@@ -195,8 +187,6 @@ module.exports = new BaseSchema().define({
         // Avoid cloning twice
         const next = this.$addRule({ name: 'uppercase', method: 'case', params: { dir: 'upper' } });
 
-        next.$flags.case = 'upper';
-
         return next;
       },
     },
@@ -204,8 +194,6 @@ module.exports = new BaseSchema().define({
     lowercase: {
       method() {
         const next = this.$addRule({ name: 'lowercase', method: 'case', params: { dir: 'lower' } });
-
-        next.$flags.case = 'lower';
 
         return next;
       },
@@ -215,20 +203,12 @@ module.exports = new BaseSchema().define({
       method() {
         const next = this.$addRule({ name: 'trim' });
 
-        next.$flags.trim = true;
-
         return next;
       },
       validate: (value, { createError }) => {
         if (value === value.trim()) return { value, errors: null };
 
         return { value: null, errors: [createError('string.trim')] };
-      },
-    },
-
-    reverse: {
-      method() {
-        return this.$setFlag('reverse', true);
       },
     },
 

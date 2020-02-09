@@ -113,6 +113,7 @@ const NumberSchema = new BaseSchema().define({
     },
 
     multiple: {
+      single: false,
       alias: ['divisible', 'factor'],
       method(num) {
         return this.$addRule({ name: 'multiple', params: { num } });
@@ -141,6 +142,7 @@ const NumberSchema = new BaseSchema().define({
     },
 
     divide: {
+      single: false,
       method(num) {
         return this.$addRule({ name: 'divide', params: { num } });
       },
