@@ -1,14 +1,13 @@
 const assert = require('@botbind/dust/src/assert');
 const clone = require('@botbind/dust/src/clone');
 const compare = require('@botbind/dust/src/compare');
-const AnySchema = require('./AnySchema');
+const BaseSchema = require('./BaseSchema');
 const _isNumber = require('../internals/_isNumber');
 
-const ArraySchema = new AnySchema().define({
+module.exports = new BaseSchema().define({
   type: 'array',
   flags: {
     inner: null,
-    reverse: false,
   },
   messages: {
     'array.base': '{label} must be an array',
@@ -17,8 +16,7 @@ const ArraySchema = new AnySchema().define({
     'array.min': '{label} must have at least {length} items',
     'array.max': '{label} must have at most {length} items',
   },
-
-  coerce({ value, createError }) {
+  coerce: (value, { createError }) => {
     try {
       return { value: JSON.parse(value), errors: null };
     } catch (err) {
@@ -26,23 +24,19 @@ const ArraySchema = new AnySchema().define({
     }
   },
 
-  transform({ value, schema }) {
-    if (schema.$flags.reverse) value = value.reverse();
-
-    return value;
-  },
-
-  validate({ value, state, schema, opts, createError }) {
+  validate: (value, { createError, state, schema, opts }) => {
     if (!Array.isArray(value)) return { value: null, errors: [createError('array.base')] };
 
     const errors = [];
 
+    // Shallow clone value
     value = clone(value, { recursive: false });
     state.dive(value);
 
     for (let i = 0; i < value.length; i++) {
-      const path = state.path === null ? `[${i}]` : `${state.path}[${i}]`;
-      const result = schema.$flags.inner.$validate(value[i], opts, state.updatePath(path));
+      state.path = state.path === null ? `[${i}]` : `${state.path}[${i}]`;
+
+      const result = schema.$flags.inner.$validate(value[i], opts, state);
 
       if (result.errors !== null) {
         if (opts.abortEarly) return result;
@@ -64,8 +58,8 @@ const ArraySchema = new AnySchema().define({
     of: {
       method(inner) {
         assert(
-          AnySchema.isValid(inner),
-          'The parameter inner for array.of must be an instance of AnySchema',
+          BaseSchema.isValid(inner),
+          'The parameter inner for array.of must be a valid schema',
         );
 
         return this.$setFlag('inner', inner);
@@ -115,13 +109,5 @@ const ArraySchema = new AnySchema().define({
         });
       },
     },
-
-    reverse: {
-      method() {
-        return this.$setFlag('reverse', true);
-      },
-    },
   },
 });
-
-module.exports = ArraySchema;
