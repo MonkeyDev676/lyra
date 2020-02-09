@@ -779,7 +779,7 @@ class BaseSchema {
 
       if (err !== undefined) continue;
 
-      const result = ruleDef.validate(value, { ...helpers, params });
+      const result = ruleDef.validate(value, { ...helpers, params, name: ruleDef.name });
 
       if (result.errors === null) value = result.value;
       else {
