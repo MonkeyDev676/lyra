@@ -15,12 +15,6 @@ class State {
 
     return this;
   }
-
-  updatePath(path) {
-    this.path = path;
-
-    return this;
-  }
 }
 
 Object.defineProperty(State.prototype, '__STATE__', { value: true });
