@@ -68,11 +68,11 @@ module.exports = new BaseSchema().define({
     state.dive(value);
 
     for (const [key, subSchema] of schema.$flags.inner) {
-      const path = state.path === null ? key : `${state.path}.${key}`;
+      state.path = state.path === null ? key : `${state.path}.${key}`;
 
       keys.delete(key);
 
-      const result = subSchema.$validate(value[key], opts, state.updatePath(path));
+      const result = subSchema.$validate(value[key], opts, state);
 
       if (result.errors !== null) {
         if (opts.abortEarly) return result;
