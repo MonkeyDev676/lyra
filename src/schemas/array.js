@@ -68,8 +68,10 @@ module.exports = new BaseSchema().define({
 
     compare: {
       method: false,
-      validate({ value, params }) {
-        return compare(value.length, params.length, params.operator);
+      validate: (value, { params, createError, name }) => {
+        if (compare(value.length, params.length, params.operator)) return { value, errors: null };
+
+        return { value: null, errors: [createError(`array.${name}`, { length: params.length })] };
       },
       params: [
         {
