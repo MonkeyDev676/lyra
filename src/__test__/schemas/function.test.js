@@ -5,6 +5,10 @@ const utils = require('../utils');
 const proto = Object.getPrototypeOf(functionSchema);
 const state = new State();
 
+class X {}
+class Y extends X {}
+class Z extends Y {}
+
 describe('function', () => {
   describe('Validate', () => {
     it('should validate correctly', () => {
@@ -21,10 +25,7 @@ describe('function', () => {
   });
 
   describe('boolean.inherit()', () => {
-    it("should validate functions' inheritance", () => {
-      class X {}
-      class Y extends X {}
-
+    it("should validate a function's inheritance", () => {
       const schema = functionSchema.inherit(X);
 
       expect(schema.validate(Y).value).toBe(Y);
@@ -33,6 +34,18 @@ describe('function', () => {
         proto,
         method: '$createError',
         args: ['function.inherit', state, {}, { ctor: X }],
+      });
+    });
+
+    it("should validate multiple function's inheritances", () => {
+      const schema = functionSchema.inherit(X).inherit(Y);
+
+      expect(schema.validate(Z).value).toBe(Z);
+
+      utils.spy(() => schema.validate(Y), {
+        proto,
+        method: '$createError',
+        args: ['function.inherit', state, {}, { ctor: Y }],
       });
     });
   });

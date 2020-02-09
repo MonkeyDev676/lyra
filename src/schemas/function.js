@@ -15,6 +15,7 @@ module.exports = new BaseSchema().define({
 
   rules: {
     inherit: {
+      single: false,
       method(Ctor) {
         return this.$addRule({ name: 'inherit', params: { Ctor } });
       },
