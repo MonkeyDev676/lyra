@@ -3,7 +3,7 @@ const assert = require('@botbind/dust/src/assert');
 const clone = require('@botbind/dust/src/clone');
 const isPlainObject = require('@botbind/dust/src/isPlainObject');
 const compare = require('@botbind/dust/src/compare');
-const AnySchema = require('./AnySchema');
+const BaseSchema = require('./BaseSchema');
 const Ref = require('../Ref');
 const _isNumber = require('../internals/_isNumber');
 
@@ -27,7 +27,7 @@ function _dependency(schema, peers, type, validate) {
   );
 }
 
-const ObjectSchema = new AnySchema().define({
+module.exports = new BaseSchema().define({
   type: 'object',
   flags: {
     inner: [],
@@ -48,7 +48,7 @@ const ObjectSchema = new AnySchema().define({
     'object.oxor': '{label} must contain one or none of {peers}',
   },
 
-  coerce({ value, createError }) {
+  coerce: (value, { createError }) => {
     try {
       return { value: JSON.parse(value), errors: null };
     } catch (err) {
@@ -56,12 +56,12 @@ const ObjectSchema = new AnySchema().define({
     }
   },
 
-  validate({ value, schema, state, opts, createError }) {
+  validate: (value, { schema, state, opts, createError }) => {
     if (value === null || typeof value === 'object' || Array.isArray(value))
       return { value: null, errors: [createError('object.base')] };
 
     const errors = [];
-    //const stripKeys = [];
+    // const stripKeys = [];
     const keys = new Set(Object.keys(value));
 
     value = clone(value);
@@ -101,10 +101,10 @@ const ObjectSchema = new AnySchema().define({
       }
     }
 
-    /*stripKeys.forEach(key => {
+    /* stripKeys.forEach(key => {
       delete value[key];
       keys.delete(key);
-    });*/
+    }); */
 
     if (opts.stripUnknown) {
       keys.forEach(key => {
@@ -134,6 +134,9 @@ const ObjectSchema = new AnySchema().define({
     return { value, errors: null };
   },
 
+  // TODO: resolve refs
+  prepare: () => {},
+
   rules: {
     of: {
       method(inner) {
@@ -142,8 +145,8 @@ const ObjectSchema = new AnySchema().define({
         const entries = Object.entries(inner);
 
         assert(
-          entries.every(([, schema]) => AnySchema.isValid(schema)),
-          'The parameter inner for ObjectSchema must contain only instances of AnySchema',
+          entries.every(([, schema]) => BaseSchema.isValid(schema)),
+          'The parameter inner for ObjectSchema must contain valid schemas',
         );
 
         // Treat {} as null
@@ -317,5 +320,3 @@ const ObjectSchema = new AnySchema().define({
     },
   },
 });
-
-module.exports = ObjectSchema;
