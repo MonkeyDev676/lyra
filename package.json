@@ -2,8 +2,11 @@
   "name": "@botbind/lyra",
   "version": "0.0.10-beta",
   "description": "An unopinionated, simple and lightweight Joi alternative",
-  "main": "src/index.js",
-  "types": "src/index.d.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/botbind/lyra.git"
@@ -17,7 +20,8 @@
   "scripts": {
     "lint": "eslint . --report-unused-disable-directives && echo \"No errors found\"",
     "lint:fix": "eslint . --fix && echo \"No errors found\"",
-    "test": "jest"
+    "test": "jest",
+    "build": "rm -rf dist && cp -r src dist && rm -rf dist/__tests__"
   },
   "devDependencies": {
     "babel-eslint": "^10.0.3",
