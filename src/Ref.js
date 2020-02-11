@@ -1,6 +1,6 @@
-const assert = require('@botbind/dust/src/assert');
-const isPlainObject = require('@botbind/dust/src/isPlainObject');
-const get = require('@botbind/dust/src/get');
+const assert = require('@botbind/dust/dist/assert');
+const isPlainObject = require('@botbind/dust/dist/isPlainObject');
+const get = require('@botbind/dust/dist/get');
 
 class Ref {
   constructor(path, opts = {}) {

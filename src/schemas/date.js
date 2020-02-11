@@ -1,4 +1,4 @@
-const compare = require('@botbind/dust/src/compare');
+const compare = require('@botbind/dust/dist/compare');
 const BaseSchema = require('./BaseSchema');
 
 function _isValidDate(value) {

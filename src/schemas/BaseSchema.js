@@ -1,13 +1,14 @@
-const assert = require('@botbind/dust/src/assert');
-const isPlainObject = require('@botbind/dust/src/isPlainObject');
-const clone = require('@botbind/dust/src/clone');
-const merge = require('@botbind/dust/src/merge');
-const serialize = require('@botbind/dust/src/serialize');
-const get = require('@botbind/dust/src/get');
+const assert = require('@botbind/dust/dist/assert');
+const isPlainObject = require('@botbind/dust/dist/isPlainObject');
+const clone = require('@botbind/dust/dist/clone');
+const merge = require('@botbind/dust/dist/merge');
+const serialize = require('@botbind/dust/dist/serialize');
+const get = require('@botbind/dust/dist/get');
 const Ref = require('../Ref');
 const State = require('../State');
 const Values = require('../Values');
 const ValidationError = require('../ValidationError');
+const _const = require('../internals/_constants');
 
 const _defaultSymbol = Symbol('__DEFAULT__');
 
@@ -33,12 +34,7 @@ function _opts(methodName, opts = {}) {
   assert(isPlainObject(opts), 'The parameter opts for', methodName, 'must be a plain object');
 
   opts = {
-    strict: true,
-    abortEarly: true,
-    recursive: true,
-    allowUnknown: false,
-    stripUnknown: false,
-    context: {},
+    ..._const.DEFAULT_VALIDATE_OPTS,
     ...opts,
   };
 

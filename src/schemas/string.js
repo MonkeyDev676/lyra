@@ -1,5 +1,5 @@
-const assert = require('@botbind/dust/src/assert');
-const compare = require('@botbind/dust/src/compare');
+const assert = require('@botbind/dust/dist/assert');
+const compare = require('@botbind/dust/dist/compare');
 const BaseSchema = require('./BaseSchema');
 const _isNumber = require('../internals/_isNumber');
 

@@ -1,5 +1,5 @@
-const assert = require('@botbind/dust/src/assert');
-const equal = require('@botbind/dust/src/equal');
+const assert = require('@botbind/dust/dist/assert');
+const equal = require('@botbind/dust/dist/equal');
 const Ref = require('./Ref');
 
 class Values {
