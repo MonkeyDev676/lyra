@@ -4,4 +4,5 @@
 
 TODO:
 
-- Tests
+- Tests (Almost complete)
+- `describe()` so that Nebula could generate usage strings
