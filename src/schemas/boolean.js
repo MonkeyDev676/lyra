@@ -1,3 +1,4 @@
+const assert = require('@botbind/dust/dist/assert');
 const BaseSchema = require('./BaseSchema');
 
 module.exports = new BaseSchema().define({
@@ -36,8 +37,13 @@ module.exports = new BaseSchema().define({
 
   rules: {
     sensitive: {
-      method() {
-        return this.$setFlag('sensitive', true);
+      method(enabled = true) {
+        assert(
+          typeof enabled === 'boolean',
+          'The parameter enabled for boolean.sensitive must be a boolean',
+        );
+
+        return this.$setFlag('sensitive', enabled);
       },
     },
 

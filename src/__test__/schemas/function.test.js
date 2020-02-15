@@ -1,51 +1,38 @@
 const functionSchema = require('../../schemas/function');
-const State = require('../../State');
 const utils = require('../utils');
-
-const proto = Object.getPrototypeOf(functionSchema);
-const state = new State();
-
-class X {}
-class Y extends X {}
-class Z extends Y {}
 
 describe('function', () => {
   describe('Validate', () => {
     it('should validate correctly', () => {
       const fn = () => {};
 
-      expect(functionSchema.validate(fn).value).toBe(fn);
-
-      utils.spy(() => functionSchema.validate('x'), {
-        proto,
-        method: '$createError',
-        args: ['function.base', state, {}, undefined],
-      });
+      utils.validate(functionSchema, fn, { result: fn });
+      utils.validate(functionSchema, 'x', { pass: false, result: { code: 'function.base' } });
     });
   });
 
   describe('boolean.inherit()', () => {
+    class X {}
+    class Y extends X {}
+    class Z extends Y {}
+
     it("should validate a function's inheritance", () => {
       const schema = functionSchema.inherit(X);
 
-      expect(schema.validate(Y).value).toBe(Y);
-
-      utils.spy(() => schema.validate(() => {}), {
-        proto,
-        method: '$createError',
-        args: ['function.inherit', state, {}, { ctor: X }],
+      utils.validate(schema, Y, { result: Y });
+      utils.validate(schema, () => {}, {
+        pass: false,
+        result: { code: 'function.inherit', lookup: { ctor: X } },
       });
     });
 
     it("should validate multiple function's inheritances", () => {
       const schema = functionSchema.inherit(X).inherit(Y);
 
-      expect(schema.validate(Z).value).toBe(Z);
-
-      utils.spy(() => schema.validate(Y), {
-        proto,
-        method: '$createError',
-        args: ['function.inherit', state, {}, { ctor: Y }],
+      utils.validate(schema, Z, { result: Z });
+      utils.validate(schema, Y, {
+        pass: false,
+        result: { code: 'function.inherit', lookup: { ctor: Y } },
       });
     });
   });

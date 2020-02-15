@@ -60,7 +60,7 @@ module.exports = new BaseSchema().define({
       params: [
         {
           name: 'date',
-          assert: resolved => resolved === 'now' || resolved instanceof Date,
+          assert: resolved => resolved === 'now' || _isValidDate(resolved),
           reason: 'must be now or an instance of Date',
         },
       ],

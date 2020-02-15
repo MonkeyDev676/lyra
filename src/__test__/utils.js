@@ -1,30 +1,95 @@
-const equal = require('@botbind/dust/src/equal');
+const equal = require('@botbind/dust/dist/equal');
+const compare = require('@botbind/dust/dist/compare');
+const serialize = require('@botbind/dust/dist/serialize');
+const State = require('../State');
+const Ref = require('../Ref');
+const _const = require('../internals/_constants');
 
-function _toHaveBeenCalled(mock) {
-  return mock.mock.calls.length >= 1;
-}
+const refs = [];
 
-function _toHaveBeenCalledWith(mock, { args, equalOpts }) {
+function _callWith(mock, { args, equalOpts, operator = '>=' }) {
   return (
-    _toHaveBeenCalled(mock) && mock.mock.calls.some(callArgs => equal(callArgs, args, equalOpts))
+    compare(mock.mock.calls.length, 1, operator) &&
+    mock.mock.calls.some(callArgs => equal(callArgs, args, equalOpts))
   );
 }
 
-function _spy(fn, { proto, method, args = [], equalOpts, impl }) {
-  const spy = jest.spyOn(proto, method);
+function _validate(method) {
+  const extension = method === '$validate';
+  const state = new State();
 
-  if (typeof impl === 'function') spy.mockImplementation(impl);
+  return (schema, input, { pass = true, result, opts = {} }) => {
+    opts = { ..._const.DEFAULT_VALIDATE_OPTS, ...opts };
 
-  fn(spy);
+    const args = [input, opts];
 
-  if (args.length === 0) expect(_toHaveBeenCalled(spy)).toBe(true);
-  else expect(_toHaveBeenCalledWith(spy, { args, equalOpts })).toBe(true);
+    if (extension) args.push(state);
 
-  spy.mockRestore();
+    const spy = jest.spyOn(Object.getPrototypeOf(schema), '$createError');
+    const { value } = schema[method](...args);
+
+    if (pass) {
+      const isEqual = equal(value, result);
+
+      if (!isEqual) {
+        console.log(`
+Expected result: ${serialize(result)}
+But received: ${serialize(value)}
+Test failed with input: ${serialize(input)}
+          `);
+      }
+
+      expect(isEqual).toBe(true);
+    } else {
+      const callArgs = [
+        result.code,
+        result.state === undefined ? state : result.state,
+        opts.context,
+        result.lookup,
+      ];
+
+      const isCalled = _callWith(spy, {
+        args: callArgs,
+      });
+
+      if (!isCalled) {
+        console.log(`
+Expected result: ${serialize(callArgs)}
+is not in: ${serialize(spy.mock.calls)}
+Test failed with input: ${serialize(input)}
+        `);
+      }
+
+      expect(isCalled).toBe(true);
+    }
+
+    spy.mockRestore();
+  };
 }
 
 module.exports = {
-  toHaveBeenCalled: _toHaveBeenCalled,
-  toHaveBeenCalledWith: _toHaveBeenCalledWith,
-  spy: _spy,
+  callWith: _callWith,
+  validate: _validate('validate'),
+  $validate: _validate('$validate'),
+  createRef: resolveTo => {
+    const ref = new Ref('a');
+    const original = ref.resolve;
+
+    ref.resolve = () => resolveTo;
+
+    refs.push([ref, original]);
+
+    ref.update = updateTo => {
+      ref.resolve = () => updateTo;
+    };
+
+    return ref;
+  },
+  resetAllRefs: () => {
+    for (const [ref, original] of refs) {
+      ref.resolve = original;
+    }
+
+    refs.length = 0;
+  },
 };

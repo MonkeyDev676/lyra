@@ -1,61 +1,66 @@
 const boolean = require('../../schemas/boolean');
-const State = require('../../State');
 const utils = require('../utils');
-
-const proto = Object.getPrototypeOf(boolean);
-const state = new State();
 
 describe('boolean', () => {
   describe('Validate', () => {
     it('should validate correctly', () => {
-      expect(boolean.validate(true).value).toBe(true);
-      expect(boolean.validate(false).value).toBe(false);
-
-      utils.spy(() => boolean.validate('x'), {
-        proto,
-        method: '$createError',
-        args: ['boolean.base', state, {}, undefined],
-      });
+      utils.validate(boolean, true, { result: true });
+      utils.validate(boolean, false, { result: false });
+      utils.validate(boolean, 'x', { pass: false, result: { code: 'boolean.base' } });
     });
   });
 
   describe('Coerce', () => {
     it('should coerce strings to booleans sensitively by default', () => {
-      expect(boolean.validate('true', { strict: false }).value).toBe(true);
-      expect(boolean.validate('false', { strict: false }).value).toBe(false);
-
-      utils.spy(() => boolean.validate('TRuE', { strict: false }), {
-        proto,
-        method: '$createError',
-        args: ['boolean.coerce', state, {}, undefined],
+      utils.validate(boolean, 'true', { result: true, opts: { strict: false } });
+      utils.validate(boolean, 'false', { result: false, opts: { strict: false } });
+      utils.validate(boolean, 'TrUE', {
+        pass: false,
+        result: { code: 'boolean.coerce' },
+        opts: { strict: false },
       });
+    });
+
+    it('should coerce strings to booleans insensitively if specified', () => {
+      const schema = boolean.$clone();
+
+      schema.$flags.sensitive = true;
+
+      utils.validate(schema, 'tRuE', { result: true, opts: { strict: false } });
+      utils.validate(schema, 'faLSe', { result: false, opts: { strict: false } });
     });
   });
 
   describe('boolean.sensitive()', () => {
-    it('should coerce strings to booleans insensitively if on', () => {
-      const schema = boolean.sensitive();
+    it('should throw when incorrect parameters are passed', () => {
+      expect(() => boolean.sensitive('x')).toThrow();
+    });
 
-      expect(schema.validate('tRuE', { strict: false }).value).toBe(true);
-      expect(schema.validate('faLSe', { strict: false }).value).toBe(false);
+    it('should set the sensitive flag', () => {
+      const spy = jest.spyOn(Object.getPrototypeOf(boolean), '$setFlag');
+
+      boolean.sensitive();
+
+      expect(utils.callWith(spy, { args: ['sensitive', true] })).toBe(true);
+
+      spy.mockClear();
+
+      boolean.sensitive(false);
+
+      expect(utils.callWith(spy, { args: ['sensitive', false] })).toBe(true);
+
+      spy.mockRestore();
     });
   });
 
-  ['truthy', 'falsy'].forEach(method => {
+  describe.each(['truthy', 'falsy'])('boolean.%s()', method => {
     const truthiness = method === 'truthy';
 
-    describe(`boolean.${method}()`, () => {
-      it(`should validate ${method} values`, () => {
-        const schema = boolean[method]();
+    it(`should validate ${method} values`, () => {
+      const schema = boolean[method]();
 
-        expect(schema.validate(truthiness).value).toBe(truthiness);
-
-        utils.spy(() => schema.validate(!truthiness), {
-          proto,
-          method: '$createError',
-          args: [`boolean.${method}`, state, {}, undefined],
-        });
-      });
+      utils.validate(schema, truthiness, { result: truthiness });
+      utils.validate(schema, !truthiness, { pass: false, result: { code: `boolean.${method}` } });
     });
   });
 });

@@ -1,9 +1,5 @@
 const any = require('../../schemas/any');
-const State = require('../../State');
 const utils = require('../utils');
-
-const proto = Object.getPrototypeOf(any);
-const state = new State();
 
 describe('any', () => {
   describe('any.custom()', () => {
@@ -13,7 +9,7 @@ describe('any', () => {
     });
 
     it('should validate using custom method', () => {
-      const err = new Error('nope');
+      const err = new Error('x');
       const schema = any.custom((value, helpers) => {
         if (value === '1') {
           throw err;
@@ -30,20 +26,14 @@ describe('any', () => {
         return { value, errors: null };
       }, 'custom method');
 
-      expect(schema.validate('2').value).toBe('3');
-      expect(schema.validate('x').value).toBe('x');
-
-      utils.spy(() => schema.validate('1'), {
-        proto,
-        method: '$createError',
-        args: ['any.custom', state, {}, { name: 'custom method', error: err }],
+      utils.validate(schema, '2', { pass: true, result: '3' });
+      utils.validate(schema, 'x', { pass: true, result: 'x' });
+      utils.validate(schema, '1', {
+        pass: false,
+        result: { code: 'any.custom', lookup: { name: 'custom method', error: err } },
       });
 
-      utils.spy(() => schema.validate('4'), {
-        proto,
-        method: '$createError',
-        args: ['any.required', state, {}, undefined],
-      });
+      utils.validate(schema, '4', { pass: false, result: { code: 'any.required' } });
     });
 
     it('should validate multiple custom methods', () => {
@@ -63,18 +53,14 @@ describe('any', () => {
           throw err2;
         }, 'custom method 2');
 
-      expect(schema.validate('a').value).toBe('z');
-
-      utils.spy(() => schema.validate('c'), {
-        proto,
-        method: '$createError',
-        args: ['any.custom', state, {}, { name: 'custom method 1', error: err }],
+      utils.validate(schema, 'a', { pass: true, result: 'z' });
+      utils.validate(schema, 'c', {
+        pass: false,
+        result: { code: 'any.custom', lookup: { name: 'custom method 1', error: err } },
       });
-
-      utils.spy(() => schema.validate('b'), {
-        proto,
-        method: '$createError',
-        args: ['any.custom', state, {}, { name: 'custom method 2', error: err2 }],
+      utils.validate(schema, 'b', {
+        pass: false,
+        result: { code: 'any.custom', lookup: { name: 'custom method 2', error: err2 } },
       });
     });
   });

@@ -1,11 +1,13 @@
+const assert = require('@botbind/dust/dist/assert');
 const compare = require('@botbind/dust/dist/compare');
 const BaseSchema = require('./BaseSchema');
 const _isNumber = require('../internals/_isNumber');
 
-const NumberSchema = new BaseSchema().define({
+module.exports = new BaseSchema().define({
   type: 'number',
   flags: {
     unsafe: false,
+    loose: false,
   },
   messages: {
     'number.base': '{label} must be a number',
@@ -22,7 +24,10 @@ const NumberSchema = new BaseSchema().define({
     'number.unsafe': '{label} must be a safe number',
   },
 
-  coerce: (value, { createError }) => {
+  coerce: (value, { schema, createError }) => {
+    if (!schema.$flags.loose && typeof value !== 'string')
+      return { value: null, errors: [createError('number.coerce')] };
+
     const coerce = Number(value);
 
     if (!Number.isNaN(coerce)) return { value: coerce, errors: null };
@@ -46,9 +51,25 @@ const NumberSchema = new BaseSchema().define({
   },
 
   rules: {
+    loose: {
+      method(enabled = true) {
+        assert(
+          typeof enabled === 'boolean',
+          'The parameter enabled for number.loose must be a boolean',
+        );
+
+        return this.$setFlag('loose', enabled);
+      },
+    },
+
     unsafe: {
-      method() {
-        return this.$setFlag('unsafe', true);
+      method(enabled = true) {
+        assert(
+          typeof enabled === 'boolean',
+          'The parameter enabled for number.unsafe must be a boolean',
+        );
+
+        return this.$setFlag('unsafe', enabled);
       },
     },
 
@@ -164,5 +185,3 @@ const NumberSchema = new BaseSchema().define({
     },
   },
 });
-
-module.exports = NumberSchema;

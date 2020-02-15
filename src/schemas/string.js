@@ -4,8 +4,11 @@ const BaseSchema = require('./BaseSchema');
 const _isNumber = require('../internals/_isNumber');
 
 /* eslint-disable no-control-regex, no-useless-escape */
-const emailRegex = /^((([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+(\.([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+)*)|((\x22)((((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(([\x01-\x08\x0b\x0c\x0e-\x1f\x7f]|\x21|[\x23-\x5b]|[\x5d-\x7e]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(\\([\x01-\x09\x0b\x0c\x0d-\x7f]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))))*(((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(\x22)))@((([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.)+(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))$/i;
-const urlRegex = /^((https?|ftp):)?\/\/(((([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:)*@)?(((\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\.(\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\.(\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])\.(\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5]))|((([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.)+(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.?)(:\d*)?)(\/((([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:|@)+(\/(([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:|@)*)*)?)?(\?((([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:|@)|[\uE000-\uF8FF]|\/|\?)*)?(\#((([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(%[\da-f]{2})|[!\$&'\(\)\*\+,;=]|:|@)|\/|\?)*)?$/i;
+// The email regex is meant to be simple. Custom implementation can use any.custom
+// Copied from https://stackoverflow.com/a/41437076/10598722
+const emailRegex = /(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@[*[a-zA-Z0-9-]+.[a-zA-Z0-9-.]+]*/;
+// Copied from https://mathiasbynens.be/demo/url-regex @stephenhay
+const urlRegex = /^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/;
 const alphanumRegex = /^[a-zA-Z0-9]+$/;
 const numRegex = /^[0-9]+$/;
 /* eslint-enable */
@@ -17,12 +20,11 @@ module.exports = new BaseSchema().define({
   },
   messages: {
     'string.base': '{label} must be a string',
-    'string.coerce': '{label} cannot be coerced to a string',
     'string.length': '{label} must have {length} characters',
     'string.min': '{label} must have at least {length} characters',
     'string.max': '{label} must have at most {length} characters',
     'string.creditCard': '{label} must be a credit card',
-    'string.pattern': '{label} must have a pattern of {regex}',
+    'string.pattern': '{label} must have a pattern of {regexp}',
     'string.email': '{label} must be an email',
     'string.url': '{label} must be a URL',
     'string.alphanum': '{label} must only contain alpha-numeric characters',
@@ -35,11 +37,14 @@ module.exports = new BaseSchema().define({
   coerce: (value, { schema }) => {
     value = String(value);
 
-    if (schema.$hasRule('uppercase')) value = value.toLocaleUpperCase();
+    const casing = schema.$getRule({ identifier: 'case' });
 
-    if (schema.$hasRule('lowercase')) value = value.toLocaleLowerCase();
+    if (casing)
+      value = casing.params.dir === 'upper' ? value.toLocaleUpperCase() : value.toLocaleLowerCase();
 
-    if (schema.$hasRule('trim')) value = value.trim();
+    const trim = schema.$getRule({ identifier: 'trim' });
+
+    if (trim && trim.params.enabled) value = value.trim();
 
     if (schema.$flags.replace !== null) {
       const [pattern, replacement] = schema.$flags.replace;
@@ -125,17 +130,25 @@ module.exports = new BaseSchema().define({
 
     pattern: {
       single: false,
-      method: regex => {
-        return this.$addRule({ name: 'pattern', params: { regex } });
+      method(regexp) {
+        return this.$addRule({ name: 'pattern', params: { regexp } });
       },
       validate: (value, { params, createError, name }) => {
-        if (params.regex.test(value)) return { value, errors: null };
+        if (params.regexp.test(value)) return { value, errors: null };
 
-        return { value: null, errors: [createError(`string.${name}`)] };
+        return {
+          value: null,
+          errors: [
+            createError(
+              `string.${name}`,
+              name === 'pattern' ? { regexp: params.regexp } : undefined,
+            ),
+          ],
+        };
       },
       params: [
         {
-          name: 'regex',
+          name: 'regexp',
           assert: resolved => resolved instanceof RegExp,
           reason: 'must be a regular expression',
         },
@@ -144,13 +157,13 @@ module.exports = new BaseSchema().define({
 
     email: {
       method() {
-        return this.$addRule({ name: 'email', method: 'pattern', params: { regex: emailRegex } });
+        return this.$addRule({ name: 'email', method: 'pattern', params: { regexp: emailRegex } });
       },
     },
 
     url: {
       method() {
-        return this.$addRule({ name: 'url', method: 'pattern', params: { regex: urlRegex } });
+        return this.$addRule({ name: 'url', method: 'pattern', params: { regexp: urlRegex } });
       },
     },
 
@@ -159,14 +172,14 @@ module.exports = new BaseSchema().define({
         return this.$addRule({
           name: 'alphanum',
           method: 'pattern',
-          params: { regex: alphanumRegex },
+          params: { regexp: alphanumRegex },
         });
       },
     },
 
     numeric: {
       method() {
-        return this.$addRule({ name: 'numeric', method: 'pattern', params: { regex: numRegex } });
+        return this.$addRule({ name: 'numeric', method: 'pattern', params: { regexp: numRegex } });
       },
     },
 
@@ -184,29 +197,27 @@ module.exports = new BaseSchema().define({
 
     uppercase: {
       method() {
-        // Avoid cloning twice
-        const next = this.$addRule({ name: 'uppercase', method: 'case', params: { dir: 'upper' } });
-
-        return next;
+        return this.$addRule({ name: 'uppercase', method: 'case', params: { dir: 'upper' } });
       },
     },
 
     lowercase: {
       method() {
-        const next = this.$addRule({ name: 'lowercase', method: 'case', params: { dir: 'lower' } });
-
-        return next;
+        return this.$addRule({ name: 'lowercase', method: 'case', params: { dir: 'lower' } });
       },
     },
 
     trim: {
-      method() {
-        const next = this.$addRule({ name: 'trim' });
+      method(enabled = true) {
+        assert(
+          typeof enabled === 'boolean',
+          'The parameter enabled for string.trim must be a boolean',
+        );
 
-        return next;
+        return this.$addRule({ name: 'trim', params: { enabled } });
       },
-      validate: (value, { createError }) => {
-        if (value === value.trim()) return { value, errors: null };
+      validate: (value, { createError, params }) => {
+        if (!params.enabled || value === value.trim()) return { value, errors: null };
 
         return { value: null, errors: [createError('string.trim')] };
       },

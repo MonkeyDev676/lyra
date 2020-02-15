@@ -135,7 +135,11 @@ module.exports = new BaseSchema().define({
   },
 
   // TODO: resolve refs
-  prepare: () => {},
+  rebuild: schema => {
+    for (const [, subSchema] of schema.$flags.inner) {
+      schema.$registerRef(subSchema);
+    }
+  },
 
   rules: {
     of: {
@@ -152,14 +156,14 @@ module.exports = new BaseSchema().define({
         // Treat {} as null
         if (entries.length !== 0) {
           const sorter = new Constellation();
-          const refs = [];
 
           entries.forEach(([key, schema]) => {
             sorter.add(key);
 
+            this.$registerRef(schema);
+
             schema._refs.forEach(([ancestor, root]) => {
-              if (ancestor - 1 > 0) refs.push([ancestor - 1, root]);
-              else sorter.add(root, key);
+              if (ancestor === 0) sorter.add(root, key);
             });
           });
 
@@ -175,8 +179,6 @@ module.exports = new BaseSchema().define({
             'inner',
             keys.map(key => [key, inner[key]]),
           );
-
-          schema._refs.push(...refs);
 
           return schema;
         }

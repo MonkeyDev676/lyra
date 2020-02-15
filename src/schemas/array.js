@@ -54,6 +54,10 @@ module.exports = new BaseSchema().define({
     return { value, errors: null };
   },
 
+  rebuild: schema => {
+    schema.$registerRef(schema.$flags.inner);
+  },
+
   rules: {
     of: {
       method(inner) {
@@ -61,6 +65,8 @@ module.exports = new BaseSchema().define({
           BaseSchema.isValid(inner),
           'The parameter inner for array.of must be a valid schema',
         );
+
+        this.$registerRef(inner);
 
         return this.$setFlag('inner', inner);
       },
