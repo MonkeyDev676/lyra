@@ -134,7 +134,7 @@ describe('string', () => {
     });
 
     it('should validate string patterns', () => {
-      const regexp = /a-z/g;
+      const regexp = /^[a-z]+$/g;
       const schema = string.pattern(regexp);
 
       utils.validate(schema, 'abcxyz', { result: 'abcxyz' });
@@ -145,8 +145,8 @@ describe('string', () => {
     });
 
     it('should validate multiple string patterns', () => {
-      const regexp1 = /a-z/g;
-      const regexp2 = /A-Z/g;
+      const regexp1 = /^[a-zX-Z]+$/g;
+      const regexp2 = /^[A-Za-c]+$/g;
       const schema = string.pattern(regexp1).pattern(regexp2);
 
       utils.validate(schema, 'abcXYZ', { result: 'abcXYZ' });
