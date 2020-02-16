@@ -7,4 +7,12 @@ module.exports = {
     stripUnknown: false,
     context: {},
   },
+  DEFAULT_SCHEMA_FLAGS: {
+    strip: false,
+    presence: 'optional',
+    error: null,
+    label: null,
+    default: undefined,
+    only: false,
+  },
 };

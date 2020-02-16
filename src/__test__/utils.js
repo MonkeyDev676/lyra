@@ -1,5 +1,4 @@
 const equal = require('@botbind/dust/dist/equal');
-const compare = require('@botbind/dust/dist/compare');
 const serialize = require('@botbind/dust/dist/serialize');
 const State = require('../State');
 const Ref = require('../Ref');
@@ -7,9 +6,9 @@ const _const = require('../internals/_constants');
 
 const refs = [];
 
-function _callWith(mock, { args, equalOpts, operator = '>=' }) {
+function _callWith(mock, { args = [], equalOpts, times = 1 } = {}) {
   return (
-    compare(mock.mock.calls.length, 1, operator) &&
+    mock.mock.call.length === times &&
     mock.mock.calls.some(callArgs => equal(callArgs, args, equalOpts))
   );
 }
@@ -18,7 +17,7 @@ function _validate(method) {
   const extension = method === '$validate';
   const state = new State();
 
-  return (schema, input, { pass = true, result, opts = {} }) => {
+  return (schema, input, { pass = true, result, opts = {}, callWithOpts }) => {
     opts = { ..._const.DEFAULT_VALIDATE_OPTS, ...opts };
 
     const args = [input, opts];
@@ -50,6 +49,7 @@ Test failed with input: ${serialize(input)}
 
       const isCalled = _callWith(spy, {
         args: callArgs,
+        ...callWithOpts,
       });
 
       if (!isCalled) {

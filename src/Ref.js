@@ -13,9 +13,7 @@ class Ref {
 
     opts = {
       separator: '.',
-      default: undefined,
       ...opts,
-      ownProperties: true, // Prevent overriding ownProperties
     };
 
     assert(typeof opts.separator === 'string', 'The option separator for Ref must be a string');
@@ -44,12 +42,11 @@ class Ref {
       slice = i;
     }
 
-    const slicedPath = path.slice(slice);
-
-    this._get = value => get(value, slicedPath, opts);
-    this._path = path;
-    this._root = slicedPath.split(opts.separator)[0];
-    this._display = `ref:${this._path}`;
+    this._originalPath = path;
+    this._separator = opts.separator;
+    this._path = this._originalPath.slice(slice);
+    this._root = this._path[0];
+    this._display = `ref(${path})`;
   }
 
   static isValid(value) {
@@ -57,9 +54,11 @@ class Ref {
   }
 
   resolve(value, ancestors, context) {
-    if (this._ancestor === 'context') return this._get(context);
+    const opts = { separator: this._separator };
 
-    if (this._ancestor === 0) return this._get(value);
+    if (this._ancestor === 'context') return get(context, this._path, opts);
+
+    if (this._ancestor === 0) return get(value, this._path, opts);
 
     assert(
       this._ancestor <= ancestors.length,
@@ -68,7 +67,14 @@ class Ref {
       'exceeds the schema root',
     );
 
-    return this._get(ancestors[this._ancestor - 1]);
+    return get(ancestors[this._ancestor - 1], this._path, opts);
+  }
+
+  describe() {
+    return {
+      originalPath: this._originalPath,
+      separator: this._separator,
+    };
   }
 }
 

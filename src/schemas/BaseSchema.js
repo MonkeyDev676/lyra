@@ -13,113 +13,6 @@ const _const = require('../internals/_constants');
 
 const _defaultSymbol = Symbol('__DEFAULT__');
 
-// Wrapper that deals with refs and values
-function _serialize(value) {
-  if (Ref.isValid(value)) return value._display;
-
-  if (Values.isValid(value))
-    return _serialize(value.values().map(subValue => _serialize(subValue)));
-
-  return serialize(value);
-}
-
-function _attachMethod(value, methodName, method) {
-  Object.defineProperty(value, methodName, {
-    value: method,
-    configurable: true,
-    writable: true,
-  });
-}
-
-function _opts(methodName, withDefaults, opts = {}) {
-  assert(isPlainObject(opts), 'The parameter opts for', methodName, 'must be a plain object');
-
-  const merged = { ..._const.DEFAULT_VALIDATE_OPTS, ...opts };
-
-  assert(
-    typeof merged.strict === 'boolean',
-    'The option strict for',
-    methodName,
-    'must be a boolean',
-  );
-
-  assert(
-    typeof merged.abortEarly === 'boolean',
-    'The option abortEarly for',
-    methodName,
-    'must be a boolean',
-  );
-
-  assert(
-    typeof merged.recursive === 'boolean',
-    'The option recursive for',
-    methodName,
-    'must be a boolean',
-  );
-
-  assert(
-    typeof merged.allowUnknown === 'boolean',
-    'The option allowUnknown for',
-    methodName,
-    'must be a boolean',
-  );
-
-  assert(
-    typeof merged.stripUnknown === 'boolean',
-    'The option stripUnknown for',
-    methodName,
-    'must be a boolean',
-  );
-
-  assert(
-    isPlainObject(merged.context),
-    'The option context for',
-    methodName,
-    'must be a plain object',
-  );
-
-  return withDefaults ? merged : opts;
-}
-
-function _assign(target, src) {
-  target.type = src.type;
-  target._refs = [...src._refs];
-  target._conditions = [...src._conditions];
-  target._rules = [...src._rules];
-  target._singleRules = clone(src._singleRules);
-
-  const srcDef = src._definition;
-  const def = { ...srcDef };
-
-  def.messages = { ...srcDef.messages };
-  def.rules = { ...srcDef.rules };
-
-  target._definition = def;
-  target._opts = { ...src._opts };
-  target._valids = src._valids.clone();
-  target._invalids = src._invalids.clone();
-  target.$flags = clone(src.$flags, {
-    customizer: value => {
-      if (BaseSchema.isValid(value)) return value;
-
-      return undefined;
-    },
-  });
-
-  return target;
-}
-
-function _mergeRebuild(target, src) {
-  if (target === null || src === null) return target || src;
-
-  if (target === src) return target;
-
-  return schema => {
-    target(schema);
-    src(schema);
-  };
-}
-
 class BaseSchema {
   constructor() {
     this.type = 'any';
@@ -131,7 +24,6 @@ class BaseSchema {
 
     // Defined variables that affect the validation internally
     this._definition = {
-      rebuild: null,
       clone: null,
       coerce: null,
       validate: null,
@@ -149,15 +41,13 @@ class BaseSchema {
     this._valids = new Values();
     this._invalids = new Values();
 
-    // User-defined variables that affect the outcomes of the validation
-    this.$flags = {
-      strip: false,
-      presence: 'optional',
-      error: null,
-      label: null,
-      default: undefined,
-      only: false,
-    };
+    // User-defined variables that affect the outcomes of the validation.
+    // In most cases should only store primitives
+    this.$flags = { ..._const.DEFAULT_SCHEMA_FLAGS };
+
+    // Hash of arrays of immutable objects
+    // Used to store more complex data types where immutability is important
+    this.$terms = new Map();
   }
 
   static isValid(value) {
@@ -217,7 +107,6 @@ class BaseSchema {
     const srcDef = src._definition;
     const def = { ...targetDef, ...srcDef };
 
-    def.rebuild = _mergeRebuild(targetDef.rebuild, srcDef.rebuild);
     def.rules = { ...targetDef.rules, ...srcDef.rules };
     def.messages = { ...targetDef.messages, ...srcDef.messages };
 
@@ -226,16 +115,21 @@ class BaseSchema {
     next._opts = { ...next._opts, ...src._opts };
     next._valids = next._valids.merge(src._valids, src._invalids);
     next._invalids = next._invalids.merge(src._invalids, src._valids);
-    next.$flags = merge(next.$flags, src.$flags, {
-      customizer: (target, src2) => {
-        if (BaseSchema.isValid(target) && BaseSchema.isValid(src2)) return target.$merge(src2);
+    next.$flags = merge(next.$flags, src.$flags);
 
-        return undefined;
-      },
-    });
+    for (const [key, terms] of src.$terms) {
+      if (terms === null) continue;
 
-    // Rebuild
-    if (def.rebuild !== null) def.rebuild(next);
+      const targetTerms = next.$terms.get(key);
+      // Check both undefined and null as terms can both be null and undefined
+      // Undefined for non defined terms
+      // Null for empty terms
+      if (targetTerms == null) next.$terms.set(key, [...terms]);
+      else next.$terms.set(key, [...targetTerms, ...terms]);
+    }
+
+    // Re-register the refs
+    next.$reregister();
 
     return next;
   }
@@ -274,7 +168,24 @@ class BaseSchema {
     );
 
     // Return the error customizer if there is one
-    if (this.$flags.error !== null) return this.$flags.error(code, state, context, lookup);
+    if (this.$flags.error !== null) {
+      let errorCustomizer = this.$flags.error;
+
+      if (typeof errorCustomizer === 'function') {
+        errorCustomizer = errorCustomizer(code, state, context, lookup);
+
+        assert(
+          typeof errorCustomizer === 'string' || errorCustomizer instanceof Error,
+          'The error customizer function must return either a string or an instance of Error',
+        );
+      }
+
+      return new ValidationError(
+        errorCustomizer instanceof Error ? errorCustomizer.message : errorCustomizer,
+        code,
+        state,
+      );
+    }
 
     const template = this._definition.messages[code];
 
@@ -305,24 +216,26 @@ class BaseSchema {
     return new ValidationError(message, code, state);
   }
 
-  $registerRef(ref) {
-    const isRef = Ref.isValid(ref);
-    const isSchema = BaseSchema.isValid(ref);
+  $register(value) {
+    const isRef = Ref.isValid(value);
+    const isSchema = BaseSchema.isValid(value);
 
     assert(
       isRef || isSchema,
-      'The parameter ref for BaseSchema.$registerRef must be an instance of Ref or BaseSchema',
+      'The parameter ref for BaseSchema.$register must be an instance of Ref or BaseSchema',
     );
 
-    if (isRef && ref._ancestor !== 'context' && ref._ancestor - 1 >= 0)
-      this._refs.push([ref._ancestor - 1, ref._root]);
+    if (isRef && value._ancestor !== 'context' && value._ancestor - 1 >= 0)
+      this._refs.push([value._ancestor - 1, value._root]);
 
     if (isSchema) {
-      for (const [ancestor, root] of ref._refs) {
+      for (const [ancestor, root] of value._refs) {
         if (ancestor - 1 >= 0) this._refs.push([ancestor - 1, root]);
       }
     }
   }
+
+  $reregister() {}
 
   $values(values, type) {
     assert(Array.isArray(values), 'The parameter values for BaseSchema.$values must be an array');
@@ -434,7 +347,7 @@ class BaseSchema {
       );
 
       if (isRef) {
-        next.$registerRef(param);
+        next.$register(param);
       }
     }
 
@@ -458,6 +371,7 @@ class BaseSchema {
     opts = {
       type: 'any',
       flags: {},
+      terms: {},
       messages: {},
       rules: {},
       ...opts,
@@ -466,13 +380,13 @@ class BaseSchema {
     assert(typeof opts.type === 'string', 'The option type for BaseSchema.define must be a string');
 
     assert(
-      opts.rebuild === undefined || typeof opts.rebuild === 'function',
-      'The option rebuild for BaseSchema.define must be a function',
+      isPlainObject(opts.flags),
+      'The option flags for BaseSchema.define must be a plain object',
     );
 
     assert(
-      isPlainObject(opts.flags),
-      'The option flags for BaseSchema.define must be a plain object',
+      isPlainObject(opts.terms),
+      'The option terms for BaseSchema.define must be a plain object',
     );
 
     assert(
@@ -503,27 +417,22 @@ class BaseSchema {
     const next = _assign(Object.create(proto), this);
 
     next.type = opts.type;
+    next.$flags = { ...next.$flags, ...opts.flags };
 
-    for (const [flagName, flagValue] of Object.entries(opts.flags)) {
-      assert(next.$flags[flagName] === undefined, 'Flag', flagName, 'has already been defined');
+    for (const [key, terms] of Object.entries(opts.terms)) {
+      assert(next.$terms.get(key) === undefined, 'Term', terms, 'has already been defined');
 
-      next.$flags[flagName] = flagValue;
+      next.$terms.set(key, terms);
     }
 
     const def = next._definition;
 
     // Populate definition
-    if (opts.rebuild !== undefined) def.rebuild = opts.rebuild;
-
     if (opts.validate !== undefined) def.validate = opts.validate;
 
     if (opts.coerce !== undefined) def.coerce = opts.coerce;
 
-    for (const [code, message] of Object.entries(opts.messages)) {
-      assert(def.messages[code] === undefined, 'Message', code, 'has already been defined');
-
-      def.messages[code] = message;
-    }
+    def.messages = { ...def.messages, ...opts.messages };
 
     // Populate rule definitions
     for (const [ruleName, rule] of Object.entries(opts.rules)) {
@@ -674,6 +583,57 @@ class BaseSchema {
     return next;
   }
 
+  describe() {
+    const desc = {};
+
+    desc.type = this.type;
+    desc.flags = clone(this.$flags);
+
+    if (this._conditions.length > 0)
+      desc.conditions = this._conditions.map(({ ref, is, then, otherwise }) => {
+        const condition = {};
+
+        condition.ref = ref.describe();
+        condition.is = is.describe();
+
+        if (then !== undefined) condition.then = then.describe();
+
+        if (otherwise !== undefined) condition.otherwise = otherwise.describe();
+
+        return condition;
+      });
+
+    if (this._rules.length > 0)
+      desc.rules = this._rules.map(({ name, params }) => {
+        const rule = {};
+
+        rule.name = name;
+        rule.params = {};
+
+        for (const [paramName, param] of Object.entries(params)) {
+          rule.params[paramName] = Ref.isValid(param) ? param.describe() : param;
+        }
+
+        return rule;
+      });
+
+    if (Object.keys(this._opts).length > 0) desc.opts = clone(this._opts);
+
+    if (this._valids.size > 0) desc.valids = this._valids.describe();
+
+    if (this._invalids.size > 0) desc.invalids = this._invalids.describe();
+
+    if (this.$terms.size > 0) {
+      desc.terms = {};
+
+      for (const [key, terms] of this.$terms) {
+        desc.terms[key] = terms.map(_describe);
+      }
+    }
+
+    return desc;
+  }
+
   opts(opts) {
     const next = this.$clone();
 
@@ -743,24 +703,17 @@ class BaseSchema {
       'The parameter customizer for any.error must be a string, a function or an instance of Error',
     );
 
-    return this.$setFlag('error', (type, state, context, data) => {
-      if (typeof customizer === 'function') {
-        customizer = customizer(type, state, context, data);
-      }
-
-      return new ValidationError(
-        customizer instanceof Error ? customizer.message : customizer,
-        type,
-        state,
-      );
-    });
+    return this.$setFlag('error', customizer);
   }
 
   $validate(value, opts, state) {
     let schema = this;
 
-    for (const condition of this._conditions) {
-      schema = schema.$merge(condition(value, state.ancestors, opts));
+    for (const { ref, is, then, otherwise } of this._conditions) {
+      const result = is.$validate(ref.resolve(value, state.ancestors, opts.context), opts, state);
+
+      if (result.errors === null) schema = schema.$merge(then);
+      else schema = schema.$merge(otherwise);
     }
 
     opts = {
@@ -924,27 +877,130 @@ class BaseSchema {
       'The option is for BaseSchema.when must be an instance of BaseSchema',
     );
     assert(
-      BaseSchema.isValid(opts.then) || BaseSchema.isValid(opts.else),
-      'The option then or else for BaseSchema.when must be an instance of BaseSchema',
+      BaseSchema.isValid(opts.then) || BaseSchema.isValid(opts.otherwise),
+      'The option then or otherwise for BaseSchema.when must be an instance of BaseSchema',
     );
 
     const next = this.$clone();
 
-    next.$registerRef(ref);
+    next.$register(ref);
 
-    next._conditions.push((value, ancestors, validateOpts) => {
-      const result = opts.is.validate(
-        ref.resolve(value, ancestors, validateOpts.context),
-        validateOpts,
-      );
-
-      if (result.errors === null) return opts.then;
-
-      return opts.else;
-    });
+    next._conditions.push({ ref, ...opts });
 
     return next;
   }
+}
+
+// Wrapper that deals with refs and values
+function _serialize(value) {
+  if (Ref.isValid(value)) return value._display;
+
+  if (Values.isValid(value)) return _serialize(value.values().map(_serialize));
+
+  return serialize(value);
+}
+
+function _attachMethod(obj, key, method) {
+  Object.defineProperty(obj, key, {
+    value: method,
+    configurable: true,
+    writable: true,
+  });
+}
+
+function _opts(methodName, withDefaults, opts = {}) {
+  assert(isPlainObject(opts), 'The parameter opts for', methodName, 'must be a plain object');
+
+  const merged = { ..._const.DEFAULT_VALIDATE_OPTS, ...opts };
+
+  assert(
+    typeof merged.strict === 'boolean',
+    'The option strict for',
+    methodName,
+    'must be a boolean',
+  );
+
+  assert(
+    typeof merged.abortEarly === 'boolean',
+    'The option abortEarly for',
+    methodName,
+    'must be a boolean',
+  );
+
+  assert(
+    typeof merged.recursive === 'boolean',
+    'The option recursive for',
+    methodName,
+    'must be a boolean',
+  );
+
+  assert(
+    typeof merged.allowUnknown === 'boolean',
+    'The option allowUnknown for',
+    methodName,
+    'must be a boolean',
+  );
+
+  assert(
+    typeof merged.stripUnknown === 'boolean',
+    'The option stripUnknown for',
+    methodName,
+    'must be a boolean',
+  );
+
+  assert(
+    isPlainObject(merged.context),
+    'The option context for',
+    methodName,
+    'must be a plain object',
+  );
+
+  return withDefaults ? merged : opts;
+}
+
+function _assign(target, src) {
+  target.type = src.type;
+  target._refs = [...src._refs];
+  target._conditions = [...src._conditions];
+  target._rules = [...src._rules];
+  target._singleRules = clone(src._singleRules);
+
+  const srcDef = src._definition;
+  const def = { ...srcDef };
+
+  def.messages = { ...srcDef.messages };
+  def.rules = { ...srcDef.rules };
+
+  target._definition = def;
+  target._opts = { ...src._opts };
+  target._valids = src._valids.clone();
+  target._invalids = src._invalids.clone();
+  target.$flags = clone(src.$flags);
+  target.$terms = new Map();
+
+  for (const [key, terms] of src.$terms) {
+    // Since the terms are already immutable, only a shallow copy of the array itself is required
+    target.$terms.set(key, terms === null ? null : [...terms]);
+  }
+
+  return target;
+}
+
+function _describe(value) {
+  if (typeof value !== 'object' || value === null) return value;
+
+  if (Array.isArray(value)) return value.map(_describe);
+
+  if (BaseSchema.isValid(value) || Values.isValid(value) || Ref.isValid(value))
+    return value.describe();
+
+  const desc = {};
+
+  for (const [key, subValue] of Object.entries(value)) {
+    desc[key] = _describe(subValue);
+  }
+
+  return value;
 }
 
 const _methods = {
@@ -954,9 +1010,9 @@ const _methods = {
   opts: ['options', 'prefs', 'preferences'],
 };
 
-for (const [methodName, aliases] of Object.entries(_methods)) {
+for (const [method, aliases] of Object.entries(_methods)) {
   aliases.forEach(alias => {
-    _attachMethod(BaseSchema.prototype, alias, BaseSchema.prototype[methodName]);
+    _attachMethod(BaseSchema.prototype, alias, BaseSchema.prototype[method]);
   });
 }
 

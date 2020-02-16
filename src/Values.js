@@ -68,6 +68,20 @@ class Values {
     return false;
   }
 
+  describe() {
+    const desc = [];
+
+    for (const value of this._values) {
+      desc.push(value);
+    }
+
+    for (const ref of this._refs) {
+      desc.push(ref.describe());
+    }
+
+    return desc;
+  }
+
   values() {
     return [...this._values, ...this._refs];
   }

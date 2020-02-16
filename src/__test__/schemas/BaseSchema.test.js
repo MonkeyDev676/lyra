@@ -24,13 +24,13 @@ describe('BaseSchema', () => {
   });
 
   describe('BaseSchema.$clone()', () => {
-    it('should not clone nested schemas', () => {
+    it('should not clone terms', () => {
       const schema = new BaseSchema();
-      const schema2 = new BaseSchema();
+      const obj = {};
 
-      schema.$flags.inner = schema2;
+      schema.$terms = new Map([['x', [obj]]]);
 
-      expect(schema.$clone().$flags.inner).toBe(schema2);
+      expect(schema.$clone().$terms.get('x')[0]).toBe(obj);
     });
 
     it('should clone Values', () => {
@@ -38,7 +38,7 @@ describe('BaseSchema', () => {
 
       new BaseSchema().$clone();
 
-      expect(spy).toHaveBeenCalled();
+      expect(utils.callWith(spy, { times: 2 })).toBe(true);
       spy.mockRestore();
     });
 
@@ -83,7 +83,7 @@ describe('BaseSchema', () => {
 
       new BaseSchema().$merge(new BaseSchema());
 
-      expect(spy).toHaveBeenCalled();
+      expect(utils.callWith(spy)).toBe(true);
       spy.mockRestore();
     });
 
@@ -93,69 +93,6 @@ describe('BaseSchema', () => {
       schema.type = 'number';
 
       expect(schema.$merge(new BaseSchema()).type).toBe('number');
-    });
-
-    it('should properly merge rebuild', () => {
-      const mock = jest.fn();
-      const schema = new BaseSchema();
-      const schema2 = new BaseSchema();
-
-      // 1st case: Both have the same rebuild function
-      schema._definition.rebuild = mock;
-      schema2._definition.rebuild = mock;
-
-      let merged = schema.$merge(schema2);
-
-      expect(
-        utils.callWith(mock, {
-          args: [merged],
-          equalOpts: { compareDescriptors: true },
-          operator: '=',
-        }),
-      ).toBe(true);
-
-      mock.mockClear();
-
-      const mock2 = jest.fn();
-
-      // 2nd case: Have different rebuild functions
-      schema2._definition.rebuild = mock2;
-      merged = schema.$merge(schema2);
-
-      expect(
-        utils.callWith(mock, {
-          args: [merged],
-          equalOpts: { compareDescriptors: true },
-          operator: '=',
-        }),
-      );
-
-      expect(
-        utils.callWith(mock2, {
-          args: [merged],
-          equalOpts: { compareDescriptors: true },
-          operator: '=',
-        }),
-      );
-
-      // 3rd case: 1st one null, second one has a rebuild function
-      schema._definition.rebuild = null;
-      merged = schema.$merge(schema2);
-
-      expect(merged._definition.rebuild).toBe(mock2);
-
-      // 4th case: 1st one has a rebuild function, 2nd one null
-      schema._definition.rebuild = mock;
-      schema2._definition.rebuild = null;
-      merged = schema.$merge(schema2);
-
-      expect(merged._definition.rebuild).toBe(mock);
-
-      // 5th case: both are null
-      schema._definition.rebuild = null;
-      merged = schema.$merge(schema2);
-
-      expect(merged._definition.rebuild).toBe(null);
     });
 
     it('should properly merge Values', () => {
@@ -244,6 +181,36 @@ describe('BaseSchema', () => {
       expect(schema.$merge(new BaseSchema())._refs.length).toBe(0);
     });
 
+    it('should shallowly concat terms', () => {
+      const schema = new BaseSchema();
+      const schema2 = new BaseSchema();
+      const obj = {};
+
+      schema.$terms = new Map([
+        ['x', [1]],
+        ['z', [obj]],
+      ]);
+      schema2.$terms = new Map([
+        ['x', null],
+        ['y', [1]],
+        ['z', [1]],
+      ]);
+
+      const merged = schema.$merge(schema2);
+
+      expect(
+        equal(
+          merged.$terms,
+          new Map([
+            ['x', [1]],
+            ['z', [obj, 1]],
+            ['y', [1]],
+          ]),
+        ),
+      ).toBe(true);
+      expect(merged.$terms.get('z')[0]).toBe(obj);
+    });
+
     it('should merge 2 schemas', () => {
       const schema = new BaseSchema();
       const schema2 = new BaseSchema();
@@ -256,22 +223,6 @@ describe('BaseSchema', () => {
       merged.$flags.default = 7;
 
       expect(equal(schema.$merge(schema2), merged, { compareDescriptors: true })).toBe(true);
-    });
-
-    it('should recurse when encounter nested schemas', () => {
-      const spy = jest.spyOn(BaseSchema.prototype, '$merge');
-      const schema = new BaseSchema();
-      const schema2 = new BaseSchema();
-      const schema3 = new BaseSchema();
-
-      // Check if $merge is called with the src schema
-      schema.$flags.inner = new BaseSchema();
-      schema2.$flags.inner = schema3;
-
-      schema.$merge(schema2);
-
-      expect(utils.callWith(spy, { args: [schema3] })).toBe(true);
-      spy.mockRestore();
     });
   });
 
@@ -295,7 +246,7 @@ describe('BaseSchema', () => {
 
       new BaseSchema().$setFlag('x', 'x');
 
-      expect(spy).toHaveBeenCalled();
+      expect(utils.callWith(spy)).toBe(true);
       spy.mockRestore();
     });
 
@@ -306,7 +257,7 @@ describe('BaseSchema', () => {
       schema.$flags.x = { a: 1 };
       schema.$setFlag('x', { a: 2 });
 
-      expect(spy).toHaveBeenCalled();
+      expect(utils.callWith(spy)).toBe(true);
       spy.mockRestore();
     });
 
@@ -335,14 +286,25 @@ describe('BaseSchema', () => {
       expect(() => schema.$createError('a', state, {})).toThrow();
     });
 
-    it('should run the error customizer if available', () => {
+    it('should return the error customizer message if it is an instance of Error or a string', () => {
+      expect(schema.$setFlag('error', 'x').$createError('x', state, {}, {}).message).toBe('x');
+      expect(
+        schema.$setFlag('error', new Error('x')).$createError('x', state, {}, {}).message,
+      ).toBe('x');
+    });
+
+    it('should throw if the error customizer is a function that does not return a string or an instance of Error', () => {
       const mock = jest.fn();
-      const context = {};
-      const lookup = {};
 
-      schema.$setFlag('error', mock, { literal: true }).$createError('x', state, context, lookup);
+      expect(() => schema.$setFlag('error', mock).$createError('x', state, {}, {})).toThrow();
+    });
 
-      expect(utils.callWith(mock, { args: ['x', state, context, lookup] })).toBe(true);
+    it('should call the error customizer if it is a function', () => {
+      const mock = jest.fn(() => 'x');
+
+      schema.$setFlag('error', mock).$createError('x', state, {}, {});
+
+      expect(utils.callWith(mock, { args: ['x', state, {}, {}] })).toBe(true);
     });
 
     it('should return the correct error message', () => {
@@ -370,9 +332,11 @@ describe('BaseSchema', () => {
     });
 
     it('should correctly interpolate Values', () => {
-      expect(
-        schema.$createError('t', state, {}, { values: new Values([1], [new Ref('..a')]) }).message,
-      ).toBe('(2) [ 1, ref:..a ]');
+      const ref = new Ref('..a');
+
+      expect(schema.$createError('t', state, {}, { values: new Values([1], [ref]) }).message).toBe(
+        `(2) [ 1, ${ref._display} ]`,
+      );
     });
 
     it('should throw when a lookup value is not found', () => {
@@ -386,16 +350,16 @@ describe('BaseSchema', () => {
     });
   });
 
-  describe('BaseSchema.$registerRef()', () => {
+  describe('BaseSchema.$register()', () => {
     it('should throw when incorrect parameters are passed', () => {
-      expect(() => new BaseSchema().$registerRef('x')).toThrow();
+      expect(() => new BaseSchema().$register('x')).toThrow();
     });
 
     it('should ignore context refs and self refs', () => {
       const schema = new BaseSchema();
 
-      schema.$registerRef(new Ref('$a'));
-      schema.$registerRef(new Ref('.a'));
+      schema.$register(new Ref('$a'));
+      schema.$register(new Ref('.a'));
 
       expect(schema._refs.length).toBe(0);
     });
@@ -403,7 +367,7 @@ describe('BaseSchema', () => {
     it('should register value refs', () => {
       const schema = new BaseSchema();
 
-      schema.$registerRef(new Ref('..a'));
+      schema.$register(new Ref('..a'));
 
       expect(equal(schema._refs, [[0, 'a']])).toBe(true);
     });
@@ -415,7 +379,7 @@ describe('BaseSchema', () => {
       schema2._refs.push([1, 'a']);
       schema2._refs.push([0, 'b']);
 
-      schema.$registerRef(schema2);
+      schema.$register(schema2);
 
       expect(equal(schema._refs, [[0, 'a']])).toBe(true);
     });
@@ -540,7 +504,7 @@ describe('BaseSchema', () => {
 
       schema.$addRule({ name: 'x' });
 
-      expect(spy).toHaveBeenCalled();
+      expect(utils.callWith(spy)).toBe(true);
       spy.mockRestore();
     });
 
@@ -565,7 +529,7 @@ describe('BaseSchema', () => {
     });
 
     it('should register the refs', () => {
-      const spy = jest.spyOn(BaseSchema.prototype, '$registerRef');
+      const spy = jest.spyOn(BaseSchema.prototype, '$register');
       const ref = new Ref('..a');
 
       schema.$addRule({ name: 'x', params: { x: ref } });
@@ -619,8 +583,8 @@ describe('BaseSchema', () => {
       expect(() => schema.define('x')).toThrow();
       expect(() => schema.define({ type: 1 })).toThrow();
       expect(() => schema.define({ flags: 'x' })).toThrow();
+      expect(() => schema.define({ terms: 'x' })).toThrow();
       expect(() => schema.define({ messages: 'x' })).toThrow();
-      expect(() => schema.define({ rebuild: 'x' })).toThrow();
       expect(() => schema.define({ validate: 'x' })).toThrow();
       expect(() => schema.define({ coerce: 'x' })).toThrow();
       expect(() => schema.define({ rules: 'x' })).toThrow();
@@ -637,28 +601,30 @@ describe('BaseSchema', () => {
       expect(new BaseSchema().define({ type: 'number' }).type).toBe('number');
     });
 
-    it('should throw if a flag has already been defined', () => {
-      expect(() => new BaseSchema().define({ flags: { label: 'x' } })).toThrow();
-    });
-
     it('should define a flag', () => {
       expect(new BaseSchema().define({ flags: { x: 5 } }).$flags.x).toBe(5);
     });
 
-    it('should define rebuild, validate and coerce methods', () => {
-      ['rebuild', 'validate', 'coerce'].forEach(method => {
+    it('should override a flag', () => {
+      expect(new BaseSchema().define({ flags: { label: 'x' } }).$flags.label).toBe('x');
+    });
+
+    it('should define validate and coerce methods', () => {
+      ['validate', 'coerce'].forEach(method => {
         const fn = () => {};
 
         expect(new BaseSchema().define({ [method]: fn })._definition[method]).toBe(fn);
       });
     });
 
-    it('should throw if a message has already been defined', () => {
-      expect(() => new BaseSchema().define({ messages: { 'any.ref': 'x' } })).toThrow();
-    });
-
     it('should define a message', () => {
       expect(new BaseSchema().define({ messages: { x: 'x' } })._definition.messages.x).toBe('x');
+    });
+
+    it('should override a message', () => {
+      expect(
+        new BaseSchema().define({ messages: { 'any.ref': 'x' } })._definition.messages['any.ref'],
+      ).toBe('x');
     });
 
     it('should throw when incorrect options are passed for rules', () => {
@@ -786,6 +752,97 @@ describe('BaseSchema', () => {
         }).x,
       ).toBe(undefined);
     });
+  });
+
+  describe('BaseSchema.describe()', () => {
+    it('should describe schema with only type', () => {
+      const schema = new BaseSchema();
+
+      schema.type = 'number';
+
+      expect(equal(schema.describe(), { type: 'number', flags: _const.DEFAULT_SCHEMA_FLAGS })).toBe(
+        true,
+      );
+    });
+
+    it('should describe schema with conditions', () => {
+      const describeRefSpy = jest.spyOn(Ref.prototype, 'describe');
+      const describeSchemaSpy = jest.spyOn(BaseSchema.prototype, 'describe');
+      const schema = new BaseSchema();
+      const schema2 = new BaseSchema();
+
+      schema._conditions.push({ ref: new Ref('a'), is: schema2, then: schema2 });
+      schema.describe();
+
+      expect(utils.callWith(describeRefSpy)).toBe(true);
+      // First call on the parent schema, second call on is schema, third call on then schema
+      expect(utils.callWith(describeSchemaSpy, { times: 3 })).toBe(true);
+
+      describeRefSpy.mockRestore();
+      describeSchemaSpy.mockRestore();
+    });
+
+    it('should describe schema with rules', () => {
+      const schema = new BaseSchema();
+
+      schema._rules = [{ name: 'x', identifier: 'x', params: { x: 5 } }];
+
+      expect(
+        equal(schema.describe(), {
+          type: 'any',
+          rules: [{ name: 'x', params: { x: 5 } }],
+          flags: _const.DEFAULT_SCHEMA_FLAGS,
+        }),
+      ).toBe(true);
+
+      const spy = jest.spyOn(Ref.prototype, 'describe');
+
+      schema._rules = [{ name: 'x', identifier: 'x', params: { x: new Ref('a') } }];
+
+      schema.describe();
+
+      expect(utils.callWith(spy)).toBe(true);
+
+      spy.mockRestore();
+    });
+
+    it('should describe schema with opts', () => {
+      const schema = new BaseSchema();
+
+      schema._opts = { strict: false };
+
+      const desc = schema.describe();
+
+      expect(desc.opts).not.toBe(schema._opts);
+      expect(
+        equal(desc, { type: 'any', opts: { strict: false }, flags: _const.DEFAULT_SCHEMA_FLAGS }),
+      ).toBe(true);
+    });
+
+    it('should describe schema with valids/invalids', () => {
+      const spy = jest.spyOn(Values.prototype, 'describe');
+      const schema = new BaseSchema();
+
+      schema._valids.add(1);
+      schema._invalids.add(2);
+      schema.describe();
+
+      expect(utils.callWith(spy, { times: 2 })).toBe(true);
+    });
+
+    it('should describe schema with flags', () => {
+      const schema = new BaseSchema();
+
+      schema.$flags.label = 'x';
+
+      const desc = schema.describe();
+
+      expect(
+        equal(desc, { type: 'any', flags: { ..._const.DEFAULT_SCHEMA_FLAGS, label: 'x' } }),
+      ).toBe(true);
+    });
+
+    it('should describe schema with nested schemas', () => {});
   });
 
   describe('BaseSchema.opts()', () => {
@@ -931,11 +988,15 @@ describe('BaseSchema', () => {
       expect(() => new BaseSchema().error(1)).toThrow();
     });
 
-    it('should correctly set the error flag and resolve to the message', () => {
+    it('should correctly set the error flag', () => {
+      const spy = jest.spyOn(BaseSchema.prototype, '$setFlag');
       const schema = new BaseSchema();
 
       ['x', new Error('x'), () => 'x'].forEach(arg => {
-        expect(schema.error(arg).$createError('any.ref', new State(), {}).message).toBe('x');
+        spy.mockClear();
+        schema.error(arg);
+
+        expect(utils.callWith(spy, { args: ['error', arg] })).toBe(true);
       });
     });
   });
@@ -1140,11 +1201,7 @@ describe('BaseSchema', () => {
       const ref = utils.createRef('x');
       const next = schema.$clone();
 
-      next._conditions.push(() => {
-        if (ref.resolve() === 'x') return next.forbidden();
-
-        return undefined;
-      });
+      next._conditions.push({ ref, is: schema.valid('x'), then: schema.forbidden() });
 
       utils.$validate(next, 2, {
         pass: false,
@@ -1191,7 +1248,7 @@ describe('BaseSchema', () => {
       expect(() => schema.when(ref, {})).toThrow();
       expect(() => schema.when(ref, { is: 'x' })).toThrow();
       expect(() => schema.when(ref, { is: schema, then: 'x' })).toThrow();
-      expect(() => schema.when(ref, { is: schema, else: 'x' })).toThrow();
+      expect(() => schema.when(ref, { is: schema, otherwise: 'x' })).toThrow();
     });
 
     it('should clone the schema', () => {
@@ -1201,7 +1258,7 @@ describe('BaseSchema', () => {
     });
 
     it('should register the refs', () => {
-      const spy = jest.spyOn(BaseSchema.prototype, '$registerRef');
+      const spy = jest.spyOn(BaseSchema.prototype, '$register');
       const schema = new BaseSchema();
       const ref = new Ref('..a');
 
@@ -1217,19 +1274,21 @@ describe('BaseSchema', () => {
       const schema2 = schema.when(ref, {
         is: schema.valid('x').only(),
         then: schema.forbidden(),
-        else: schema.invalid('y'),
+        otherwise: schema.invalid('x'),
       });
 
       utils.$validate(schema2, 'x', { pass: false, result: { code: 'any.forbidden' } });
 
       ref.update('y');
 
-      utils.$validate(schema2, 'y', {
+      utils.$validate(schema2, 'x', {
         pass: false,
         result: {
           code: 'any.invalid',
-          lookup: { values: new Values(['y']), grammar: { s: '', verb: 'is' } },
+          lookup: { values: new Values(['x']), grammar: { s: '', verb: 'is' } },
         },
+        // createError will be called twice
+        callWithOpts: { times: 2 }
       });
     });
   });
