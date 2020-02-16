@@ -8,7 +8,7 @@ const refs = [];
 
 function _callWith(mock, { args = [], equalOpts, times = 1 } = {}) {
   return (
-    mock.mock.call.length === times &&
+    mock.mock.calls.length === times &&
     mock.mock.calls.some(callArgs => equal(callArgs, args, equalOpts))
   );
 }
