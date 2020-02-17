@@ -1,5 +1,5 @@
 const assert = require('@botbind/dust/dist/assert');
-const isPlainObject = require('@botbind/dust/dist/isPlainObject');
+const isObjectLike = require('@botbind/dust/dist/isObjectLike');
 const clone = require('@botbind/dust/dist/clone');
 const merge = require('@botbind/dust/dist/merge');
 const equal = require('@botbind/dust/dist/equal');
@@ -12,21 +12,22 @@ const ValidationError = require('../ValidationError');
 const _const = require('../internals/_constants');
 
 const _defaultSymbol = Symbol('__DEFAULT__');
+const _errorSymbol = Symbol('__ERROR__');
 
 class BaseSchema {
   constructor() {
     this.type = 'any';
 
+    // Register refs
     this._refs = []; // [ancestor, root]
-    this._conditions = [];
-    this._rules = [];
-    this._singleRules = new Set(); // non-chainable rules
+    this._conditions = []; // [{ ref, is, then, otherwise }]
+    this._rules = []; // [{ name, identifier, args }]
 
     // Defined variables that affect the validation internally
     this._definition = {
-      clone: null,
       coerce: null,
       validate: null,
+      flags: {}, // Contain clone definition and merge defintion of a flag
       rules: {}, // Rule definition, different from the rules array
       messages: {
         'any.required': '{label} is required',
@@ -37,17 +38,13 @@ class BaseSchema {
       },
     };
 
+    // Options that are later combined with ones passed into validation
     this._opts = {};
     this._valids = new Values();
     this._invalids = new Values();
 
     // User-defined variables that affect the outcomes of the validation.
-    // In most cases should only store primitives
-    this.$flags = { ..._const.DEFAULT_SCHEMA_FLAGS };
-
-    // Hash of arrays of immutable objects
-    // Used to store more complex data types where immutability is important
-    this.$terms = new Map();
+    this.$flags = {};
   }
 
   static isValid(value) {
@@ -58,9 +55,9 @@ class BaseSchema {
     // Can't use BaseSchema.prototype since define creates new prototypes
     // Therefore cloning on these newly defined schemas will not clone their methods
     // const next = Object.create(BaseSchema.prototype);
-    const next = Object.create(Object.getPrototypeOf(this));
+    const target = Object.create(Object.getPrototypeOf(this));
 
-    return _assign(next, this);
+    return _assign(target, this);
   }
 
   $merge(src) {
@@ -78,142 +75,119 @@ class BaseSchema {
       `Cannot merge a ${src.type} schema into a ${this.type} schema`,
     );
 
-    const next = this.$clone();
+    const target = this.$clone();
 
-    if (src.type !== 'any') next.type = src.type;
+    if (src.type !== 'any') target.type = src.type;
 
-    next._refs = [];
-    next._conditions.push(...src._conditions);
+    // Conditions
+    target._conditions.push(...src._conditions);
 
+    // Rules
     // We are merging rules before definitions because we need the before singularity and after singularity
     for (const { identifier } of src._rules) {
       const srcRuleDef = src._definition.rules[identifier];
-
-      if (!srcRuleDef.single) next._singleRules.delete(identifier);
-      else next._singleRules.add(identifier);
-
-      const targetRuleDef = next._definition.rules[identifier];
+      const targetRuleDef = target._definition.rules[identifier];
 
       if (targetRuleDef === undefined) continue;
 
       // If the source rule is single or the target rule is single
       if (srcRuleDef.single || targetRuleDef.single)
-        next._rules = next._rules.filter(rule => rule.identifier !== identifier);
+        target._rules = target._rules.filter(rule => rule.identifier !== identifier);
     }
 
-    next._rules.push(...src._rules);
+    target._rules.push(...src._rules);
+    // Opts, valids, invalids
+    target._opts = { ...target._opts, ...src._opts };
+    target._valids = target._valids.merge(src._valids, src._invalids);
+    target._invalids = target._invalids.merge(src._invalids, src._valids);
 
-    const targetDef = next._definition;
+    // Flags
+    for (const key of Object.keys(target.$flags)) {
+      const targetFlag = target.$flags[key];
+      const srcFlag = src.$flags[key];
+      const flagDef = target._definition.flags[key];
+
+      // If flagDef is defined
+      if (flagDef !== undefined) {
+        // We look for the custom merge method defined inside the definition
+        if (flagDef.merge !== undefined) {
+          target.$flags[key] = flagDef.merge(targetFlag, srcFlag, key, target, src);
+
+          continue;
+        }
+
+        // If the flag is immutable, we don't do anything
+        if (flagDef.immutable) {
+          if (srcFlag !== undefined) target.$flags[key] = clone(srcFlag, { recursive: false });
+
+          continue;
+        }
+
+        // Continue with default merge
+      }
+
+      target.$flags[key] = merge(targetFlag, srcFlag, {
+        customizer: (targetValue, srcValue) => {
+          // If both the target and src are schema, we merge them
+          if (BaseSchema.isValid(targetValue) && BaseSchema.isValid(srcValue))
+            return targetValue.$merge(srcValue);
+
+          // Same here. The second parameter won't be passed. Merge method must be defined to
+          // achieve this
+          if (Values.isValid(targetValue) && Values.isValid(srcValue))
+            return targetValue.merge(srcValue);
+
+          return undefined;
+        },
+      });
+    }
+
+    const targetDef = target._definition;
     const srcDef = src._definition;
     const def = { ...targetDef, ...srcDef };
 
     def.rules = { ...targetDef.rules, ...srcDef.rules };
     def.messages = { ...targetDef.messages, ...srcDef.messages };
+    def.flags = { ...targetDef.flags, ...srcDef.flags };
 
-    next._definition = def;
-
-    next._opts = { ...next._opts, ...src._opts };
-    next._valids = next._valids.merge(src._valids, src._invalids);
-    next._invalids = next._invalids.merge(src._invalids, src._valids);
-    next.$flags = merge(next.$flags, src.$flags);
-
-    for (const [key, terms] of src.$terms) {
-      if (terms === null) continue;
-
-      const targetTerms = next.$terms.get(key);
-      // Check both undefined and null as terms can both be null and undefined
-      // Undefined for non defined terms
-      // Null for empty terms
-      if (targetTerms == null) next.$terms.set(key, [...terms]);
-      else next.$terms.set(key, [...targetTerms, ...terms]);
-    }
+    target._definition = def;
 
     // Re-register the refs
-    next.$reregister();
+    target.$reregister();
 
-    return next;
+    return target;
   }
 
-  $setFlag(name, value) {
+  $setFlag(name, value, opts = {}) {
     assert(typeof name === 'string', 'The parameter name for BaseSchema.$setFlag must be a string');
 
-    if (equal(this.$flags[name], value)) return this;
+    assert(isObjectLike(opts), 'The parameter opts for BaseSchema.$setFlag must be an object');
 
-    const next = this.$clone();
-
-    next.$flags[name] = value;
-
-    return next;
-  }
-
-  $createError(code, state, context, lookup = {}) {
-    assert(
-      typeof code === 'string',
-      'The parameter code for BaseSchema.$createError must be a string',
-    );
+    opts = {
+      clone: true,
+      ...opts,
+    };
 
     assert(
-      State.isValid(state),
-      'The parameter state for BaseSchema.$createError must be validation state',
+      typeof opts.clone === 'boolean',
+      'The option clone for BaseSchema.$setFlag must be a boolean',
     );
 
-    assert(
-      isPlainObject(context),
-      'The parameter context for BaseSchema.$createError must be a plain object',
-    );
+    const current = this.$flags[name];
+    const flagDef = this._definition.flags[name];
 
-    assert(
-      isPlainObject(lookup),
-      'The parameter lookup for BaseSchema.$createError must be a plain object',
-    );
-
-    // Return the error customizer if there is one
-    if (this.$flags.error !== null) {
-      let errorCustomizer = this.$flags.error;
-
-      if (typeof errorCustomizer === 'function') {
-        errorCustomizer = errorCustomizer(code, state, context, lookup);
-
-        assert(
-          typeof errorCustomizer === 'string' || errorCustomizer instanceof Error,
-          'The error customizer function must return either a string or an instance of Error',
-        );
-      }
-
-      return new ValidationError(
-        errorCustomizer instanceof Error ? errorCustomizer.message : errorCustomizer,
-        code,
-        state,
-      );
+    if (flagDef !== undefined && flagDef.set !== undefined) {
+      value = flagDef.set(current, value);
     }
 
-    const template = this._definition.messages[code];
+    // If the flag and the value are already equal, we don't do anything
+    if (equal(current, value)) return this;
 
-    assert(template !== undefined, 'Message template', code, 'not found');
+    const target = opts.clone ? this.$clone() : this;
 
-    let label = this.$flags.label;
+    target.$flags[name] = value;
 
-    if (label === null) {
-      if (state.path !== null) label = state.path;
-      else label = 'unknown';
-    }
-
-    let message = template.replace(/{label}/g, label);
-
-    message = message.replace(/{([\w+.]+)}/g, (_, match) => {
-      const isContext = match[0] === '$';
-
-      lookup = isContext ? context : lookup;
-      match = isContext ? match.slice(1) : match;
-
-      const found = get(lookup, match, { default: _defaultSymbol });
-
-      assert(found !== _defaultSymbol, 'Term', match, 'not found');
-
-      return _serialize(found);
-    });
-
-    return new ValidationError(message, code, state);
+    return target;
   }
 
   $register(value) {
@@ -235,70 +209,17 @@ class BaseSchema {
     }
   }
 
-  $reregister() {}
-
-  $values(values, type) {
-    assert(Array.isArray(values), 'The parameter values for BaseSchema.$values must be an array');
-
-    assert(
-      type === 'valids' || type === 'invalids',
-      'The parameter type for BaseSchema.$values must be either valids or invalids',
-    );
-
-    const other = type === 'valids' ? '_invalids' : '_valids';
-    const next = this.$clone();
-
-    next[other].delete(...values);
-    next[`_${type}`].add(...values);
-
-    return next;
-  }
-
-  $getRule(opts) {
-    assert(
-      isPlainObject(opts),
-      'The parameter opts for BaseSchema.$getRule must be a plain object',
-    );
-
-    assert(
-      opts.name === undefined || typeof opts.name === 'string',
-      'The option name for BaseSchema.$getRule must be a string',
-    );
-    assert(
-      opts.identifier === undefined || typeof opts.identifier === 'string',
-      'The option identifier for BaseSchema.$getRule must be a string',
-    );
-    assert(
-      opts.name !== undefined ? opts.identifier === undefined : opts.identifier !== undefined,
-      'Only one of options name or identifier for BaseScheam.$getRule must be defined',
-    );
-
-    const found = this._rules.filter(({ name, identifier }) => {
-      if (opts.identifier !== undefined) return identifier === opts.identifier;
-
-      return name === opts.name;
-    });
-
-    if (found.length === 0) return false;
-
-    // Single rule
-    if (found.length === 1) {
-      const rule = found[0];
-
-      if (this._singleRules.has(rule.identifier)) return rule;
-    }
-
-    return found;
+  // todo: Implement
+  $reregister() {
+    // Reset the refs
+    this._refs = [];
   }
 
   $addRule(opts) {
-    assert(
-      isPlainObject(opts),
-      'The parameter opts for BaseSchema.$addRule must be a plain object',
-    );
+    assert(isObjectLike(opts), 'The parameter opts for BaseSchema.$addRule must be an object');
 
     opts = {
-      params: {},
+      args: {},
       ...opts,
     };
 
@@ -312,12 +233,9 @@ class BaseSchema {
       'The option method for BaseSchema.$addRule must be a string',
     );
 
-    assert(
-      isPlainObject(opts.params),
-      'The option params for BaseSchema.$addRule must be a plain object',
-    );
+    assert(isObjectLike(opts.args), 'The option args for BaseSchema.$addRule must be an object');
 
-    const next = this.$clone();
+    const target = this.$clone();
 
     // Infer identifier. If method is present, use it as the identifier, otherwise use name
     opts.identifier = opts.method === undefined ? opts.name : opts.method;
@@ -325,53 +243,50 @@ class BaseSchema {
     // Method is no longer needed so we delete it
     delete opts.method;
 
-    const ruleDef = next._definition.rules[opts.identifier];
+    const ruleDef = target._definition.rules[opts.identifier];
 
     assert(ruleDef !== undefined, 'Rule definition', opts.identifier, 'not found');
 
     // Param definitions
-    const paramDef = ruleDef.params;
+    const argDefs = ruleDef.args;
 
-    for (const [name, def] of Object.entries(paramDef)) {
-      const param = opts.params[name];
-      const isRef = Ref.isValid(param);
+    for (const argName of Object.keys(argDefs)) {
+      const { assert: argAssert, ref, reason } = argDefs[argName];
+      const arg = opts.args[argName];
+      const isRef = Ref.isValid(arg);
 
       // Params assertions
       assert(
-        def.assert(param) || (def.ref && isRef),
+        argAssert(arg) || (ref && isRef),
         'The parameter',
-        name,
+        argName,
         'of',
-        `${next.type}.${opts.name}`,
-        def.reason,
+        `${target.type}.${opts.name}`,
+        reason,
       );
 
       if (isRef) {
-        next.$register(param);
+        target.$register(arg);
       }
     }
 
     if (ruleDef.single) {
       // Remove duplicate rules
-      next._rules = next._rules.filter(rule => rule.identifier !== opts.identifier);
-
-      // Set single rules
-      next._singleRules.add(opts.identifier);
+      target._rules = target._rules.filter(rule => rule.identifier !== opts.identifier);
     }
 
-    if (ruleDef.priority) next._rules.unshift(opts);
-    else next._rules.push(opts);
+    if (ruleDef.priority) target._rules.unshift(opts);
+    else target._rules.push(opts);
 
-    return next;
+    return target;
   }
 
   define(opts) {
-    assert(isPlainObject(opts), 'The parameter opts for BaseSchema.define must be a plain object');
+    assert(isObjectLike(opts), 'The parameter opts for BaseSchema.define must be an object');
 
     opts = {
       type: 'any',
       flags: {},
-      terms: {},
       messages: {},
       rules: {},
       ...opts,
@@ -379,35 +294,25 @@ class BaseSchema {
 
     assert(typeof opts.type === 'string', 'The option type for BaseSchema.define must be a string');
 
-    assert(
-      isPlainObject(opts.flags),
-      'The option flags for BaseSchema.define must be a plain object',
-    );
+    assert(isObjectLike(opts.flags), 'The option flags for BaseSchema.define must be an object');
 
     assert(
-      isPlainObject(opts.terms),
-      'The option terms for BaseSchema.define must be a plain object',
+      isObjectLike(opts.messages),
+      'The option messages for BaseSchema.define must be an object',
     );
 
-    assert(
-      isPlainObject(opts.messages),
-      'The option messages for BaseSchema.define must be a plain object',
-    );
+    ['validate', 'coerce'].forEach(optName => {
+      const opt = opts[optName];
 
-    assert(
-      opts.validate === undefined || typeof opts.validate === 'function',
-      'The option validate for BaseSchema.define must be a function',
-    );
+      assert(
+        opt === undefined || typeof opt === 'function',
+        'The option',
+        optName,
+        'for BaseSchema.define must be a function',
+      );
+    });
 
-    assert(
-      opts.coerce === undefined || typeof opts.coerce === 'function',
-      'The option coerce for BaseSchema.define must be a function',
-    );
-
-    assert(
-      isPlainObject(opts.rules),
-      'The option rules for BaseSchema.define must be a plain object',
-    );
+    assert(isObjectLike(opts.rules), 'The option rules for BaseSchema.define must be an object');
 
     // Clone the proto so we don't attach methods to all the instances
     // Can't use BaseSchema.prototype here either, same reason as $clone
@@ -417,13 +322,6 @@ class BaseSchema {
     const next = _assign(Object.create(proto), this);
 
     next.type = opts.type;
-    next.$flags = { ...next.$flags, ...opts.flags };
-
-    for (const [key, terms] of Object.entries(opts.terms)) {
-      assert(next.$terms.get(key) === undefined, 'Term', terms, 'has already been defined');
-
-      next.$terms.set(key, terms);
-    }
 
     const def = next._definition;
 
@@ -434,57 +332,82 @@ class BaseSchema {
 
     def.messages = { ...def.messages, ...opts.messages };
 
-    // Populate rule definitions
-    for (const [ruleName, rule] of Object.entries(opts.rules)) {
-      let ruleDef = rule;
+    for (const key of Object.keys(opts.flags)) {
+      const flag = opts.flag[key];
 
-      ruleDef = {
-        params: [],
+      // Immutable defaults to true for primitives
+      flag.immutable = flag.immutable === undefined ? !isObjectLike(flag.value) : flag.immutable;
+
+      assert(
+        typeof flag.immutable === 'boolean',
+        'The option immutable for flag',
+        key,
+        'must be a boolean',
+      );
+
+      ['clone', 'merge', 'describe', 'set'].forEach(optName => {
+        const opt = flag[optName];
+
+        assert(
+          opt === undefined || typeof opt === 'function',
+          'The option',
+          optName,
+          'for flag',
+          key,
+          'must be a function',
+        );
+      });
+
+      next.$flags[key] = flag.value;
+
+      delete flag.value;
+
+      if (Object.keys(flag).length > 0) def.flags[key] = flag;
+    }
+
+    // Populate rule definitions
+    for (const ruleName of Object.keys(opts.rules)) {
+      let rule = opts.rules[ruleName];
+
+      rule = {
+        args: [],
         alias: [],
         single: true,
         priority: false,
-        ...ruleDef,
+        ...rule,
       };
 
-      assert(
-        Array.isArray(ruleDef.params),
-        'The option params for rule',
-        ruleName,
-        'must be an array',
-      );
+      assert(Array.isArray(rule.args), 'The option args for rule', ruleName, 'must be an array');
 
       assert(
-        Array.isArray(ruleDef.alias) && ruleDef.alias.every(alias => typeof alias === 'string'),
+        Array.isArray(rule.alias) && rule.alias.every(alias => typeof alias === 'string'),
         'The options alias for rule',
         ruleName,
         'must be an array of strings',
       );
 
-      assert(
-        typeof ruleDef.single === 'boolean',
-        'The option single for rule',
-        ruleName,
-        'must be a boolean',
-      );
+      ['single', 'priority'].forEach(optName => {
+        const opt = rule[optName];
+
+        assert(
+          typeof opt === 'boolean',
+          'The option',
+          optName,
+          'for rule',
+          ruleName,
+          'must be a boolean',
+        );
+      });
 
       assert(
-        typeof ruleDef.priority === 'boolean',
-        'The option priority for rule',
-        ruleName,
-        'must be a boolean',
-      );
-
-      assert(
-        ruleDef.validate === undefined || typeof ruleDef.validate === 'function',
+        rule.validate === undefined || typeof rule.validate === 'function',
         'The option validate for rule',
         ruleName,
         'must be a function',
       );
 
       assert(
-        ruleDef.method === undefined ||
-          ruleDef.method === false ||
-          typeof ruleDef.method === 'function',
+        rule.method === undefined || rule.method === false || typeof rule.method === 'function',
         'The option method for rule',
         ruleName,
         'must be false or a function',
@@ -492,90 +415,91 @@ class BaseSchema {
 
       // Make sure either validate or method is provided
       assert(
-        typeof ruleDef.method === 'function' || ruleDef.validate !== undefined,
+        typeof rule.method === 'function' || rule.validate !== undefined,
         'Either option method or option validate must be defined',
       );
 
       // Cannot have alias if method is false (a hidden rule)
       assert(
-        ruleDef.method !== false || ruleDef.alias.length === 0,
+        rule.method !== false || rule.alias.length === 0,
         'Cannot have aliases for rule that has no method',
       );
 
       // If method is present, check if there's already one
       assert(
-        ruleDef.method === false || proto[ruleName] === undefined,
+        rule.method === false || proto[ruleName] === undefined,
         'The rule',
         ruleName,
         'has already been defined',
       );
 
-      const paramDefs = {};
+      const args = {};
 
-      // Create param definitions
-      for (const { name: paramName, ...rest } of ruleDef.params) {
+      // Create arg definitions
+      for (const { name: argName, ...otherOpts } of rule.args) {
         assert(
-          typeof paramName === 'string',
-          'The option name for param of rule',
+          typeof argName === 'string',
+          'The option name for the argument of rule',
           ruleName,
           'must be a string',
         );
 
-        const paramDef = {
+        const arg = {
           ref: true,
-          ...rest,
+          ...otherOpts,
         };
 
         assert(
-          typeof paramDef.ref === 'boolean',
-          'The option ref for param',
-          paramName,
+          typeof arg.ref === 'boolean',
+          'The option ref for argument',
+          argName,
           'of rule',
           ruleName,
           'must be a boolean',
         );
+
         assert(
-          paramDef.assert === undefined || typeof paramDef.assert === 'function',
-          'The option assert for param',
-          paramName,
+          arg.assert === undefined || typeof arg.assert === 'function',
+          'The option assert for argument',
+          argName,
           'of rule',
           ruleName,
           'must be a function',
         );
+
         assert(
-          paramDef.reason === undefined || typeof paramDef.reason === 'string',
-          'The option reason for param',
-          paramName,
+          arg.reason === undefined || typeof arg.reason === 'string',
+          'The option reason for argument',
+          argName,
           'of rule',
           ruleName,
-          'must be a function',
+          'must be a string',
         );
+
         assert(
-          paramDef.assert !== undefined
-            ? paramDef.reason !== undefined
-            : paramDef.reason === undefined,
-          'The option assert and reason for param',
-          paramName,
+          arg.assert !== undefined ? arg.reason !== undefined : arg.reason === undefined,
+          'The option assert and reason for argument',
+          argName,
           'must be defined together',
         );
 
-        paramDefs[paramName] = paramDef;
+        args[argName] = arg;
       }
 
-      ruleDef.params = paramDefs;
+      rule.args = args;
 
       // Only add to rule definitions if the rule has the validate method defined
-      if (ruleDef.validate !== undefined) def.rules[ruleName] = ruleDef;
+      if (rule.validate !== undefined) def.rules[ruleName] = rule;
 
-      if (typeof ruleDef.method === 'function') _attachMethod(proto, ruleName, ruleDef.method);
+      if (typeof rule.method === 'function') _attachMethod(proto, ruleName, rule.method);
 
-      // ruleDef.validate is defined
-      if (ruleDef.method === undefined)
+      // rule.validate is defined
+      if (rule.method === undefined)
         _attachMethod(proto, ruleName, function defaultMethod() {
           return this.$addRule({ name: ruleName });
         });
 
-      for (const alias of ruleDef.alias) {
+      for (const alias of rule.alias) {
         _attachMethod(proto, alias, proto[ruleName]);
       }
     }
@@ -587,7 +511,18 @@ class BaseSchema {
     const desc = {};
 
     desc.type = this.type;
-    desc.flags = clone(this.$flags);
+
+    if (this.$flags.size > 0) {
+      desc.flags = {};
+
+      for (const key of Object.keys(this.$flags)) {
+        const flagDef = this._definition.flags[key];
+
+        if (flagDef !== undefined && flagDef.describe !== undefined)
+          desc.flags[key] = flagDef.describe();
+        else desc.flags[key] = _describe(this.$flags[key]);
+      }
+    }
 
     if (this._conditions.length > 0)
       desc.conditions = this._conditions.map(({ ref, is, then, otherwise }) => {
@@ -604,14 +539,16 @@ class BaseSchema {
       });
 
     if (this._rules.length > 0)
-      desc.rules = this._rules.map(({ name, params }) => {
+      desc.rules = this._rules.map(({ name, args }) => {
         const rule = {};
 
         rule.name = name;
-        rule.params = {};
+        rule.args = {};
 
-        for (const [paramName, param] of Object.entries(params)) {
-          rule.params[paramName] = Ref.isValid(param) ? param.describe() : param;
+        for (const argName of Object.keys(args)) {
+          const arg = args[argName];
+
+          rule.args[argName] = Ref.isValid(arg) ? arg.describe() : arg;
         }
 
         return rule;
@@ -623,21 +560,19 @@ class BaseSchema {
 
     if (this._invalids.size > 0) desc.invalids = this._invalids.describe();
 
-    if (this.$terms.size > 0) {
-      desc.terms = {};
-
-      for (const [key, terms] of this.$terms) {
-        desc.terms[key] = terms.map(_describe);
-      }
-    }
-
     return desc;
+  }
+
+  annotate(note) {
+    assert(typeof note === 'string', 'The parameter note for any.annotate must be a string');
+
+    return this.$setFlag('note', note);
   }
 
   opts(opts) {
     const next = this.$clone();
 
-    next._opts = { ...next._opts, ..._opts('any.opts', false, opts) };
+    next._opts = { ...next._opts, ..._opts('any.opts', opts) };
 
     return next;
   }
@@ -688,11 +623,11 @@ class BaseSchema {
   }
 
   valid(...values) {
-    return this.$values(values, 'valids');
+    return _values(this, values, 'valid');
   }
 
   invalid(...values) {
-    return this.$values(values, 'invalids');
+    return _values(values, 'invalid');
   }
 
   error(customizer) {
@@ -728,7 +663,7 @@ class BaseSchema {
     helpers.state = state;
     helpers.opts = opts;
     helpers.original = value;
-    helpers.createError = (code, lookup) => schema.$createError(code, state, opts.context, lookup);
+    helpers.error = (code, local) => _createError(schema, code, state, opts.context, local);
 
     // Valid values
     const valids = schema._valids;
@@ -759,7 +694,7 @@ class BaseSchema {
     if (invalids.size > 0) {
       if (invalids.has(value, state.ancestors, opts.context)) {
         const s = invalids.size > 1;
-        const err = helpers.createError('any.invalid', {
+        const err = helpers.error('any.invalid', {
           values: invalids,
           grammar: { verb: s ? 'are' : 'is', s: s ? 's' : '' },
         });
@@ -774,29 +709,39 @@ class BaseSchema {
       }
     }
 
+    let presence = schema.$flags.presence;
+
+    presence = presence === undefined ? 'optional' : presence;
+
+    const isForbidden = presence === 'forbidden';
+
     // Required
 
     if (value === undefined) {
-      if (schema.$flags.presence === 'required')
+      if (presence === 'required')
         return {
           value: null,
-          errors: [helpers.createError('any.required')],
+          errors: [helpers.error('any.required')],
         };
 
-      let defaultValue = schema.$flags.default;
+      if (isForbidden) return { value, errors: null };
 
-      if (Ref.isValid(schema.$flags.default))
-        defaultValue = schema.$flags.default.resolve(value, state.ancestors, opts.context);
+      if (presence === 'optional') {
+        let defaultValue = schema.$flags.default;
 
-      return { value: defaultValue, errors: null };
+        if (Ref.isValid(defaultValue))
+          defaultValue = defaultValue.resolve(value, state.ancestors, opts.context);
+
+        return { value: defaultValue, errors: null };
+      }
     }
 
     // Forbidden
 
-    if (schema.$flags.presence === 'forbidden') {
+    if (isForbidden) {
       return {
         value: null,
-        errors: [helpers.createError('any.forbidden')],
+        errors: [helpers.error('any.forbidden')],
       };
     }
 
@@ -808,8 +753,9 @@ class BaseSchema {
     if (!opts.strict && def.coerce !== null) {
       const coerced = def.coerce(value, helpers);
 
-      if (coerced.errors === null) value = coerced.value;
-      else return coerced;
+      if (coerced[_errorSymbol]) return { value: null, errors: [coerced] };
+
+      value = coerced;
     }
 
     // Base check
@@ -817,26 +763,28 @@ class BaseSchema {
     if (def.validate !== null) {
       const result = def.validate(value, helpers);
 
-      if (result.errors === null) value = result.value;
-      else return result;
+      if (result[_errorSymbol]) return { value: null, errors: [result] };
+
+      value = result;
     }
 
     // Rules
     for (const rule of schema._rules) {
       const ruleDef = def.rules[rule.identifier];
-      const params = { ...rule.params };
+      const args = { ...rule.args };
 
       let err;
 
-      for (const [name, paramDef] of Object.entries(ruleDef.params)) {
-        const param = params[name];
+      for (const argName of Object.keys(ruleDef.args)) {
+        const { assert: argAssert, reason } = ruleDef.args[argName];
+        const arg = args[argName];
 
-        if (!Ref.isValid(param)) continue;
+        if (!Ref.isValid(arg)) continue;
 
-        const resolved = param.resolve(value, state.ancestors, opts.context);
+        const resolved = arg.resolve(value, state.ancestors, opts.context);
 
-        if (!paramDef.assert(resolved)) {
-          err = helpers.createError('any.ref', { ref: param, reason: paramDef.reason });
+        if (!argAssert(resolved)) {
+          err = helpers.createError('any.ref', { ref: arg, reason });
 
           if (opts.abortEarly)
             return {
@@ -845,33 +793,34 @@ class BaseSchema {
             };
 
           errors.push(err);
-        } else params[name] = resolved;
+        } else args[argName] = resolved;
       }
 
       if (err !== undefined) continue;
 
-      const result = ruleDef.validate(value, { ...helpers, params, name: rule.name });
+      const result = ruleDef.validate(value, { ...helpers, args, name: rule.name });
 
-      if (result.errors === null) value = result.value;
-      else {
-        if (opts.abortEarly) return result;
+      if (result[_errorSymbol]) {
+        if (opts.abortEarly) return { value: null, errors: [result] };
 
-        errors.push(...result.errors);
-      }
+        errors.push(result);
+      } else value = result;
     }
 
     return { value, errors: errors.length === 0 ? null : errors };
   }
 
   validate(value, opts) {
-    opts = _opts('any.validate', true, opts);
-
-    return this.$validate(value, opts, new State());
+    return this.$validate(
+      value,
+      { ..._const.DEFAULT_VALIDATE_OPTS, ...opts('any.validate', opts) },
+      new State(),
+    );
   }
 
   when(ref, opts) {
     assert(Ref.isValid(ref), 'The parameter ref for BaseSchema.when must be an instance of Ref');
-    assert(isPlainObject(opts), 'The parameter opts for BaseSchema.when must be a plain object');
+    assert(isObjectLike(opts), 'The parameter opts for BaseSchema.when must be an object');
     assert(
       BaseSchema.isValid(opts.is),
       'The option is for BaseSchema.when must be an instance of BaseSchema',
@@ -908,54 +857,32 @@ function _attachMethod(obj, key, method) {
   });
 }
 
-function _opts(methodName, withDefaults, opts = {}) {
-  assert(isPlainObject(opts), 'The parameter opts for', methodName, 'must be a plain object');
+function _hasKey(obj, key) {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
 
-  const merged = { ..._const.DEFAULT_VALIDATE_OPTS, ...opts };
+function _opts(methodName, opts = {}) {
+  assert(isObjectLike(opts), 'The parameter opts for', methodName, 'must be an object');
 
-  assert(
-    typeof merged.strict === 'boolean',
-    'The option strict for',
-    methodName,
-    'must be a boolean',
+  ['strict', 'abortEarly', 'recursive', 'allowUnknown', 'stripUnknown'].forEach(optName =>
+    assert(
+      _hasKey(opts, optName) || typeof opts[optName] === 'boolean',
+      'The option',
+      optName,
+      'for',
+      methodName,
+      'must be a boolean',
+    ),
   );
 
   assert(
-    typeof merged.abortEarly === 'boolean',
-    'The option abortEarly for',
-    methodName,
-    'must be a boolean',
-  );
-
-  assert(
-    typeof merged.recursive === 'boolean',
-    'The option recursive for',
-    methodName,
-    'must be a boolean',
-  );
-
-  assert(
-    typeof merged.allowUnknown === 'boolean',
-    'The option allowUnknown for',
-    methodName,
-    'must be a boolean',
-  );
-
-  assert(
-    typeof merged.stripUnknown === 'boolean',
-    'The option stripUnknown for',
-    methodName,
-    'must be a boolean',
-  );
-
-  assert(
-    isPlainObject(merged.context),
+    _hasKey(opts, 'context') || isObjectLike(opts.context),
     'The option context for',
     methodName,
-    'must be a plain object',
+    'must be an object',
   );
 
-  return withDefaults ? merged : opts;
+  return opts;
 }
 
 function _assign(target, src) {
@@ -963,54 +890,149 @@ function _assign(target, src) {
   target._refs = [...src._refs];
   target._conditions = [...src._conditions];
   target._rules = [...src._rules];
-  target._singleRules = clone(src._singleRules);
+  target._opts = { ...src._opts };
+  target._valids = src._valids.clone();
+  target._invalids = src._invalids.clone();
+  target.$flags = new Map();
 
+  for (const key of Object.keys(src.$flags)) {
+    const flag = src.$flags[key];
+    const flagDef = src._definition.flags[key];
+
+    // If clone is defined on definition
+    if (flagDef !== undefined) {
+      if (flagDef.clone !== undefined) {
+        target.$flags[key] = flagDef.clone(flag, key, src);
+
+        continue;
+      }
+
+      if (flagDef.immutable) {
+        target.$flags[key] = clone(flag, { recursive: false });
+
+        continue;
+      }
+    }
+
+    target.$flags[key] = clone(flag, {
+      customizer: value => {
+        if (BaseSchema.isValid(value) || Ref.isValid(value)) return value;
+
+        if (Values.isValid(value)) return value.clone();
+      },
+    });
+  }
+
+  // Merge last due to flags
   const srcDef = src._definition;
   const def = { ...srcDef };
 
   def.messages = { ...srcDef.messages };
   def.rules = { ...srcDef.rules };
+  def.flags = { ...srcDef.flags };
 
   target._definition = def;
-  target._opts = { ...src._opts };
-  target._valids = src._valids.clone();
-  target._invalids = src._invalids.clone();
-  target.$flags = clone(src.$flags);
-  target.$terms = new Map();
-
-  for (const [key, terms] of src.$terms) {
-    // Since the terms are already immutable, only a shallow copy of the array itself is required
-    target.$terms.set(key, terms === null ? null : [...terms]);
-  }
 
   return target;
 }
 
+function _values(schema, values, type) {
+  assert(values.length > 0, `At least a value must be provided to any.${type}`);
+
+  type = `_${type}s`;
+
+  const other = type === '_valids' ? '_invalids' : type;
+  const target = schema.$clone();
+
+  target[other].delete(...values);
+  target[type].add(...values);
+
+  return target;
+}
+
+function _createError(schema, code, state, context, local = {}) {
+  assert(typeof code === 'string', 'The parameter code for report must be a string');
+
+  assert(isObjectLike(local), 'The parameter local for report must be an object');
+
+  // Return the error customizer if there is one
+  let err = schema.$flags.error;
+  let created;
+
+  if (err !== undefined) {
+    if (typeof err === 'function') {
+      err = err(code, state, context, local);
+
+      assert(
+        typeof err === 'string' || err instanceof Error,
+        'The error customizer function must return either a string or an instance of Error',
+      );
+    }
+
+    created = new ValidationError(err instanceof Error ? err.message : err, code, state);
+  } else {
+    const template = schema._definition.messages[code];
+
+    assert(template !== undefined, 'Message template', code, 'not found');
+
+    let label = schema.$flags.label;
+
+    if (label === undefined) {
+      if (state.path !== null) label = state.path;
+      else label = 'unknown';
+    }
+
+    // Reserved terms
+    let message = template.replace(/{label}/g, label);
+
+    message = message.replace(/{([\w+.]+)}/g, (_, match) => {
+      const isContext = match[0] === '$';
+
+      local = isContext ? context : local;
+      match = isContext ? match.slice(1) : match;
+
+      const found = get(local, match, { default: _defaultSymbol });
+
+      assert(found !== _defaultSymbol, 'Term', match, 'not found');
+
+      return _serialize(found);
+    });
+
+    created = new ValidationError(message, code, state);
+  }
+
+  // Mark this error as internally generated
+  return Object.defineProperty(created, _errorSymbol, {
+    value: true,
+  });
+}
+
 function _describe(value) {
-  if (typeof value !== 'object' || value === null) return value;
+  if (!isObjectLike(value)) return value;
 
   if (Array.isArray(value)) return value.map(_describe);
 
-  if (BaseSchema.isValid(value) || Values.isValid(value) || Ref.isValid(value))
+  if (BaseSchema.isValid(value) || Ref.isValid(value) || Values.isValid(value))
     return value.describe();
 
   const desc = {};
 
-  for (const [key, subValue] of Object.entries(value)) {
-    desc[key] = _describe(subValue);
+  for (const key of Object.keys(value)) {
+    desc[key] = _describe(value[key]);
   }
 
-  return value;
+  return desc;
 }
 
-const _methods = {
-  required: ['exists', 'present'],
-  valid: ['allow', 'equal'],
-  invalid: ['deny', 'disallow', 'not'],
-  opts: ['options', 'prefs', 'preferences'],
-};
+const _methods = [
+  ['required', 'exists', 'present'],
+  ['valid', 'allow', 'equal'],
+  ['invalid', 'deny', 'disallow', 'not'],
+  ['opts', 'options', 'prefs', 'preferences'],
+  ['annotate', 'note', 'description'],
+];
 
-for (const [method, aliases] of Object.entries(_methods)) {
+for (const [method, ...aliases] of _methods) {
   aliases.forEach(alias => {
     _attachMethod(BaseSchema.prototype, alias, BaseSchema.prototype[method]);
   });

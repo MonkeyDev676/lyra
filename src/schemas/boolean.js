@@ -1,10 +1,10 @@
 const assert = require('@botbind/dust/dist/assert');
-const BaseSchema = require('./BaseSchema');
+const any = require('./any');
 
-module.exports = new BaseSchema().define({
+module.exports = any.define({
   type: 'boolean',
   flags: {
-    sensitive: false,
+    sensitive: { value: false },
   },
   messages: {
     'boolean.base': '{label} must be a boolean',
@@ -13,26 +13,26 @@ module.exports = new BaseSchema().define({
     'boolean.falsy': '{label} must be falsy',
   },
 
-  coerce: (value, { schema, createError }) => {
+  coerce: (value, { schema, error }) => {
     if (typeof value === 'boolean') {
-      return { value, errors: null };
+      return value;
     }
 
     if (typeof value === 'string') {
       value = schema.$flags.sensitive ? value.toLowerCase() : value;
 
-      if (value === 'true') return { value: true, errors: null };
+      if (value === 'true') return true;
 
-      if (value === 'false') return { value: false, errors: null };
+      if (value === 'false') return false;
     }
 
-    return { value: null, errors: [createError('boolean.coerce')] };
+    return error('boolean.coerce');
   },
 
-  validate: (value, { createError }) => {
-    if (typeof value !== 'boolean') return { value: null, errors: [createError('boolean.base')] };
+  validate: (value, { error }) => {
+    if (typeof value !== 'boolean') return error('boolean.base');
 
-    return { value, errors: null };
+    return value;
   },
 
   rules: {
@@ -48,18 +48,18 @@ module.exports = new BaseSchema().define({
     },
 
     truthy: {
-      validate: (value, { createError }) => {
-        if (value) return { value, errors: null };
+      validate: (value, { error }) => {
+        if (value) return value;
 
-        return { value: null, errors: [createError('boolean.truthy')] };
+        return error('boolean.truthy');
       },
     },
 
     falsy: {
-      validate: (value, { createError }) => {
-        if (!value) return { value, errors: null };
+      validate: (value, { error }) => {
+        if (!value) return value;
 
-        return { value: null, errors: [createError('boolean.falsy')] };
+        return error('boolean.falsy');
       },
     },
   },

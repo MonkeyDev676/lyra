@@ -1,33 +1,30 @@
-const BaseSchema = require('./BaseSchema');
+const any = require('./any');
 
-module.exports = new BaseSchema().define({
+module.exports = any.define({
   type: 'function',
   messages: {
     'function.base': '{label} must be a function',
     'function.inherit': '{label} must inherit {ctor}',
   },
 
-  validate: (value, { createError }) => {
-    if (typeof value !== 'function') return { value: null, errors: [createError('function.base')] };
+  validate: (value, { error }) => {
+    if (typeof value !== 'function') return error('function.base');
 
-    return { value, errors: null };
+    return value;
   },
 
   rules: {
     inherit: {
       single: false,
       method(Ctor) {
-        return this.$addRule({ name: 'inherit', params: { Ctor } });
+        return this.$addRule({ name: 'inherit', args: { Ctor } });
       },
-      validate: (value, { params, createError }) => {
-        if (value.prototype instanceof params.Ctor) return { value, errors: null };
+      validate: (value, { args: { Ctor }, error }) => {
+        if (value.prototype instanceof Ctor) return value;
 
-        return {
-          value: null,
-          errors: [createError('function.inherit', { ctor: params.Ctor })],
-        };
+        return error('function.inherit', { ctor: Ctor });
       },
-      params: [
+      args: [
         {
           name: 'Ctor',
           assert: resolved => typeof resolved === 'function',

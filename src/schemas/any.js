@@ -9,21 +9,20 @@ module.exports = new BaseSchema().define({
     custom: {
       single: false,
       method(method, name = 'unknown') {
-        return this.$addRule({ name: 'custom', params: { method, name } });
+        return this.$addRule({ name: 'custom', args: { method, name } });
       },
       validate: (value, helpers) => {
-        const { params } = helpers;
+        const {
+          args: { method, name },
+        } = helpers;
 
         try {
-          return params.method(value, helpers);
+          return method(value, helpers);
         } catch (err) {
-          return {
-            value: null,
-            errors: [helpers.createError('any.custom', { error: err, name: params.name })],
-          };
+          return helpers.error('any.custom', { error: err, name });
         }
       },
-      params: [
+      args: [
         {
           name: 'method',
           assert: resolved => typeof resolved === 'function',

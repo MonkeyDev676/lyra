@@ -1,6 +1,6 @@
 const assert = require('@botbind/dust/dist/assert');
 const compare = require('@botbind/dust/dist/compare');
-const BaseSchema = require('./BaseSchema');
+const any = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
 /* eslint-disable no-control-regex, no-useless-escape */
@@ -13,10 +13,21 @@ const alphanumRegex = /^[a-zA-Z0-9]+$/;
 const numRegex = /^[0-9]+$/;
 /* eslint-enable */
 
-module.exports = new BaseSchema().define({
+module.exports = any.define({
   type: 'string',
   flags: {
-    replace: null,
+    replace: {
+      value: [],
+      // Tells base that this flag only needs shallow cloning
+      immutable: true,
+      // Default merge for immutable: true is overriding
+      // Target here has already been shallow cloned, so it's safe to run methods like push
+      merge: (target, src) => [...target, ...src],
+      // Current has been already been shallow cloned as well
+      set: (current, value) => [...current, ...value],
+    },
+    case: { value: null },
+    trim: { value: false },
   },
   messages: {
     'string.base': '{label} must be a string',
@@ -37,39 +48,35 @@ module.exports = new BaseSchema().define({
   coerce: (value, { schema }) => {
     value = String(value);
 
-    const casing = schema.$getRule({ identifier: 'case' });
+    const casing = schema.$flags.case;
 
-    if (casing)
-      value = casing.params.dir === 'upper' ? value.toLocaleUpperCase() : value.toLocaleLowerCase();
+    if (casing === 'upper') value = value.toLocaleUpperCase();
 
-    const trim = schema.$getRule({ identifier: 'trim' });
+    if (casing === 'lower') value.toLocaleLowerCase();
 
-    if (trim && trim.params.enabled) value = value.trim();
+    if (schema.$flags.trim) value = value.trim();
 
-    if (schema.$flags.replace !== null) {
-      const [pattern, replacement] = schema.$flags.replace;
-
+    for (const [pattern, replacement] of schema.$flags.replace)
       value = value.replace(pattern, replacement);
-    }
 
-    return { value, errors: null };
+    return value;
   },
 
-  validate: (value, { createError }) => {
-    if (typeof value !== 'string') return { value: null, errors: [createError('string.base')] };
+  validate: (value, { error }) => {
+    if (typeof value !== 'string') return error('string.base');
 
-    return { value, errors: null };
+    return value;
   },
 
   rules: {
     compare: {
       method: false,
-      validate: (value, { params, createError, name }) => {
-        if (compare(value.length, params.length, params.operator)) return { value, errors: null };
+      validate: (value, { args: { length, operator }, error, name }) => {
+        if (compare(value.length, length, operator)) return value;
 
-        return { value: null, errors: [createError(`string.${name}`, { length: params.length })] };
+        return error(`string.${name}`, { length });
       },
-      params: [
+      args: [
         {
           name: 'length',
           assert: _isNumber,
@@ -83,7 +90,7 @@ module.exports = new BaseSchema().define({
         return this.$addRule({
           name: 'length',
           method: 'compare',
-          params: { length, operator: '=' },
+          args: { length, operator: '=' },
         });
       },
     },
@@ -93,7 +100,7 @@ module.exports = new BaseSchema().define({
         return this.$addRule({
           name: 'min',
           method: 'compare',
-          params: { length, operator: '>=' },
+          args: { length, operator: '>=' },
         });
       },
     },
@@ -103,13 +110,13 @@ module.exports = new BaseSchema().define({
         return this.$addRule({
           name: 'max',
           method: 'compare',
-          params: { length, operator: '<=' },
+          args: { length, operator: '<=' },
         });
       },
     },
 
     creditCard: {
-      validate: (value, { createError }) => {
+      validate: (value, { error }) => {
         let i = value.length;
         let sum = 0;
         let mul = 1;
@@ -122,31 +129,23 @@ module.exports = new BaseSchema().define({
           mul ^= 3;
         }
 
-        if (sum > 0 && sum % 10 === 0) return { value, errors: null };
+        if (sum > 0 && sum % 10 === 0) return value;
 
-        return { value: null, errors: [createError('string.creditCard')] };
+        return error('string.creditCard');
       },
     },
 
     pattern: {
       single: false,
       method(regexp) {
-        return this.$addRule({ name: 'pattern', params: { regexp } });
+        return this.$addRule({ name: 'pattern', args: { regexp } });
       },
-      validate: (value, { params, createError, name }) => {
-        if (params.regexp.test(value)) return { value, errors: null };
+      validate: (value, { args: { regexp }, error, name }) => {
+        if (regexp.test(value)) return value;
 
-        return {
-          value: null,
-          errors: [
-            createError(
-              `string.${name}`,
-              name === 'pattern' ? { regexp: params.regexp } : undefined,
-            ),
-          ],
-        };
+        return error(`string.${name}`, name === 'pattern' ? { regexp } : undefined);
       },
-      params: [
+      args: [
         {
           name: 'regexp',
           assert: resolved => resolved instanceof RegExp,
@@ -157,13 +156,13 @@ module.exports = new BaseSchema().define({
 
     email: {
       method() {
-        return this.$addRule({ name: 'email', method: 'pattern', params: { regexp: emailRegex } });
+        return this.$addRule({ name: 'email', method: 'pattern', args: { regexp: emailRegex } });
       },
     },
 
     url: {
       method() {
-        return this.$addRule({ name: 'url', method: 'pattern', params: { regexp: urlRegex } });
+        return this.$addRule({ name: 'url', method: 'pattern', args: { regexp: urlRegex } });
       },
     },
 
@@ -172,38 +171,45 @@ module.exports = new BaseSchema().define({
         return this.$addRule({
           name: 'alphanum',
           method: 'pattern',
-          params: { regexp: alphanumRegex },
+          args: { regexp: alphanumRegex },
         });
       },
     },
 
     numeric: {
       method() {
-        return this.$addRule({ name: 'numeric', method: 'pattern', params: { regexp: numRegex } });
+        return this.$addRule({ name: 'numeric', method: 'pattern', args: { regexp: numRegex } });
       },
     },
 
     case: {
       method: false,
-      validate: (value, { params, name, createError }) => {
-        if (params.dir === 'lower' && value.toLocaleLowerCase() === value)
-          return { value, errors: null };
+      validate: (value, { args: { dir }, name, error }) => {
+        if (dir === 'lower' && value.toLocaleLowerCase() === value) return { value, errors: null };
 
-        if (value.toLocaleUpperCase() === value) return { value, errors: null };
+        if (value.toLocaleUpperCase() === value) return value;
 
-        return { value: null, errors: [createError(`string.${name}`)] };
+        return error(`string.${name}`);
       },
     },
 
     uppercase: {
       method() {
-        return this.$addRule({ name: 'uppercase', method: 'case', params: { dir: 'upper' } });
+        const target = this.$addRule({ name: 'uppercase', method: 'case', args: { dir: 'upper' } });
+
+        target.$setFlag('case', 'upper', { clone: false });
+
+        return target;
       },
     },
 
     lowercase: {
       method() {
-        return this.$addRule({ name: 'lowercase', method: 'case', params: { dir: 'lower' } });
+        const target = this.$addRule({ name: 'lowercase', method: 'case', args: { dir: 'lower' } });
+
+        target.$setFlag('case', 'lower', { clone: false });
+
+        return target;
       },
     },
 
@@ -214,12 +220,16 @@ module.exports = new BaseSchema().define({
           'The parameter enabled for string.trim must be a boolean',
         );
 
-        return this.$addRule({ name: 'trim', params: { enabled } });
-      },
-      validate: (value, { createError, params }) => {
-        if (!params.enabled || value === value.trim()) return { value, errors: null };
+        const target = this.$addRule({ name: 'trim', args: { enabled } });
 
-        return { value: null, errors: [createError('string.trim')] };
+        target.$setFlag('trim', enabled);
+
+        return target;
+      },
+      validate: (value, { error, args: { enabled } }) => {
+        if (!enabled || value === value.trim()) return value;
+
+        return { value: null, errors: [error('string.trim')] };
       },
     },
 

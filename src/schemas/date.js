@@ -1,11 +1,11 @@
 const compare = require('@botbind/dust/dist/compare');
-const BaseSchema = require('./BaseSchema');
+const any = require('./any');
 
 function _isValidDate(value) {
   return value instanceof Date && !Number.isNaN(value.getTime());
 }
 
-module.exports = new BaseSchema().define({
+module.exports = any.define({
   type: 'date',
   messages: {
     'date.base': '{label} must be a valid date',
@@ -16,48 +16,45 @@ module.exports = new BaseSchema().define({
     'date.smaller': '{label} must be smaller than {date}',
   },
 
-  coerce: (value, { createError }) => {
+  coerce: (value, { error }) => {
     if (typeof value === 'number') {
       value = new Date(value);
 
-      if (_isValidDate(value)) return { value, errors: null };
+      if (_isValidDate(value)) return value;
     }
 
     if (typeof value === 'string') {
       const timestamp = Date.parse(value);
 
       if (!Number.isNaN(timestamp)) {
-        return { value: new Date(timestamp), errors: null };
+        return new Date(timestamp);
       }
     }
 
-    return { value: null, errors: [createError('date.coerce')] };
+    return error('date.coerce');
   },
 
-  validate: (value, { createError }) => {
+  validate: (value, { error }) => {
     // Check for invalid dates
-    if (_isValidDate(value)) return { value, errors: null };
+    if (_isValidDate(value)) return value;
 
-    return { value: null, errors: [createError('date.base')] };
+    return error('date.base');
   },
 
   rules: {
     compare: {
       method: false,
-      validate: (value, { params, createError, name }) => {
-        let date;
+      validate: (value, { args: { date, operator }, error, name }) => {
+        let compareDate;
 
-        if (params.date === 'now') date = Date.now();
-        else date = params.date.getTime();
+        if (date === 'now') compareDate = Date.now();
+        else compareDate = date.getTime();
 
-        if (compare(value.getTime(), date, params.operator)) return { value, errors: null };
+        if (compare(value.getTime(), compareDate, operator)) return value;
 
-        return {
-          value: null,
-          errors: createError(`date.${name}`, { date: params.date }),
-        };
+        return error(`date.${name}`, { date });
       },
-      params: [
+      args: [
         {
           name: 'date',
           assert: resolved => resolved === 'now' || _isValidDate(resolved),
@@ -71,7 +68,7 @@ module.exports = new BaseSchema().define({
         return this.$addRule({
           name: 'min',
           method: 'compare',
-          params: { date, operator: '>=' },
+          args: { date, operator: '>=' },
         });
       },
     },
@@ -81,7 +78,7 @@ module.exports = new BaseSchema().define({
         return this.$addRule({
           name: 'max',
           method: 'compare',
-          params: { date, operator: '<=' },
+          args: { date, operator: '<=' },
         });
       },
     },
@@ -91,7 +88,7 @@ module.exports = new BaseSchema().define({
         return this.$addRule({
           name: 'greater',
           method: 'compare',
-          params: { date, operator: '>' },
+          args: { date, operator: '>' },
         });
       },
     },
@@ -102,7 +99,7 @@ module.exports = new BaseSchema().define({
         return this.$addRule({
           name: 'smaller',
           method: 'compare',
-          params: { date, operator: '<' },
+          args: { date, operator: '<' },
         });
       },
     },

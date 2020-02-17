@@ -1,13 +1,13 @@
 const assert = require('@botbind/dust/dist/assert');
 const compare = require('@botbind/dust/dist/compare');
-const BaseSchema = require('./BaseSchema');
+const any = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
-module.exports = new BaseSchema().define({
+module.exports = any.define({
   type: 'number',
   flags: {
-    unsafe: false,
-    loose: false,
+    unsafe: { value: false },
+    loose: { value: false },
   },
   messages: {
     'number.base': '{label} must be a number',
@@ -24,30 +24,28 @@ module.exports = new BaseSchema().define({
     'number.unsafe': '{label} must be a safe number',
   },
 
-  coerce: (value, { schema, createError }) => {
-    if (!schema.$flags.loose && typeof value !== 'string')
-      return { value: null, errors: [createError('number.coerce')] };
+  coerce: (value, { schema, error }) => {
+    if (!schema.$flags.loose && typeof value !== 'string') return error('number.coerce');
 
     const coerce = Number(value);
 
-    if (!Number.isNaN(coerce)) return { value: coerce, errors: null };
+    if (!Number.isNaN(coerce)) return value;
 
-    return { value: null, errors: [createError('number.coerce')] };
+    return error('number.coerce');
   },
 
-  validate: (value, { schema, createError }) => {
-    if (value === Infinity || value === -Infinity)
-      return { value: null, errors: [createError('number.infinity')] };
+  validate: (value, { schema, error }) => {
+    if (value === Infinity || value === -Infinity) return error('number.infinity');
 
-    if (!_isNumber(value)) return { value: null, errors: [createError('number.base')] };
+    if (!_isNumber(value)) return error('number.base');
 
     if (
       !schema.$flags.unsafe &&
       (value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER)
     )
-      return { value: null, errors: [createError('number.unsafe')] };
+      return error('number.unsafe');
 
-    return { value, errors: null };
+    return value;
   },
 
   rules: {
@@ -75,15 +73,12 @@ module.exports = new BaseSchema().define({
 
     compare: {
       method: false,
-      validate: (value, { params, name, createError }) => {
-        if (compare(value, params.num, params.operator)) return { value, errors: null };
+      validate: (value, { args: { num, operator }, name, error }) => {
+        if (compare(value, num, operator)) return value;
 
-        return {
-          value: null,
-          errors: [createError(`number.${name}`, { num: params.num })],
-        };
+        return error(`number.${name}`, { num });
       },
-      params: [
+      args: [
         {
           name: 'num',
           assert: _isNumber,
@@ -93,22 +88,22 @@ module.exports = new BaseSchema().define({
     },
 
     integer: {
-      validate: (value, { createError }) => {
-        if (Number.isInteger(value)) return { value, errors: null };
+      validate: (value, { error }) => {
+        if (Number.isInteger(value)) return value;
 
-        return { value: null, errors: [createError('number.integer')] };
+        return error('number.integer');
       },
     },
 
     min: {
       method(num) {
-        return this.$addRule({ name: 'min', method: 'compare', params: { num, operator: '>=' } });
+        return this.$addRule({ name: 'min', method: 'compare', args: { num, operator: '>=' } });
       },
     },
 
     max: {
       method(num) {
-        return this.$addRule({ name: 'max', method: 'compare', params: { num, operator: '<=' } });
+        return this.$addRule({ name: 'max', method: 'compare', args: { num, operator: '<=' } });
       },
     },
 
@@ -117,7 +112,7 @@ module.exports = new BaseSchema().define({
         return this.$addRule({
           name: 'greater',
           method: 'compare',
-          params: { num, operator: '>' },
+          args: { num, operator: '>' },
         });
       },
     },
@@ -128,7 +123,7 @@ module.exports = new BaseSchema().define({
         return this.$addRule({
           name: 'smaller',
           method: 'compare',
-          params: { num, operator: '<' },
+          args: { num, operator: '<' },
         });
       },
     },
@@ -137,17 +132,14 @@ module.exports = new BaseSchema().define({
       single: false,
       alias: ['divisible', 'factor'],
       method(num) {
-        return this.$addRule({ name: 'multiple', params: { num } });
+        return this.$addRule({ name: 'multiple', args: { num } });
       },
-      validate: (value, { params, createError }) => {
-        if (value % params.num === 0) return { value, errors: null };
+      validate: (value, { args: { num }, error }) => {
+        if (value % num === 0) return value;
 
-        return {
-          value: null,
-          errors: [createError('number.multiple', { num: params.num })],
-        };
+        return error('number.multiple', { num });
       },
-      params: [
+      args: [
         {
           name: 'num',
           assert: _isNumber,
@@ -158,24 +150,21 @@ module.exports = new BaseSchema().define({
 
     even: {
       method() {
-        return this.$addRule({ name: 'even', method: 'multiple', params: { num: 2 } });
+        return this.$addRule({ name: 'even', method: 'multiple', args: { num: 2 } });
       },
     },
 
     divide: {
       single: false,
       method(num) {
-        return this.$addRule({ name: 'divide', params: { num } });
+        return this.$addRule({ name: 'divide', args: { num } });
       },
-      validate: (value, { params, createError }) => {
-        if (params.num % value === 0) return { value, errors: null };
+      validate: (value, { args: { num }, error }) => {
+        if (num % value === 0) return value;
 
-        return {
-          value,
-          errors: [createError('number.divide', { num: params.num })],
-        };
+        return error('number.divide', { num });
       },
-      params: [
+      args: [
         {
           name: 'num',
           assert: _isNumber,

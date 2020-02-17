@@ -1,6 +1,7 @@
 const assert = require('@botbind/dust/dist/assert');
 const isPlainObject = require('@botbind/dust/dist/isPlainObject');
 const get = require('@botbind/dust/dist/get');
+const symbols = require('./symbols');
 
 class Ref {
   constructor(path, opts = {}) {
@@ -70,7 +71,7 @@ class Ref {
     return get(ancestors[this._ancestor - 1], this._path, opts);
   }
 
-  describe() {
+  [symbols.describe]() {
     return {
       originalPath: this._originalPath,
       separator: this._separator,

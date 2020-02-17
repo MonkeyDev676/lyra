@@ -23,13 +23,13 @@ class Values {
   merge(src, remove) {
     assert(Values.isValid(src), 'The parameter src for Values.merge must be an instance of Values');
     assert(
-      Values.isValid(remove),
+      remove === undefined || Values.isValid(remove),
       'The parameter remove for Values.merge must be an instance of Values',
     );
 
     for (const value of src.values()) this.add(value);
 
-    for (const value of remove.values()) this.delete(value);
+    if (remove !== undefined) for (const value of remove.values()) this.delete(value);
 
     return this;
   }

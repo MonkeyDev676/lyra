@@ -2,12 +2,18 @@ const assert = require('@botbind/dust/dist/assert');
 const clone = require('@botbind/dust/dist/clone');
 const compare = require('@botbind/dust/dist/compare');
 const BaseSchema = require('./BaseSchema');
+const any = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
-module.exports = new BaseSchema().define({
+module.exports = any.define({
   type: 'array',
   flags: {
-    inner: null,
+    inner: {
+      value: [],
+      // immutable: true -> we don't need this here as base defaults to not clone schemas
+      merge: (target, src) => [...target, ...src],
+      set: (current, value) => [...current, ...value],
+    },
   },
   messages: {
     'array.base': '{label} must be an array',
@@ -16,16 +22,16 @@ module.exports = new BaseSchema().define({
     'array.min': '{label} must have at least {length} items',
     'array.max': '{label} must have at most {length} items',
   },
-  coerce: (value, { createError }) => {
+  coerce: (value, { error }) => {
     try {
-      return { value: JSON.parse(value), errors: null };
+      return JSON.parse(value);
     } catch (err) {
-      return { value: null, errors: [createError('array.coerce')] };
+      return error('array.coerce');
     }
   },
 
-  validate: (value, { createError, state, schema, opts }) => {
-    if (!Array.isArray(value)) return { value: null, errors: [createError('array.base')] };
+  validate: (value, { error, state, schema, opts }) => {
+    if (!Array.isArray(value)) return error('array.base');
 
     const errors = [];
 
@@ -36,6 +42,7 @@ module.exports = new BaseSchema().define({
     for (let i = 0; i < value.length; i++) {
       state.path = state.path === null ? `[${i}]` : `${state.path}[${i}]`;
 
+      // todo: fix this line
       const result = schema.$flags.inner.$validate(value[i], opts, state);
 
       if (result.errors !== null) {
@@ -54,10 +61,6 @@ module.exports = new BaseSchema().define({
     return { value, errors: null };
   },
 
-  rebuild: schema => {
-    schema.$registerRef(schema.$flags.inner);
-  },
-
   rules: {
     of: {
       method(inner) {
@@ -66,20 +69,22 @@ module.exports = new BaseSchema().define({
           'The parameter inner for array.of must be a valid schema',
         );
 
-        this.$registerRef(inner);
+        const target = this.$setFlag('inner', inner);
 
-        return this.$setFlag('inner', inner);
+        target.$register(inner);
+
+        return target;
       },
     },
 
     compare: {
       method: false,
-      validate: (value, { params, createError, name }) => {
-        if (compare(value.length, params.length, params.operator)) return { value, errors: null };
+      validate: (value, { args: { length, operator }, error, name }) => {
+        if (compare(value.length, length, operator)) return value;
 
-        return { value: null, errors: [createError(`array.${name}`, { length: params.length })] };
+        return error(`array.${name}`, { length });
       },
-      params: [
+      args: [
         {
           name: 'length',
           assert: _isNumber,
@@ -93,7 +98,7 @@ module.exports = new BaseSchema().define({
         return this.$addRule({
           name: 'length',
           method: 'compare',
-          params: { length, operator: '=' },
+          args: { length, operator: '=' },
         });
       },
     },
@@ -103,7 +108,7 @@ module.exports = new BaseSchema().define({
         return this.$addRule({
           name: 'min',
           method: 'compare',
-          params: { length, operator: '>=' },
+          args: { length, operator: '>=' },
         });
       },
     },
@@ -113,7 +118,7 @@ module.exports = new BaseSchema().define({
         return this.$addRule({
           name: 'max',
           method: 'compare',
-          params: { length, operator: '<=' },
+          args: { length, operator: '<=' },
         });
       },
     },
