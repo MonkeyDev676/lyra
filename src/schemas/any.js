@@ -14,12 +14,13 @@ module.exports = new BaseSchema().define({
       validate: (value, helpers) => {
         const {
           args: { method, name },
+          error,
         } = helpers;
 
         try {
           return method(value, helpers);
         } catch (err) {
-          return helpers.error('any.custom', { error: err, name });
+          return error('any.custom', { error: err, name });
         }
       },
       args: [
