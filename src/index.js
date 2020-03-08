@@ -47,13 +47,13 @@ const root = {
       );
 
       definition = {
-        base: this.any,
+        from: this.any,
         ...definition,
       };
 
       Dust.assert(
-        this.isSchema(definition.base),
-        'The option base for extend must be a valid schema',
+        this.isSchema(definition.from),
+        'The option from for extend must be a valid schema',
       );
 
       const from = definition.from;
