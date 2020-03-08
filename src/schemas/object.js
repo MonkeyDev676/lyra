@@ -1,42 +1,32 @@
 const Constellation = require('@botbind/constellation');
-const assert = require('@botbind/dust/dist/assert');
-const clone = require('@botbind/dust/dist/clone');
-const isPlainObject = require('@botbind/dust/dist/isPlainObject');
-const compare = require('@botbind/dust/dist/compare');
-const BaseSchema = require('./BaseSchema');
-const Ref = require('../Ref');
+const Dust = require('@botbind/dust');
+const { any, isSchema } = require('./any');
+const { ref, isRef } = require('../ref');
+const _hasKey = require('../internals/_hasKey');
 const _isNumber = require('../internals/_isNumber');
 
-function _dependency(schema, peers, type, validate) {
-  assert(peers.length > 0, `The parameter peers for object.${type} must have at least one item`);
-  assert(
-    peers.every(peer => Ref.isValid(peer)),
-    `The parameter peers for object.${type} must contain only instances of Ref`,
-  );
-  // Improve consistency
-  assert(
-    peers.every(peer => peer._ancestor === 0),
-    `The parameter peers for object.${type} must contain only self references`,
-  );
-
-  return schema.$setFlag('dependencies', next =>
-    next.$flags.dependencies.push({
-      type,
-      validate,
-    }),
-  );
-}
-
-module.exports = new BaseSchema().define({
+module.exports = any.define({
   type: 'object',
-  flags: {
-    inner: [],
-    dependencies: [],
+  index: {
+    keys: {
+      merge: (target, src) => {
+        for (let i = 0; i < src.length; i++) {
+          const srcTerm = src[i];
+          const targetTerm = target[i];
+
+          if (targetTerm === undefined) target[i] = srcTerm;
+          else target[i] = targetTerm.$merge(srcTerm);
+        }
+
+        return target;
+      },
+    },
+    dependencies: {},
   },
   messages: {
     'object.base': '{label} must be an object',
     'object.coerce': '{label} cannot be coerced to an object',
-    'object.unknown': '{path} is not allowed',
+    'object.unknown': '{label} is not allowed',
     'object.length': '{label} must have {length} entries',
     'object.min': '{label} must have at least {length} entries',
     'object.max': '{label} must have at most {length} entries',
@@ -48,63 +38,62 @@ module.exports = new BaseSchema().define({
     'object.oxor': '{label} must contain one or none of {peers}',
   },
 
-  coerce: (value, { createError }) => {
+  coerce: (value, { error }) => {
     try {
-      return { value: JSON.parse(value), errors: null };
+      return JSON.parse(value);
     } catch (err) {
-      return { value: null, errors: [createError('object.coerce')] };
+      return error('object.coerce');
     }
   },
 
-  validate: (value, { schema, state, opts, createError }) => {
-    if (value === null || typeof value === 'object' || Array.isArray(value))
-      return { value: null, errors: [createError('object.base')] };
+  rebuild: schema => {
+    const sorter = Constellation.sorter();
+    const keys = new Map(schema.$index.keys);
 
+    for (const [key, subSchema] of schema.$index.keys) {
+      sorter.add(key, subSchema.$references());
+    }
+    schema.$index.keys = sorter.sort().map(key => [key, keys.get(key)]);
+  },
+
+  validate: (value, { schema, state, opts, error, original }) => {
+    if (!Dust.isObject(value) || Array.isArray(value)) return error('object.base');
+
+    const abortEarly = opts.abortEarly;
     const errors = [];
-    // const stripKeys = [];
     const keys = new Set(Object.keys(value));
 
-    value = clone(value);
-    state.dive(value);
+    // Shallow clone
+    value = Dust.clone(value, { recursive: false });
 
-    for (const [key, subSchema] of schema.$flags.inner) {
-      state.path = state.path === null ? key : `${state.path}.${key}`;
+    for (const [key, subSchema] of schema.$index.keys) {
+      const subValue = value[key];
+      const divedState = state.dive(original, key);
 
       keys.delete(key);
 
-      const result = subSchema.$validate(value[key], opts, state);
+      const result = subSchema.$validate(subValue, opts, divedState);
 
       if (result.errors !== null) {
-        if (opts.abortEarly) return result;
+        if (abortEarly) return result.errors;
 
         errors.push(...result.errors);
       } else if (subSchema.$flags.strip) {
         delete value[key];
-      } else if (result.value !== undefined || Object.prototype.hasOwnProperty.call(value, key)) {
-        // {a: undefined} -> {a: undefined}
-        // {} -> {} (without this condition it would return {a: undefined})
-        value[key] = result.value;
-      }
+      } else if (result.value !== undefined || _hasKey(value, key)) value[key] = result.value;
     }
 
-    for (const dependency of schema.$flags.dependencies) {
-      const peers = dependency.validate(value, state.ancestors, opts.context);
+    for (const [type, peers] of schema.$index.dependencies) {
+      const failed = _dependencies[type](value, peers, state._ancestors, opts.context);
 
-      if (peers !== undefined) {
-        const err = createError(`object.${dependency.type}`, {
-          peers,
-        });
+      if (!failed) {
+        const err = error(`object.${type}`, { peers });
 
-        if (opts.abortEarly) return { value: null, errors: [err] };
+        if (abortEarly) return err;
 
         errors.push(err);
       }
     }
-
-    /* stripKeys.forEach(key => {
-      delete value[key];
-      keys.delete(key);
-    }); */
 
     if (opts.stripUnknown) {
       keys.forEach(key => {
@@ -115,82 +104,56 @@ module.exports = new BaseSchema().define({
 
     if (!opts.allowUnknown) {
       for (const key of keys) {
-        const path = state.path === null ? key : `${state.path}.${key}`;
+        const err = error('object.unknown', undefined, state.dive(original, key));
 
-        const err = createError('object.unknown', { path });
-
-        if (opts.abortEarly)
-          return {
-            value: null,
-            errors: [err],
-          };
+        if (abortEarly) return err;
 
         errors.push(err);
       }
     }
 
-    if (errors.length > 0) return { value: null, errors };
-
-    return { value, errors: null };
-  },
-
-  // TODO: resolve refs
-  rebuild: schema => {
-    for (const [, subSchema] of schema.$flags.inner) {
-      schema.$registerRef(subSchema);
-    }
+    return errors.length > 0 ? errors : value;
   },
 
   rules: {
-    of: {
-      method(inner) {
-        assert(isPlainObject(inner), 'The parameter inner for object.of must be a plain object');
-
-        const entries = Object.entries(inner);
-
-        assert(
-          entries.every(([, schema]) => BaseSchema.isValid(schema)),
-          'The parameter inner for ObjectSchema must contain valid schemas',
+    keys: {
+      alias: ['of', 'shape'],
+      method(keys) {
+        Dust.assert(
+          Dust.isPlainObject(keys),
+          'The parameter keys for object.keys must be a plain object',
         );
 
-        // Treat {} as null
-        if (entries.length !== 0) {
-          const sorter = new Constellation();
+        const target = this.$clone();
+        const keysKeys = Object.keys(keys);
 
-          entries.forEach(([key, schema]) => {
-            sorter.add(key);
+        Dust.assert(
+          keysKeys.length > 0,
+          'The parameter keys for object keys must contain at least a valid schema',
+        );
 
-            this.$registerRef(schema);
+        Dust.assert(
+          keysKeys.every(key => isSchema(keys[key])),
+          'The parameter keys for object.keys must contain valid schemas',
+        );
 
-            schema._refs.forEach(([ancestor, root]) => {
-              if (ancestor === 0) sorter.add(root, key);
-            });
-          });
+        target.$index.keys =
+          target.$index.keys === null
+            ? []
+            : target.$index.keys.filter(([key]) => keys[key] === undefined);
 
-          let keys;
-
-          try {
-            keys = sorter.sort();
-          } catch (err) {
-            throw err;
-          }
-
-          const schema = this.$setFlag(
-            'inner',
-            keys.map(key => [key, inner[key]]),
-          );
-
-          return schema;
+        for (const key of keysKeys) {
+          target.$index.keys.push([key, keys[key]]);
         }
 
-        return this;
+        return target.$rebuild();
       },
     },
 
     compare: {
       method: false,
       validate({ value, params }) {
-        return compare(Object.entries(value).length, params.length, params.operator);
+        return Dust.compare(Object.keys(value).length, params.length, params.operator);
       },
       params: [
         {
@@ -251,74 +214,103 @@ module.exports = new BaseSchema().define({
 
     and: {
       method(...peers) {
-        return _dependency(this, peers, 'and', (value, ancestors, context) => {
-          for (const peer of peers) {
-            if (peer.resolve(value, ancestors, context) === undefined) return peers;
-          }
-
-          return undefined;
-        });
+        return _dependency(this, peers, 'and');
       },
     },
 
     nand: {
       method(...peers) {
-        return _dependency(this, peers, 'nand', (value, ancestors, context) => {
-          for (const peer of peers) {
-            if (peer.resolve(value, ancestors, context) === undefined) return undefined;
-          }
-
-          return peers;
-        });
+        return _dependency(this, peers, 'nand');
       },
     },
 
     or: {
       method(...peers) {
-        return _dependency(this, peers, 'or', (value, ancestors, context) => {
-          for (const peer of peers) {
-            if (peer.resolve(value, ancestors, context) !== undefined) return undefined;
-          }
-
-          return peers;
-        });
+        return _dependency(this, peers, 'or');
       },
     },
 
     xor: {
       method(...peers) {
-        return _dependency(this, peers, 'xor', (value, ancestors, context) => {
-          let count = 0;
-
-          for (const peer of peers) {
-            if (peer.resolve(value, ancestors, context) !== undefined) {
-              if (count === 0) count++;
-              else return peers;
-            }
-          }
-
-          if (count === 0) return peers;
-
-          return undefined;
-        });
+        return _dependency(this, peers, 'xor');
       },
     },
 
     oxor: {
       method(...peers) {
-        return _dependency(this, peers, 'oxor', (value, ancestors, context) => {
-          let count = 0;
-
-          for (const peer of peers) {
-            if (peer.resolve(value, ancestors, context) !== undefined) {
-              if (count === 0) count++;
-              else return peers;
-            }
-          }
-
-          return undefined;
-        });
+        return _dependency(this, peers, 'oxor');
       },
     },
   },
 });
+
+function _dependency(schema, peers, type) {
+  Dust.assert(
+    peers.length > 0,
+    `The parameter peers for object.${type} must have at least one item`,
+  );
+  Dust.assert(
+    peers.every(peer => typeof peer === 'string' || isRef(peer)),
+    `The parameter peers for object.${type} must contain only instances of Ref or strings`,
+  );
+
+  peers = peers.map(peer => (typeof peer === 'string' ? ref(peer) : peer));
+
+  const target = schema.$clone();
+
+  if (target.$index.dependencies === null) target.$index.dependencies = [];
+
+  target.$index.dependencies.push([type, peers]);
+
+  return target;
+}
+
+const _dependencies = {
+  and: (value, peers, ancestors, context) => {
+    for (const peer of peers) {
+      if (peer.resolve(value, ancestors, context) === undefined) return peers;
+    }
+
+    return false;
+  },
+  nand: (value, peers, ancestors, context) => {
+    for (const peer of peers) {
+      if (peer.resolve(value, ancestors, context) === undefined) return false;
+    }
+
+    return peers;
+  },
+  or: (value, peers, ancestors, context) => {
+    for (const peer of peers) {
+      if (peer.resolve(value, ancestors, context) !== undefined) return false;
+    }
+
+    return peers;
+  },
+  xor: (value, peers, ancestors, context) => {
+    let count = 0;
+
+    for (const peer of peers) {
+      if (peer.resolve(value, ancestors, context) !== undefined) {
+        if (count === 0) count++;
+        else return peers;
+      }
+    }
+
+    if (count === 0) return peers;
+
+    return false;
+  },
+  oxor: (value, peers, ancestors, context) => {
+    let count = 0;
+
+    for (const peer of peers) {
+      if (peer.resolve(value, ancestors, context) !== undefined) {
+        if (count === 0) count++;
+        else return peers;
+      }
+    }
+
+    return false;
+  },
+};

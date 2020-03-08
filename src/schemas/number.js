@@ -1,13 +1,12 @@
-const assert = require('@botbind/dust/dist/assert');
-const compare = require('@botbind/dust/dist/compare');
-const any = require('./any');
+const Dust = require('@botbind/dust');
+const { any } = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
 module.exports = any.define({
   type: 'number',
   flags: {
-    unsafe: { value: false },
-    loose: { value: false },
+    unsafe: false,
+    loose: false,
   },
   messages: {
     'number.base': '{label} must be a number',
@@ -51,7 +50,7 @@ module.exports = any.define({
   rules: {
     loose: {
       method(enabled = true) {
-        assert(
+        Dust.assert(
           typeof enabled === 'boolean',
           'The parameter enabled for number.loose must be a boolean',
         );
@@ -62,7 +61,7 @@ module.exports = any.define({
 
     unsafe: {
       method(enabled = true) {
-        assert(
+        Dust.assert(
           typeof enabled === 'boolean',
           'The parameter enabled for number.unsafe must be a boolean',
         );
@@ -74,7 +73,7 @@ module.exports = any.define({
     compare: {
       method: false,
       validate: (value, { args: { num, operator }, name, error }) => {
-        if (compare(value, num, operator)) return value;
+        if (Dust.compare(value, num, operator)) return value;
 
         return error(`number.${name}`, { num });
       },

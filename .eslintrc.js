@@ -14,6 +14,7 @@ module.exports = {
   },
   rules: {
     'prefer-destructuring': 'off',
+    'new-cap': 'off',
     'no-use-before-define': 'off',
     'no-underscore-dangle': 'off',
     'no-param-reassign': 'off',

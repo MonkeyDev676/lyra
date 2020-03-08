@@ -1,22 +1,28 @@
-class State {
-  constructor() {
-    this.ancestors = [];
-    this.depth = 1;
-    this.path = null;
+const _stateSymbol = Symbol('__STATE__');
+
+class _State {
+  constructor(ancestors = [], path = [], depth = 0) {
+    this._ancestors = ancestors;
+    this._depth = depth;
+    this._path = path;
   }
 
-  static isValid(value) {
-    return value != null && !!value.__STATE__;
-  }
-
-  dive(ancestor) {
-    this.ancestors.push(ancestor);
-    this.depth++;
-
-    return this;
+  dive(ancestor, path) {
+    return new _State([ancestor, ...this._ancestors], [...this._path, path], this._depth++);
   }
 }
 
-Object.defineProperty(State.prototype, '__STATE__', { value: true });
+Object.defineProperty(_State.prototype, _stateSymbol, { value: true });
 
-module.exports = State;
+function state() {
+  return new _State();
+}
+
+function isState(value) {
+  return value != null && !!value[_stateSymbol];
+}
+
+module.exports = {
+  state,
+  isState,
+};

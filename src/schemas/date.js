@@ -1,9 +1,5 @@
-const compare = require('@botbind/dust/dist/compare');
-const any = require('./any');
-
-function _isValidDate(value) {
-  return value instanceof Date && !Number.isNaN(value.getTime());
-}
+const Dust = require('@botbind/dust');
+const { any } = require('./any');
 
 module.exports = any.define({
   type: 'date',
@@ -50,7 +46,7 @@ module.exports = any.define({
         if (date === 'now') compareDate = Date.now();
         else compareDate = date.getTime();
 
-        if (compare(value.getTime(), compareDate, operator)) return value;
+        if (Dust.compare(value.getTime(), compareDate, operator)) return value;
 
         return error(`date.${name}`, { date });
       },
@@ -105,3 +101,7 @@ module.exports = any.define({
     },
   },
 });
+
+function _isValidDate(value) {
+  return value instanceof Date && !Number.isNaN(value.getTime());
+}

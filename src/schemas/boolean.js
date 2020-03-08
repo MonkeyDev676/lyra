@@ -1,10 +1,10 @@
-const assert = require('@botbind/dust/dist/assert');
-const any = require('./any');
+const Dust = require('@botbind/dust');
+const { any } = require('./any');
 
 module.exports = any.define({
   type: 'boolean',
   flags: {
-    sensitive: { value: false },
+    sensitive: false,
   },
   messages: {
     'boolean.base': '{label} must be a boolean',
@@ -38,7 +38,7 @@ module.exports = any.define({
   rules: {
     sensitive: {
       method(enabled = true) {
-        assert(
+        Dust.assert(
           typeof enabled === 'boolean',
           'The parameter enabled for boolean.sensitive must be a boolean',
         );

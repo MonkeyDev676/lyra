@@ -3,31 +3,28 @@ const compare = require('@botbind/dust/dist/compare');
 const any = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
-/* eslint-disable no-control-regex, no-useless-escape */
-// The email regex is meant to be simple. Custom implementation can use any.custom
-// Copied from https://stackoverflow.com/a/41437076/10598722
-const emailRegex = /(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@[*[a-zA-Z0-9-]+.[a-zA-Z0-9-.]+]*/;
-// Copied from https://mathiasbynens.be/demo/url-regex @stephenhay
-const urlRegex = /^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/;
-const alphanumRegex = /^[a-zA-Z0-9]+$/;
-const numRegex = /^[0-9]+$/;
-/* eslint-enable */
+const _regexp = {
+  // The email regex is meant to be simple. Custom implementation can use any.custom
+  // Copied from https://stackoverflow.com/a/41437076/10598722
+  // eslint-disable-next-line no-useless-escape
+  email: /(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@[*[a-zA-Z0-9-]+.[a-zA-Z0-9-.]+]*/,
+
+  // Copied from https://mathiasbynens.be/demo/url-regex @stephenhay
+  url: /^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/,
+  alphanum: /^[a-zA-Z0-9]+$/,
+  num: /^[0-9]+$/,
+};
 
 module.exports = any.define({
   type: 'string',
   flags: {
+    case: null,
+    trim: false,
+  },
+  index: {
     replace: {
-      value: [],
-      // Tells base that this flag only needs shallow cloning
-      immutable: true,
-      // Default merge for immutable: true is overriding
-      // Target here has already been shallow cloned, so it's safe to run methods like push
-      merge: (target, src) => [...target, ...src],
-      // Current has been already been shallow cloned as well
-      set: (current, value) => [...current, ...value],
+      describe: ([pattern, replacement]) => ({ pattern: pattern.toString(), replacement }),
     },
-    case: { value: null },
-    trim: { value: false },
   },
   messages: {
     'string.base': '{label} must be a string',
@@ -56,8 +53,9 @@ module.exports = any.define({
 
     if (schema.$flags.trim) value = value.trim();
 
-    for (const [pattern, replacement] of schema.$flags.replace)
-      value = value.replace(pattern, replacement);
+    if (schema.$index.replace !== null)
+      for (const [pattern, replacement] of schema.$index.replace)
+        value = value.replace(pattern, replacement);
 
     return value;
   },
@@ -156,13 +154,13 @@ module.exports = any.define({
 
     email: {
       method() {
-        return this.$addRule({ name: 'email', method: 'pattern', args: { regexp: emailRegex } });
+        return this.$addRule({ name: 'email', method: 'pattern', args: { regexp: _regexp.email } });
       },
     },
 
     url: {
       method() {
-        return this.$addRule({ name: 'url', method: 'pattern', args: { regexp: urlRegex } });
+        return this.$addRule({ name: 'url', method: 'pattern', args: { regexp: _regexp.url } });
       },
     },
 
@@ -171,14 +169,14 @@ module.exports = any.define({
         return this.$addRule({
           name: 'alphanum',
           method: 'pattern',
-          args: { regexp: alphanumRegex },
+          args: { regexp: _regexp.alphanum },
         });
       },
     },
 
     numeric: {
       method() {
-        return this.$addRule({ name: 'numeric', method: 'pattern', args: { regexp: numRegex } });
+        return this.$addRule({ name: 'numeric', method: 'pattern', args: { regexp: _regexp.num } });
       },
     },
 
@@ -245,7 +243,13 @@ module.exports = any.define({
           'The parameter replacement for string.replace must be a string',
         );
 
-        return this.$setFlag('replace', [pattern, replacement]);
+        const target = this.$clone();
+
+        if (target.$index.replace === null) target.$index.replace = [];
+
+        target.$index.replace.push([pattern, replacement]);
+
+        return target;
       },
     },
   },

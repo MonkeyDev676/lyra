@@ -1,23 +1,30 @@
-const assert = require('@botbind/dust/dist/assert');
-const clone = require('@botbind/dust/dist/clone');
-const compare = require('@botbind/dust/dist/compare');
-const BaseSchema = require('./BaseSchema');
-const any = require('./any');
+const Dust = require('@botbind/dust');
+const { any, isSchema } = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
 module.exports = any.define({
   type: 'array',
+  index: {
+    ordereds: {},
+    items: {},
+    _requireds: { value: [] },
+    _forbiddens: { value: [] },
+    _optionals: { value: [] },
+  },
   flags: {
-    inner: {
-      value: [],
-      // immutable: true -> we don't need this here as base defaults to not clone schemas
-      merge: (target, src) => [...target, ...src],
-      set: (current, value) => [...current, ...value],
-    },
+    sparse: false,
   },
   messages: {
     'array.base': '{label} must be an array',
     'array.coerce': '{label} cannot be coerced to an array',
+    'array.sparse': '{label} must not be a sparse array item',
+    'array.forbidden': "{label} has a forbidden item '{item}'",
+    'array.required': '{label} does not match any of the allowed types',
+    'array.requiredBoth':
+      '{label} does not have {knownMisses} and {unknownMisses} other required value{grammar.s}',
+    'array.requiredKnowns': '{label} does not have {knownMisses}',
+    'array.requiredUnknowns': '{label} does not have {unknownMisses} required value{grammar.s}',
+    'array.orderedLength': '{label} must have at most {length} ordered items',
     'array.length': '{label} must have {length} items',
     'array.min': '{label} must have at least {length} items',
     'array.max': '{label} must have at most {length} items',
@@ -30,57 +37,266 @@ module.exports = any.define({
     }
   },
 
-  validate: (value, { error, state, schema, opts }) => {
+  rebuild: schema => {
+    // In order to pass:
+    // All required schemas must be met
+    // If no required schemas are present, at least one of the optional schema must be met
+    // Forbidden schemas mustn't be met
+    // Reset
+    schema.$index._requireds = [];
+    schema.$index._optionals = [];
+    schema.$index._forbiddens = [];
+
+    for (const item of schema.$index.items) {
+      if (item.$flags.presence === 'required') schema.$index._requireds.push(item);
+
+      if (item.$flags.presence === 'forbidden') schema.$index._forbiddens.push(item);
+      else schema.$index._optionals.push(item);
+    }
+  },
+
+  validate: (value, { error, state, schema, opts, original }) => {
     if (!Array.isArray(value)) return error('array.base');
 
+    if (!opts.recursive) return value;
+
+    const stripUnknown = opts.stripUnknown;
+    const abortEarly = opts.abortEarly;
     const errors = [];
+    const sparse = schema.$flags.sparse;
+    const ordereds = [...schema.$index.ordereds];
+    const items = schema.$index.items;
+    const requireds = [...schema.$index._requireds];
+    const includeds = [...schema.$index._optionals, ...schema.$index._requireds];
 
     // Shallow clone value
-    value = clone(value, { recursive: false });
-    state.dive(value);
+    value = Dust.clone(value, { recursive: false });
 
     for (let i = 0; i < value.length; i++) {
-      state.path = state.path === null ? `[${i}]` : `${state.path}[${i}]`;
+      const subValue = value[i];
+      const divedState = state.dive(original, i);
 
-      // todo: fix this line
-      const result = schema.$flags.inner.$validate(value[i], opts, state);
+      // Sparse
+      // Check sparse item before anything else
+      if (!sparse && subValue === undefined) {
+        const err = error('array.sparse', undefined, divedState);
 
-      if (result.errors !== null) {
-        if (opts.abortEarly) return result;
+        if (abortEarly) return err;
 
-        errors.push(...result.errors);
-      } else value[i] = result.value;
+        errors.push(err);
+        ordereds.shift();
+
+        continue;
+      }
+
+      let errored = false;
+      // Forbiddens
+      for (const forbidden of schema.$index._forbiddens) {
+        // If we don't pass presence: ignore, undefined will result in array.forbidden
+        const result = forbidden.$validate(subValue, opts, divedState, {
+          presence: 'ignore',
+        });
+
+        // If there are errors, we know that we don't meet the schema, so we move on to the next
+        if (result.errors !== null) continue;
+
+        const err = error('array.forbidden', { item: subValue });
+
+        if (abortEarly) return err;
+
+        // If a forbiden schema is met, we move on to the next subValue
+        errored = true;
+
+        errors.push(err);
+        ordereds.shift();
+
+        break;
+      }
+
+      if (errored) continue;
+
+      // Ordereds
+      if (ordereds.length > 0) {
+        const ordered = ordereds.shift();
+        const result = ordered.$validate(subValue, opts, divedState);
+
+        if (result.errors !== null) {
+          if (abortEarly) return result.errors;
+
+          errors.push(...result.errors);
+
+          continue;
+        }
+
+        // Strip
+        if (ordered.$flags.strip) {
+          value.splice(i, 1);
+
+          // Decrease i since the item has been spliced
+          i--;
+        } else if (result.value === undefined && !sparse) {
+          // If the returned value from the schema is undefined, we check for the sparse item
+          const err = error('array.sparse', undefined, divedState);
+
+          if (abortEarly) return err;
+
+          errors.push(err);
+
+          continue;
+        } else value[i] = result.value;
+
+        // Move on to the next item
+        continue;
+      } else if (items.length === 0) {
+        // If there is no ordered schemas or item schemas left, we know that we have more items than
+        // ordered schemas
+        const err = error('array.orderedLength', { length: ordereds.length });
+
+        if (abortEarly) return err;
+
+        errors.push(err);
+
+        break;
+      }
+
+      let isValid = false;
+      const requiredChecks = [];
+
+      // Requireds
+      // Match every single item with every required
+      // If the first required matches the item, remove that required schema
+      for (let j = 0; j < requireds.length; j++) {
+        const required = requireds[i];
+        const result = required.$validate(subValue, opts, divedState);
+
+        // Override passed result because j would the the index of the previously deleted schema
+        requiredChecks[j] = result;
+
+        if (result.errors === null) {
+          isValid = true;
+
+          if (required.$flags.strip) {
+            value.splice(i, 1);
+
+            i--;
+          } else if (!sparse && result.value === undefined) {
+            const err = error('array.sparse', undefined, divedState);
+
+            if (abortEarly) return err;
+
+            errors.push(err);
+          } else value[i] = result.value;
+
+          requireds.splice(j, 1);
+
+          break;
+        }
+      }
+
+      // This item has matched the required schema, we move on
+      if (isValid) continue;
+
+      for (const included of includeds) {
+        let result;
+        const idx = requireds.indexOf(included);
+
+        // requireds still includes this schema, we know that this rule failed
+        if (idx !== -1) {
+          result = requiredChecks[idx];
+        } else {
+          result = included.$validate(value, opts, divedState);
+
+          if (result.errors === null) {
+            isValid = true;
+
+            if (included.$flags.strip) {
+              value.splice(i, 1);
+
+              i--;
+            } else if (!sparse && result.value === undefined) {
+              const err = error('array.sparse', undefined, divedState);
+
+              if (abortEarly) return err;
+
+              errors.push(err);
+            } else value[i] = result.value;
+
+            break;
+          }
+        }
+      }
+
+      // isValid could be false if no required and optional schemas are provided
+      if (includeds.length > 0 && !isValid) {
+        if (stripUnknown) {
+          value.splice(i, 1);
+
+          i--;
+
+          continue;
+        }
+
+        const err = error('array.required', undefined, divedState);
+
+        if (abortEarly) return err;
+
+        errors.push(err);
+      }
     }
 
-    if (errors.length > 0)
-      return {
-        value: null,
-        errors,
-      };
+    if (requireds.length > 0) {
+      const err = _errorMissedRequireds(requireds, error);
 
-    return { value, errors: null };
+      if (abortEarly) return err;
+
+      errors.push(err);
+    }
+
+    const requiredOrdereds = ordereds.filter(ordered => ordered.$flags.presence === 'required');
+
+    if (requiredOrdereds.length > 0) {
+      const err = _errorMissedRequireds(requiredOrdereds, error);
+
+      if (abortEarly) return err;
+
+      errors.push(err);
+    }
+
+    if (errors.length > 0) return errors;
+
+    return errors.length > 0 ? errors : value;
   },
 
   rules: {
-    of: {
-      method(inner) {
-        assert(
-          BaseSchema.isValid(inner),
-          'The parameter inner for array.of must be a valid schema',
+    items: {
+      alias: ['of'],
+      method(...items) {
+        return _items(this, items, 'items');
+      },
+    },
+
+    ordered: {
+      alias: ['tuple'],
+      method(...items) {
+        return _items(this, items, 'ordereds');
+      },
+    },
+
+    sparse: {
+      method(enabled = true) {
+        Dust.assert(
+          typeof enabled === 'boolean',
+          'The parameter enabled for array.sparse must be a boolean',
         );
 
-        const target = this.$setFlag('inner', inner);
-
-        target.$register(inner);
-
-        return target;
+        return this.$setFlag('sparse', enabled);
       },
     },
 
     compare: {
       method: false,
       validate: (value, { args: { length, operator }, error, name }) => {
-        if (compare(value.length, length, operator)) return value;
+        if (Dust.compare(value.length, length, operator)) return value;
 
         return error(`array.${name}`, { length });
       },
@@ -124,3 +340,49 @@ module.exports = any.define({
     },
   },
 });
+
+function _items(schema, items, type) {
+  Dust.assert(items.length > 0, `At least an item must be provided to array.${type}`);
+
+  const target = schema.$clone();
+
+  for (const item of items) {
+    Dust.assert(
+      isSchema(item),
+      `The parameter items for array.${type} must only contain valid schemas`,
+    );
+
+    if (target.$index[type] === null) target.$index[type] = [];
+
+    target.$index[type].push(item);
+  }
+
+  return target.$rebuild();
+}
+
+function _errorMissedRequireds(requireds, error) {
+  const knownMisses = [];
+  let unknownMisses = 0;
+
+  for (const required of requireds) {
+    const label = required.$flags.label;
+
+    if (label !== null) knownMisses.push(label);
+    else unknownMisses++;
+  }
+
+  const s = unknownMisses > 1 ? 's' : '';
+
+  if (knownMisses.length) {
+    if (unknownMisses > 0)
+      return error('array.requiredBoth', {
+        knownMisses,
+        unknownMisses,
+        grammar: { s },
+      });
+
+    return error('array.requiredKnowns', { knownMisses });
+  }
+
+  return error('array.requiredUnknowns', { unknownMisses, grammar: { s } });
+}

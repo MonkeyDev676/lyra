@@ -1,4 +1,4 @@
-const any = require('./any');
+const { any } = require('./any');
 
 module.exports = any.define({
   type: 'function',
