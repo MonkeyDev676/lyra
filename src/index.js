@@ -31,6 +31,9 @@ const root = {
   function: func,
   object,
   obj: object,
+  attempt: (schema, value, opts) => {
+    return schema.attempt(value, opts);
+  },
   validate: (schema, value, opts) => {
     return schema.validate(value, opts);
   },
