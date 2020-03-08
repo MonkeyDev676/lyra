@@ -65,7 +65,6 @@ const root = {
 };
 
 for (const methodName of [
-  'annotate',
   'opts',
   'strip',
   'presence',
@@ -87,8 +86,6 @@ for (const methodName of [
   'options',
   'prefs',
   'preferences',
-  'note',
-  'description',
   'when',
 ])
   Dust.attachMethod(root, methodName, function method(...args) {

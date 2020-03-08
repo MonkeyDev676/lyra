@@ -605,12 +605,6 @@ class _Base {
     return desc;
   }
 
-  annotate(note) {
-    Dust.assert(typeof note === 'string', 'The parameter note for any.annotate must be a string');
-
-    return this.$setFlag('note', note);
-  }
-
   opts(opts) {
     const next = this.$clone();
 
@@ -957,7 +951,6 @@ const _methods = [
   ['valid', 'allow', 'equal', 'is'],
   ['invalid', 'deny', 'disallow', 'not'],
   ['opts', 'options', 'prefs', 'preferences'],
-  ['annotate', 'note', 'description'],
 ];
 
 for (const [method, ...aliases] of _methods) {

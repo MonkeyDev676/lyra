@@ -1,11 +1,36 @@
+const Dust = require('@botbind/dust');
 const { base } = require('./base');
 
 module.exports = base().extend({
   messages: {
     'any.custom': "{label} fails because validation '{name}' throws '{error}'",
   },
+  index: {
+    notes: {},
+  },
 
   rules: {
+    annotate: {
+      alias: ['description', 'note'],
+      method(...notes) {
+        Dust.assert(
+          notes.length > 0,
+          'The parameter notes for any.annotate must have at least a note',
+        );
+
+        Dust.assert(
+          notes.every(note => typeof note === 'string'),
+          'The paramater notes for any.annotate must be an array of strings',
+        );
+
+        const target = this.$clone();
+
+        target.$index.notes.push(...notes);
+
+        return target;
+      },
+    },
+
     custom: {
       single: false,
       method(method, name = 'unknown') {
