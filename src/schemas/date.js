@@ -1,7 +1,7 @@
 const Dust = require('@botbind/dust');
 const { any } = require('./any');
 
-module.exports = any.define({
+module.exports = any.extend({
   type: 'date',
   messages: {
     'date.base': '{label} must be a valid date',

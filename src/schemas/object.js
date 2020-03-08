@@ -5,7 +5,7 @@ const { ref, isRef } = require('../ref');
 const _hasKey = require('../internals/_hasKey');
 const _isNumber = require('../internals/_isNumber');
 
-module.exports = any.define({
+module.exports = any.extend({
   type: 'object',
   index: {
     keys: {

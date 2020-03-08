@@ -1,5 +1,4 @@
-const assert = require('@botbind/dust/dist/assert');
-const compare = require('@botbind/dust/dist/compare');
+const Dust = require('@botbind/dust');
 const any = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
@@ -15,7 +14,7 @@ const _regexp = {
   num: /^[0-9]+$/,
 };
 
-module.exports = any.define({
+module.exports = any.extend({
   type: 'string',
   flags: {
     case: null,
@@ -70,7 +69,7 @@ module.exports = any.define({
     compare: {
       method: false,
       validate: (value, { args: { length, operator }, error, name }) => {
-        if (compare(value.length, length, operator)) return value;
+        if (Dust.compare(value.length, length, operator)) return value;
 
         return error(`string.${name}`, { length });
       },
@@ -213,7 +212,7 @@ module.exports = any.define({
 
     trim: {
       method(enabled = true) {
-        assert(
+        Dust.assert(
           typeof enabled === 'boolean',
           'The parameter enabled for string.trim must be a boolean',
         );
@@ -233,12 +232,12 @@ module.exports = any.define({
 
     replace: {
       method(pattern, replacement) {
-        assert(
+        Dust.assert(
           pattern instanceof RegExp || typeof pattern === 'string',
           'The parameter pattern for string.replace must be an instance of RegExp or a string',
         );
 
-        assert(
+        Dust.assert(
           typeof replacement === 'string',
           'The parameter replacement for string.replace must be a string',
         );

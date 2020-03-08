@@ -1,6 +1,6 @@
 const { any } = require('./any');
 
-module.exports = any.define({
+module.exports = any.extend({
   type: 'function',
   messages: {
     'function.base': '{label} must be a function',

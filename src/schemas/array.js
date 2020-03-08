@@ -2,7 +2,7 @@ const Dust = require('@botbind/dust');
 const { any, isSchema } = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
-module.exports = any.define({
+module.exports = any.extend({
   type: 'array',
   index: {
     ordereds: {},

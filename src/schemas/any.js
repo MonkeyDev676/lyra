@@ -1145,7 +1145,7 @@ function _describe(term) {
   return desc;
 }
 
-const any = new _Schema().define({
+const any = new _Schema().extend({
   messages: {
     'any.custom': "{label} fails because validation '{name}' throws '{error}'",
   },
