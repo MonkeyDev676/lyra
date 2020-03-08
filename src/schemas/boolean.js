@@ -1,5 +1,5 @@
 const Dust = require('@botbind/dust');
-const { any } = require('./any');
+const any = require('./any');
 
 module.exports = any.extend({
   type: 'boolean',

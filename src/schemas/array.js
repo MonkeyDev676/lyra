@@ -1,5 +1,6 @@
 const Dust = require('@botbind/dust');
-const { any, isSchema } = require('./any');
+const any = require('./any');
+const { isSchema } = require('./base');
 const _isNumber = require('../internals/_isNumber');
 
 module.exports = any.extend({

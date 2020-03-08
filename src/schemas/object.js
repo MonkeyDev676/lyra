@@ -1,6 +1,7 @@
 const Constellation = require('@botbind/constellation');
 const Dust = require('@botbind/dust');
-const { any, isSchema } = require('./any');
+const any = require('./any');
+const { isSchema } = require('./base');
 const { ref, isRef } = require('../ref');
 const _hasKey = require('../internals/_hasKey');
 const _isNumber = require('../internals/_isNumber');

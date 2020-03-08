@@ -1,6 +1,5 @@
-const assert = require('@botbind/dust/dist/assert');
-const attachMethod = require('@botbind/dust/dist/attachMethod');
-const BaseSchema = require('./schemas/BaseSchema');
+const Dust = require('@botbind/dust');
+const base = require('./schemas/base');
 const any = require('./schemas/any');
 const boolean = require('./schemas/boolean');
 const string = require('./schemas/string');
@@ -9,15 +8,15 @@ const number = require('./schemas/number');
 const array = require('./schemas/array');
 const func = require('./schemas/function');
 const object = require('./schemas/object');
-const Ref = require('./Ref');
-const Values = require('./Values');
+const ref = require('./ref');
+const list = require('./list');
 const symbols = require('./symbols');
 
 const root = {
+  ...base,
+  ...ref,
+  ...list,
   ...symbols,
-  isSchema: BaseSchema.isValid,
-  isRef: Ref.isValid,
-  isValues: Values.isValid,
   any,
   boolean,
   bool: boolean,
@@ -32,11 +31,11 @@ const root = {
   function: func,
   object,
   obj: object,
-  define(...definitions) {
+  extend(...definitions) {
     const Lyra = { ...this };
 
     for (let definition of definitions) {
-      assert(
+      Dust.assert(
         Lyra[definition.type] === undefined,
         'The option type for extend is invalid as it is built-in',
       );
@@ -46,22 +45,20 @@ const root = {
         ...definition,
       };
 
-      assert(
-        BaseSchema.isValid(definition.base),
+      Dust.assert(
+        this.isSchema(definition.base),
         'The option base for extend must be a valid schema',
       );
 
-      const base = definition.base;
+      const from = definition.from;
 
-      delete definition.base;
+      delete definition.from;
 
-      Lyra[definition.type] = base.define(definition);
+      Lyra[definition.type] = from.extend(definition);
     }
 
     return Lyra;
   },
-  ref: (...args) => new Ref(...args),
-  values: (...args) => new Values(...args),
 };
 
 for (const methodName of [
@@ -91,7 +88,7 @@ for (const methodName of [
   'description',
   'when',
 ])
-  attachMethod(root, methodName, function method(...args) {
+  Dust.attachMethod(root, methodName, function method(...args) {
     return any[methodName](...args);
   });
 
