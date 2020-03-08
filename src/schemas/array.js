@@ -8,9 +8,9 @@ module.exports = any.extend({
   index: {
     ordereds: {},
     items: {},
-    _requireds: { value: [] },
-    _forbiddens: { value: [] },
-    _optionals: { value: [] },
+    _requireds: {},
+    _forbiddens: {},
+    _optionals: {},
   },
   flags: {
     sparse: false,
@@ -352,8 +352,6 @@ function _items(schema, items, type) {
       isSchema(item),
       `The parameter items for array.${type} must only contain valid schemas`,
     );
-
-    if (target.$index[type] === null) target.$index[type] = [];
 
     target.$index[type].push(item);
   }

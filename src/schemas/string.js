@@ -52,9 +52,8 @@ module.exports = any.extend({
 
     if (schema.$flags.trim) value = value.trim();
 
-    if (schema.$index.replace !== null)
-      for (const [pattern, replacement] of schema.$index.replace)
-        value = value.replace(pattern, replacement);
+    for (const [pattern, replacement] of schema.$index.replace)
+      value = value.replace(pattern, replacement);
 
     return value;
   },
@@ -243,8 +242,6 @@ module.exports = any.extend({
         );
 
         const target = this.$clone();
-
-        if (target.$index.replace === null) target.$index.replace = [];
 
         target.$index.replace.push([pattern, replacement]);
 

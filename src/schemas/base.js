@@ -1,12 +1,11 @@
 const Dust = require('@botbind/dust');
-const { ref, isRef } = require('../ref');
+const { ref: createRef, isRef } = require('../ref');
 const { state: createState, isState } = require('../state');
 const { list, isList } = require('../list');
 const symbols = require('../symbols');
-const _hasKey = require('../internals/_hasKey');
 
 const _defaultSymbol = Symbol('__DEFAULT__');
-const _literalSymbol = Symbol('__LITERLA__');
+const _literalSymbol = Symbol('__LITERAL__');
 const _schemaSymbol = Symbol('__SCHEMA__');
 
 class _ValidationError extends Error {
@@ -39,7 +38,6 @@ class _Base {
       validate: null,
       flags: {
         strip: false,
-        presence: 'optional',
         only: false,
       },
       index: {
@@ -73,9 +71,41 @@ class _Base {
     // Can't use Schema.prototype since define creates new prototypes
     // Therefore cloning on these newly defined schemas will not clone their methods
     // const next = Object.create(Schema.prototype);
-    const target = Object.create(Object.getPrototypeOf(this));
+    const target = Object.create(_Base.prototype);
 
-    return _assign(target, this);
+    target.type = this.type;
+    target._refs = [...this._refs];
+    target._rules = [...this._rules];
+    target._opts = { ...this._opts };
+    target._valids = this._valids.clone();
+    target._invalids = this._invalids.clone();
+    target.$flags = Dust.clone(this.$flags, {
+      symbol: true,
+      customizer: value => {
+        if (isRef(value)) return value;
+
+        return Dust.symbols.next;
+      },
+    });
+    target.$index = {};
+
+    for (const key of Object.keys(this.$index)) {
+      const terms = this.$index[key];
+
+      target.$index[key] = [...terms];
+    }
+
+    // Merge last due to index
+    const srcDef = this._definition;
+    const def = { ...srcDef };
+
+    def.messages = { ...srcDef.messages };
+    def.rules = { ...srcDef.rules };
+    def.index = { ...srcDef.index };
+
+    target._definition = def;
+
+    return target;
   }
 
   $merge(src) {
@@ -96,39 +126,44 @@ class _Base {
 
     // Rules
     // We are merging rules before definitions because we need the before singularity and after singularity
-    for (const { identifier } of src._rules) {
-      const srcRuleDef = src._definition.rules[identifier];
-      const targetRuleDef = target._definition.rules[identifier];
+    for (const { method, name: srcName } of src._rules) {
+      const ruleDef = target._definition.rules[method];
 
-      if (targetRuleDef === undefined) continue;
-
-      // If the source rule is single or the target rule is single
-      if (srcRuleDef.single || targetRuleDef.single)
-        target._rules = target._rules.filter(rule => rule.identifier !== identifier);
+      if (ruleDef.single) target._rules = target._rules.filter(({ name }) => name !== srcName);
     }
 
     target._rules.push(...src._rules);
+
     // Opts, valids, invalids
     target._opts = { ...target._opts, ...src._opts };
     target._valids = target._valids.merge(src._valids, src._invalids);
     target._invalids = target._invalids.merge(src._invalids, src._valids);
-    target.$flags = Dust.merge(target.$flags, src.$flags, { symbol: true });
+
+    // Flags
+    target.$flags = Dust.merge(target.$flags, src.$flags, {
+      symbol: true,
+      customizer: (value, ref) => {
+        if (isRef(value) && isRef(ref)) return ref;
+
+        return Dust.symbols.next;
+      },
+    });
 
     // Index
     for (const key of Object.keys(src.$index)) {
-      const srcGrp = src.$index[key];
-      const targetGrp = target.$index[key];
-      const grpDef = target._definition.index[key];
+      const srcTerms = src.$index[key];
+      const terms = target.$index[key];
+      const termsDef = target._definition.index[key];
 
-      if (targetGrp === undefined) {
-        target.$index[key] = srcGrp === null ? null : [...srcGrp];
-      } else if (srcGrp !== null) {
+      if (terms === undefined) {
+        target.$index[key] = [...srcTerms];
+      } else {
         // If merge is a function
-        const merge = grpDef.merge;
+        const merge = termsDef.merge;
 
-        if (typeof merge === 'function') target.$index[key] = merge(targetGrp, srcGrp, target, src);
+        if (typeof merge === 'function') target.$index[key] = merge(terms, srcTerms, target, src);
         // If merge is undefined (default) then we perform concating
-        else if (merge === undefined) target.$index[key] = [...targetGrp, ...srcGrp];
+        else if (merge === undefined) target.$index[key] = [...terms, ...srcTerms];
 
         // If merge  = false then nothing will be done to that group
       }
@@ -194,12 +229,7 @@ class _Base {
     // Reset the refs
     this._refs = [];
 
-    // Register arguments
-    _forEach(this._rules, this.$register);
-    // Register flag refs (such as defaults)
-    _forEach(this.$flags, this.$register);
-    // Register terms (such as schemas and refs)
-    _forEach(this.$terms, this.$register);
+    _register(this);
 
     const rebuild = this._definition.rebuild;
 
@@ -234,32 +264,29 @@ class _Base {
 
     const target = this.$clone();
 
-    // Infer identifier. If method is present, use it as the identifier, otherwise use name
-    opts.identifier = opts.method === undefined ? opts.name : opts.method;
+    // Infer method
+    opts.method = opts.method === undefined ? opts.name : opts.method;
 
-    // Method is no longer needed so we delete it
-    delete opts.method;
+    const ruleDef = target._definition.rules[opts.method];
 
-    const ruleDef = target._definition.rules[opts.identifier];
-
-    Dust.assert(ruleDef !== undefined, 'Rule definition', opts.identifier, 'not found');
+    Dust.assert(ruleDef !== undefined, 'Rule definition', opts.method, 'not found');
 
     // Param definitions
     const argDefs = ruleDef.args;
 
     for (const argName of Object.keys(argDefs)) {
-      const argDef = argDefs[argName];
+      const { assert, ref, reason } = argDefs[argName];
       const arg = opts.args[argName];
       const isArgRef = isRef(arg);
 
       // Params assertions
       Dust.assert(
-        argDef.assert(arg) || (argDef.ref && isArgRef),
+        assert(arg) || (ref && isArgRef),
         'The parameter',
         argName,
         'of',
         `${target.type}.${opts.name}`,
-        argDef.reason,
+        reason,
       );
 
       if (isArgRef) {
@@ -269,7 +296,7 @@ class _Base {
 
     if (ruleDef.single) {
       // Remove duplicate rules
-      target._rules = target._rules.filter(rule => rule.identifier !== opts.identifier);
+      target._rules = target._rules.filter(({ method }) => method !== opts.method);
     }
 
     if (ruleDef.priority) target._rules.unshift(opts);
@@ -312,79 +339,74 @@ class _Base {
       );
     });
 
-    // Clone the proto so we don't attach methods to all the instances
-    // Can't use Schema.prototype here either, same reason as $clone
-    // const proto = clone(Schema.prototype);
-    const proto = Dust.clone(Object.getPrototypeOf(this));
-    // Reconstruct the instance
-    const next = _assign(Object.create(proto), this);
+    const target = this.$clone();
 
-    next.type = opts.type;
+    target.type = opts.type;
 
-    const def = next._definition;
+    const def = target._definition;
 
     // Populate definition
-    if (opts.validate !== undefined) def.validate = opts.validate;
+    if (opts.validate !== undefined) def.validate = _joinValidate(def.validate, opts.validate);
 
-    if (opts.coerce !== undefined) def.coerce = opts.coerce;
+    if (opts.coerce !== undefined) def.coerce = _joinValidate(def.coerce, opts.coerce);
 
-    if (opts.rebuild !== undefined) def.rebuild = _rebuild(def.rebuild, opts.rebuild);
+    if (opts.rebuild !== undefined) def.rebuild = _joinRebuild(def.rebuild, opts.rebuild);
 
     def.flags = { ...def.flags, ...opts.flags };
     def.messages = { ...def.messages, ...opts.messages };
 
     for (const key of Object.keys(opts.index)) {
       Dust.assert(
-        next.$index[key] === undefined,
+        target.$index[key] === undefined,
         'The index group',
         key,
         'has already been defined',
       );
 
       const isPrivate = _isPrivate(key);
-      const grp = {
+      const termsDef = {
         value: [],
         merge: !isPrivate,
         ...opts.index[key],
       };
 
       Dust.assert(
-        grp.value === null || Array.isArray(grp.value),
+        Array.isArray(termsDef.value),
         'The option value for group',
         key,
-        'must be null or an array',
+        'must be an array',
       );
 
       Dust.assert(
-        grp.describe === undefined || typeof grp.describe === 'function',
+        termsDef.describe === undefined || typeof termsDef.describe === 'function',
         'The option describe for group',
         key,
         'must be a function',
       );
 
       Dust.assert(
-        typeof grp.merge === 'boolean' || typeof grp.merge === 'function',
+        typeof termsDef.merge === 'boolean' || typeof termsDef.merge === 'function',
         'The option merge for group',
         key,
         'must be a function or a boolean',
       );
 
       Dust.assert(
-        grp.describe === undefined || !isPrivate,
+        termsDef.describe === undefined || !isPrivate,
         'Cannot have a describe function for private group',
         key,
       );
 
-      next.$index[key] = grp.value;
+      target.$index[key] = termsDef.value;
 
-      delete grp.value;
+      delete termsDef.value;
 
-      def.index[key] = grp;
+      def.index[key] = termsDef;
     }
 
     // Populate rule definitions
     for (const ruleName of Object.keys(opts.rules)) {
-      const rule = {
+      const ruleDef = {
         args: [],
         alias: [],
         single: true,
@@ -393,21 +415,21 @@ class _Base {
       };
 
       Dust.assert(
-        Array.isArray(rule.args),
+        Array.isArray(ruleDef.args),
         'The option args for rule',
         ruleName,
         'must be an array',
       );
 
       Dust.assert(
-        Array.isArray(rule.alias) && rule.alias.every(alias => typeof alias === 'string'),
+        Array.isArray(ruleDef.alias) && ruleDef.alias.every(alias => typeof alias === 'string'),
         'The options alias for rule',
         ruleName,
         'must be an array of strings',
       );
 
       ['single', 'priority'].forEach(optName => {
-        const opt = rule[optName];
+        const opt = ruleDef[optName];
 
         Dust.assert(
           typeof opt === 'boolean',
@@ -420,14 +442,16 @@ class _Base {
       });
 
       Dust.assert(
-        rule.validate === undefined || typeof rule.validate === 'function',
+        ruleDef.validate === undefined || typeof ruleDef.validate === 'function',
         'The option validate for rule',
         ruleName,
         'must be a function',
       );
 
       Dust.assert(
-        rule.method === undefined || rule.method === false || typeof rule.method === 'function',
+        ruleDef.method === undefined ||
+          ruleDef.method === false ||
+          typeof ruleDef.method === 'function',
         'The option method for rule',
         ruleName,
         'must be false or a function',
@@ -435,7 +459,7 @@ class _Base {
 
       // Make sure either validate or method is provided
       Dust.assert(
-        typeof rule.method === 'function' || rule.validate !== undefined,
+        typeof ruleDef.method === 'function' || ruleDef.validate !== undefined,
         'Either option method or option validate for rule',
         ruleName,
         'must be defined',
@@ -443,22 +467,22 @@ class _Base {
 
       // Cannot have alias if method is false (a hidden rule)
       Dust.assert(
-        rule.method !== false || rule.alias.length === 0,
+        ruleDef.method !== false || ruleDef.alias.length === 0,
         'Cannot have aliases for rule that has no method',
       );
 
       // If method is present, check if there's already one
       Dust.assert(
-        rule.method === false || proto[ruleName] === undefined,
+        ruleDef.method === false || target[ruleName] === undefined,
         'The rule',
         ruleName,
         'has already been defined',
       );
 
-      const args = {};
+      const argDefs = {};
 
       // Create arg definitions
-      for (const { name: argName, ...otherOpts } of rule.args) {
+      for (const { name: argName, ...otherOpts } of ruleDef.args) {
         Dust.assert(
           typeof argName === 'string',
           'The option name for the argument of rule',
@@ -466,13 +490,13 @@ class _Base {
           'must be a string',
         );
 
-        const arg = {
+        const argDef = {
           ref: true,
           ...otherOpts,
         };
 
         Dust.assert(
-          typeof arg.ref === 'boolean',
+          typeof argDef.ref === 'boolean',
           'The option ref for argument',
           argName,
           'of rule',
@@ -481,7 +505,7 @@ class _Base {
         );
 
         Dust.assert(
-          arg.assert === undefined || typeof arg.assert === 'function',
+          argDef.assert === undefined || typeof argDef.assert === 'function',
           'The option assert for argument',
           argName,
           'of rule',
@@ -490,7 +514,7 @@ class _Base {
         );
 
         Dust.assert(
-          arg.reason === undefined || typeof arg.reason === 'string',
+          argDef.reason === undefined || typeof argDef.reason === 'string',
           'The option reason for argument',
           argName,
           'of rule',
@@ -499,34 +523,34 @@ class _Base {
         );
 
         Dust.assert(
-          arg.assert !== undefined ? arg.reason !== undefined : arg.reason === undefined,
+          argDef.assert !== undefined ? argDef.reason !== undefined : argDef.reason === undefined,
           'The option assert and reason for argument',
           argName,
           'must be defined together',
         );
 
-        args[argName] = arg;
+        argDefs[argName] = argDef;
       }
 
-      rule.args = args;
+      ruleDef.args = argDefs;
 
       // Only add to rule definitions if the rule has the validate method defined
-      if (rule.validate !== undefined) def.rules[ruleName] = rule;
+      if (ruleDef.validate !== undefined) def.rules[ruleName] = ruleDef;
 
-      if (typeof rule.method === 'function') Dust.attachMethod(proto, ruleName, rule.method);
+      if (typeof ruleDef.method === 'function') Dust.attachMethod(target, ruleName, ruleDef.method);
 
       // rule.validate is defined
-      if (rule.method === undefined)
-        Dust.attachMethod(proto, ruleName, function defaultMethod() {
+      if (ruleDef.method === undefined)
+        Dust.attachMethod(target, ruleName, function defaultMethod() {
           return this.$addRule({ name: ruleName });
         });
 
-      for (const alias of rule.alias) {
-        Dust.attachMethod(proto, alias, proto[ruleName]);
+      for (const alias of ruleDef.alias) {
+        Dust.attachMethod(target, alias, target[ruleName]);
       }
     }
 
-    return next;
+    return target;
   }
 
   describe() {
@@ -566,13 +590,13 @@ class _Base {
         'Cannot generate description for this schema due to internal key conflicts',
       );
 
-      const grpDef = this._definition.index[key];
-      const grp = this.$index[key];
+      const termsDef = this._definition.index[key];
+      const terms = this.$index[key];
 
-      if (_isPrivate(key) || grp === null || grp.length === 0) continue;
+      if (_isPrivate(key) || terms.length === 0) continue;
 
-      desc[key] = this.$index[key].map(term => {
-        if (grpDef.describe !== undefined) return grpDef.describe(term);
+      desc[key] = terms.map(term => {
+        if (termsDef.describe !== undefined) return termsDef.describe(term);
 
         return _describe(term);
       });
@@ -590,7 +614,7 @@ class _Base {
   opts(opts) {
     const next = this.$clone();
 
-    next._opts = { ...next._opts, ..._opts('any.opts', opts) };
+    next._opts = { ...next._opts, ..._opts('any.opts', false, opts) };
 
     return next;
   }
@@ -669,7 +693,7 @@ class _Base {
   }
 
   invalid(...values) {
-    return _values(values, 'invalid');
+    return _values(this, values, 'invalid');
   }
 
   error(customizer) {
@@ -695,15 +719,11 @@ class _Base {
     const abortEarly = opts.abortEarly;
     const ancestors = state._ancestors;
 
-    for (const condition of this.$index.conditions) {
-      const result = condition.is.$validate(
-        condition.ref.resolve(value, ancestors, context),
-        opts,
-        state,
-      );
+    for (const { ref, is, then, otherwise } of this.$index.conditions) {
+      const result = is.$validate(ref.resolve(value, ancestors, context), opts, state);
 
-      if (result.errors === null) schema = schema.$merge(condition.then);
-      else schema = schema.$merge(condition.otherwise);
+      if (result.errors === null) schema = schema.$merge(then);
+      else schema = schema.$merge(otherwise);
     }
 
     const errors = [];
@@ -765,7 +785,7 @@ class _Base {
     // If there's no presence override, use the flag
     if (presence === undefined) {
       presence = schema.$flags.presence;
-      presence = presence === undefined ? 'optional' : presence;
+      presence = presence === undefined ? opts.presence : presence;
     }
 
     const isForbidden = presence === 'forbidden';
@@ -827,7 +847,7 @@ class _Base {
 
     if (!opts.strict && def.coerce !== null) {
       const coerced = def.coerce(value, helpers);
-      const err = _getError(coerced);
+      const err = _error(coerced);
 
       if (!err) value = coerced;
       else return { value: null, errors: err };
@@ -837,28 +857,28 @@ class _Base {
     // Always exit early
     if (def.validate !== null) {
       const result = def.validate(value, helpers);
-      const err = _getError(result);
+      const err = _error(result);
 
       if (!err) value = result;
       else return { value: null, errors: err };
     }
 
     // Rules
-    for (const rule of schema._rules) {
-      const ruleDef = def.rules[rule.identifier];
-      const args = { ...rule.args };
+    for (const { method, args: rawArgs, name } of schema._rules) {
+      const { args: argDefs, validate } = def.rules[method];
+      const args = { ...rawArgs };
       let errored = false;
 
-      for (const argName of Object.keys(ruleDef.args)) {
-        const { assert: argAssert, reason } = ruleDef.args[argName];
+      for (const argName of Object.keys(argDefs)) {
+        const { assert, reason } = argDefs[argName];
         const arg = args[argName];
 
         if (!isRef(arg)) continue;
 
         const resolved = arg.resolve(value, ancestors, context);
 
-        if (!argAssert(resolved)) {
-          const err = _createError(schema, 'any.ref', state, context, {
+        if (!assert(resolved)) {
+          const err = helpers.error('any.ref', {
             ref: arg,
             reason,
           });
@@ -877,8 +897,8 @@ class _Base {
 
       if (errored) continue;
 
-      const result = ruleDef.validate(value, { ...helpers, args, name: rule.name });
-      const err = _getError(result);
+      const result = validate(value, { ...helpers, args, name });
+      const err = _error(result);
 
       if (!err) value = result;
       else {
@@ -892,19 +912,7 @@ class _Base {
   }
 
   validate(value, opts) {
-    return this.$validate(
-      value,
-      {
-        strict: true,
-        abortEarly: true,
-        recursive: true,
-        allowUnknown: false,
-        stripUnknown: false,
-        context: {},
-        ..._opts('any.validate', opts),
-      },
-      createState(),
-    );
+    return this.$validate(value, _opts('any.validate', true, opts), createState());
   }
 
   attempt(value, opts) {
@@ -915,9 +923,9 @@ class _Base {
     return result.value;
   }
 
-  when(passedRef, opts) {
+  when(ref, opts) {
     Dust.assert(
-      typeof passedRef === 'string' || isRef(passedRef),
+      typeof ref === 'string' || isRef(ref),
       'The parameter ref for any.when must be a valid reference or a string',
     );
 
@@ -930,13 +938,13 @@ class _Base {
       'The option then or otherwise for any.when must be a valid schema',
     );
 
-    passedRef = typeof passedRef === 'string' ? ref(passedRef) : passedRef;
+    ref = typeof ref === 'string' ? createRef(ref) : ref;
 
     const next = this.$clone();
 
-    next.$register(passedRef);
+    next.$register(ref);
 
-    next.$index.conditions.push({ ref: passedRef, ...opts });
+    next.$index.conditions.push({ ref, ...opts });
 
     return next;
   }
@@ -975,12 +983,23 @@ function _display(value) {
   return Dust.display(value);
 }
 
-function _opts(methodName, opts = {}) {
+function _opts(methodName, withDefaults, opts = {}) {
   Dust.assert(Dust.isObject(opts), 'The parameter opts for', methodName, 'must be an object');
+
+  const withDefaultOpts = {
+    strict: true,
+    abortEarly: true,
+    recursive: true,
+    allowUnknown: false,
+    stripUnknown: false,
+    context: {},
+    presence: 'optional',
+    ...opts,
+  };
 
   ['strict', 'abortEarly', 'recursive', 'allowUnknown', 'stripUnknown'].forEach(optName =>
     Dust.assert(
-      !_hasKey(opts, optName) || typeof opts[optName] === 'boolean',
+      typeof withDefaultOpts[optName] === 'boolean',
       'The option',
       optName,
       'for',
@@ -990,71 +1009,83 @@ function _opts(methodName, opts = {}) {
   );
 
   Dust.assert(
-    !_hasKey(opts, 'context') || Dust.isObject(opts.context),
+    Dust.isObject(withDefaultOpts.context),
     'The option context for',
     methodName,
     'must be an object',
   );
 
-  return opts;
-}
+  const presence = withDefaultOpts.presence;
 
-function _assign(target, src) {
-  target.type = src.type;
-  target._refs = [...src._refs];
-  target._rules = [...src._rules];
-  target._opts = { ...src._opts };
-  target._valids = src._valids.clone();
-  target._invalids = src._invalids.clone();
-  target.$flags = Dust.clone(src.$flags, { symbol: true });
-  target.$index = {};
+  Dust.assert(
+    presence === 'optional' || presence === 'required' || presence === 'forbidden',
+    'The option presence for',
+    methodName,
+    'must be optional, required or forbidden',
+  );
 
-  for (const key of Object.keys(src.$index)) {
-    const grp = src.$index[key];
-
-    target.$index[key] = grp === null ? null : [...grp];
-  }
-
-  // Merge last due to index
-  const srcDef = src._definition;
-  const def = { ...srcDef };
-
-  def.messages = { ...srcDef.messages };
-  def.rules = { ...srcDef.rules };
-  def.index = { ...srcDef.index };
-
-  target._definition = def;
-
-  return target;
+  return withDefaults ? withDefaultOpts : opts;
 }
 
 function _isPrivate(key) {
   return key[0] === '_';
 }
 
-function _forEach(value, cb) {
+function _register(schema) {
+  const flags = schema.$flags;
+  const boundRegister = schema.$register.bind(schema);
+
+  for (const key of Object.keys(flags)) {
+    _walk(flags[key], boundRegister);
+  }
+
+  for (const rule of schema._rules) {
+    _walk(rule, boundRegister);
+  }
+
+  const index = schema.$index;
+
+  for (const key of Object.keys(index)) {
+    _walk(index[key], boundRegister);
+  }
+}
+
+function _walk(value, cb) {
   if (!Dust.isObject(value)) return;
 
   if (isSchema(value) || isRef(value)) cb(value);
 
   if (Array.isArray(value))
     for (const subValue of value) {
-      _forEach(subValue);
+      _walk(subValue);
     }
 
   for (const key of Object.keys(value)) {
     if (_isPrivate(key)) continue;
 
-    _forEach(value[key]);
+    _walk(value[key]);
   }
 }
 
-function _rebuild(target, src) {
+function _joinRebuild(target, src) {
   if (target === null || src === null) return target || src;
 
   return schema => {
     target(schema);
     src(schema);
+  };
+}
+
+function _joinValidate(target, src) {
+  if (target === null || src === null) return target || src;
+
+  return (value, helpers) => {
+    const result = target(value, helpers);
+    const err = _error(result);
+
+    if (err) return err;
+
+    return src(value, helpers);
   };
 }
 
@@ -1068,7 +1099,7 @@ function _values(schema, values, type) {
 
   for (const value of values) {
     target[other].delete(value);
-    target[type].add(value, schema.$register.bind(this));
+    target[type].add(value, schema.$register.bind(schema));
   }
 
   return target;
@@ -1129,7 +1160,7 @@ function _createError(schema, code, state, context, local = {}) {
   return new _ValidationError(message, code, state);
 }
 
-function _getError(err) {
+function _error(err) {
   if (err instanceof _ValidationError) return [err];
 
   if (Array.isArray(err) && err[0] instanceof _ValidationError) return err;

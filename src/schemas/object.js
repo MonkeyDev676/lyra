@@ -3,7 +3,6 @@ const Dust = require('@botbind/dust');
 const any = require('./any');
 const { isSchema } = require('./base');
 const { ref, isRef } = require('../ref');
-const _hasKey = require('../internals/_hasKey');
 const _isNumber = require('../internals/_isNumber');
 
 module.exports = any.extend({
@@ -81,7 +80,8 @@ module.exports = any.extend({
         errors.push(...result.errors);
       } else if (subSchema.$flags.strip) {
         delete value[key];
-      } else if (result.value !== undefined || _hasKey(value, key)) value[key] = result.value;
+      } else if (result.value !== undefined || Object.prototype.hasOwnProperty.call(value, key))
+        value[key] = result.value;
     }
 
     for (const [type, peers] of schema.$index.dependencies) {
@@ -138,10 +138,7 @@ module.exports = any.extend({
           'The parameter keys for object.keys must contain valid schemas',
         );
 
-        target.$index.keys =
-          target.$index.keys === null
-            ? []
-            : target.$index.keys.filter(([key]) => keys[key] === undefined);
+        target.$index.keys = target.$index.keys.filter(([key]) => keys[key] === undefined);
 
         for (const key of keysKeys) {
           target.$index.keys.push([key, keys[key]]);
@@ -258,8 +255,6 @@ function _dependency(schema, peers, type) {
   peers = peers.map(peer => (typeof peer === 'string' ? ref(peer) : peer));
 
   const target = schema.$clone();
-
-  if (target.$index.dependencies === null) target.$index.dependencies = [];
 
   target.$index.dependencies.push([type, peers]);
 

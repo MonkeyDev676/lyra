@@ -4,8 +4,8 @@ const { isRef } = require('./ref');
 const _listSymbol = Symbol('__LIST');
 
 class _List {
-  constructor(passedValues, refs) {
-    this._values = new Set(passedValues);
+  constructor(values, refs) {
+    this._values = new Set(values);
     this._refs = new Set(refs);
   }
 
@@ -86,8 +86,8 @@ class _List {
 
 Object.defineProperty(_List.prototype, _listSymbol, { value: true });
 
-function list(passedValues, refs) {
-  return new _List(passedValues, refs);
+function list(values, refs) {
+  return new _List(values, refs);
 }
 
 function isList(value) {

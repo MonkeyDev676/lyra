@@ -31,6 +31,9 @@ const root = {
   function: func,
   object,
   obj: object,
+  validate: (schema, value, opts) => {
+    return schema.validate(value, opts);
+  },
   extend(...definitions) {
     const Lyra = { ...this };
 
