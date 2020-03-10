@@ -1,12 +1,11 @@
 const Dust = require('@botbind/dust');
-const any = require('./any');
+const { any } = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
 module.exports = any.extend({
   type: 'number',
   flags: {
     unsafe: false,
-    loose: false,
   },
   messages: {
     'number.base': '{label} must be a number',
@@ -23,8 +22,8 @@ module.exports = any.extend({
     'number.unsafe': '{label} must be a safe number',
   },
 
-  coerce: (value, { schema, error }) => {
-    if (!schema.$flags.loose && typeof value !== 'string') return error('number.coerce');
+  coerce: (value, { error }) => {
+    if (typeof value !== 'string') return value;
 
     const coerce = Number(value);
 
@@ -48,17 +47,6 @@ module.exports = any.extend({
   },
 
   rules: {
-    loose: {
-      method(enabled = true) {
-        Dust.assert(
-          typeof enabled === 'boolean',
-          'The parameter enabled for number.loose must be a boolean',
-        );
-
-        return this.$setFlag('loose', enabled);
-      },
-    },
-
     unsafe: {
       method(enabled = true) {
         Dust.assert(

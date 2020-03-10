@@ -1,5 +1,4 @@
 const Dust = require('@botbind/dust');
-const base = require('./schemas/base');
 const any = require('./schemas/any');
 const boolean = require('./schemas/boolean');
 const string = require('./schemas/string');
@@ -13,11 +12,10 @@ const list = require('./list');
 const symbols = require('./symbols');
 
 const root = {
-  ...base,
   ...ref,
   ...list,
-  ...symbols,
-  any,
+  ...any,
+  symbols,
   boolean,
   bool: boolean,
   string,
@@ -68,6 +66,7 @@ const root = {
 };
 
 for (const methodName of [
+  'annotate',
   'opts',
   'strip',
   'presence',
@@ -90,6 +89,8 @@ for (const methodName of [
   'prefs',
   'preferences',
   'when',
+  'note',
+  'description',
 ])
   Dust.attachMethod(root, methodName, function method(...args) {
     return any[methodName](...args);

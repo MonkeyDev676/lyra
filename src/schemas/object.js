@@ -1,7 +1,6 @@
 const Constellation = require('@botbind/constellation');
 const Dust = require('@botbind/dust');
-const any = require('./any');
-const { isSchema } = require('./base');
+const { any, isSchema } = require('./any');
 const { ref, isRef } = require('../ref');
 const _isNumber = require('../internals/_isNumber');
 
@@ -39,6 +38,8 @@ module.exports = any.extend({
   },
 
   coerce: (value, { error }) => {
+    if (typeof value !== 'string') return value;
+
     try {
       return JSON.parse(value);
     } catch (err) {
@@ -53,6 +54,7 @@ module.exports = any.extend({
     for (const [key, subSchema] of schema.$index.keys) {
       sorter.add(key, subSchema.$references());
     }
+
     schema.$index.keys = sorter.sort().map(key => [key, keys.get(key)]);
   },
 

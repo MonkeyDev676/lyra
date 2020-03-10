@@ -1,5 +1,5 @@
 const Dust = require('@botbind/dust');
-const any = require('./any');
+const { any } = require('./any');
 
 module.exports = any.extend({
   type: 'boolean',
@@ -14,17 +14,13 @@ module.exports = any.extend({
   },
 
   coerce: (value, { schema, error }) => {
-    if (typeof value === 'boolean') {
-      return value;
-    }
+    if (typeof value !== 'string') return value;
 
-    if (typeof value === 'string') {
-      value = schema.$flags.sensitive ? value.toLowerCase() : value;
+    value = schema.$flags.sensitive ? value.toLowerCase() : value;
 
-      if (value === 'true') return true;
+    if (value === 'true') return true;
 
-      if (value === 'false') return false;
-    }
+    if (value === 'false') return false;
 
     return error('boolean.coerce');
   },

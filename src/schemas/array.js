@@ -1,6 +1,5 @@
 const Dust = require('@botbind/dust');
-const any = require('./any');
-const { isSchema } = require('./base');
+const { any, isSchema } = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
 module.exports = any.extend({
@@ -17,7 +16,7 @@ module.exports = any.extend({
   },
   messages: {
     'array.base': '{label} must be an array',
-    'array.coerce': '{label} cannot be coerced to an array',
+    'array.coerce': '{label} cannot be coerced to an array due to {err}',
     'array.sparse': '{label} must not be a sparse array item',
     'array.forbidden': "{label} has a forbidden item '{item}'",
     'array.required': '{label} does not match any of the allowed types',
@@ -30,11 +29,14 @@ module.exports = any.extend({
     'array.min': '{label} must have at least {length} items',
     'array.max': '{label} must have at most {length} items',
   },
+
   coerce: (value, { error }) => {
+    if (typeof value !== 'string') return value;
+
     try {
       return JSON.parse(value);
     } catch (err) {
-      return error('array.coerce');
+      return error('array.coerce', { err });
     }
   },
 

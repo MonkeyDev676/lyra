@@ -1,5 +1,5 @@
 const Dust = require('@botbind/dust');
-const any = require('./any');
+const { any } = require('./any');
 
 module.exports = any.extend({
   type: 'date',
@@ -13,7 +13,11 @@ module.exports = any.extend({
   },
 
   coerce: (value, { error }) => {
-    if (typeof value === 'number') {
+    const type = typeof value;
+
+    if (type !== 'number' && type !== 'string') return value;
+
+    if (type === 'number') {
       value = new Date(value);
 
       if (_isValidDate(value)) return value;
