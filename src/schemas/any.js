@@ -23,26 +23,34 @@ class _ValidationError extends Error {
   }
 }
 
+class _RefRegister extends Array {
+  push(value) {
+    if (isRef(value) && value._ancestor !== 'context' && value._ancestor - 1 >= 0)
+      super.push([value._ancestor - 1, value._root]);
+
+    if (isSchema(value))
+      for (const [ancestor, root] of value._refs)
+        if (ancestor - 1 >= 0) super.push([ancestor - 1, root]);
+  }
+}
+
 class _Schema {
   constructor() {
     this.type = 'any';
-
-    // Register refs
-    this._refs = []; // [ancestor, root]
+    this._refs = new _RefRegister(0); // Register refs [ancestor, root]
     this._rules = []; // [{ name, method, args }]
 
     // Defined variables that affect the validation internally
     this._definition = {
       rebuild: null,
+      prepare: null,
       coerce: null,
       validate: null,
       flags: {
-        strip: false,
-        only: false,
+        only: { default: false },
       },
       index: {
         conditions: {},
-        notes: {},
       },
       rules: {}, // Rule definition, different from the rules array
       messages: {
@@ -65,7 +73,6 @@ class _Schema {
     // Hash of arrays of immutable objects
     this.$index = {
       conditions: [],
-      notes: [],
     };
   }
 
@@ -81,7 +88,7 @@ class _Schema {
 
     if (this === src) return this;
 
-    Dust.assert(isSchema(src), 'The parameter src for Schema.$merge must be a valid schema');
+    Dust.assert(isSchema(src), 'The parameter src for any.$merge must be a valid schema');
 
     Dust.assert(
       this.type === 'any' || src.type === 'any' || this.type === src.type,
@@ -94,10 +101,10 @@ class _Schema {
 
     // Rules
     // We are merging rules before definitions because we need the before singularity and after singularity
-    for (const { method, name: srcName } of src._rules) {
-      const ruleDef = target._definition.rules[method];
+    for (const srcRule of src._rules) {
+      const ruleDef = target._definition.rules[srcRule.method];
 
-      if (ruleDef.single) target._rules = target._rules.filter(({ name }) => name !== srcName);
+      if (ruleDef.single) target._rules = target._rules.filter(rule => rule.name !== srcRule.name);
     }
 
     target._rules.push(...src._rules);
@@ -126,7 +133,7 @@ class _Schema {
         // If merge is undefined (default) then we perform concating
         else if (merge === undefined) target.$index[key] = [...terms, ...srcTerms];
 
-        // If merge  = false then nothing will be done to that group
+        // If merge  = false then nothing will be done to that terms
       }
     }
 
@@ -137,12 +144,9 @@ class _Schema {
   }
 
   $setFlag(name, value, opts = {}) {
-    Dust.assert(
-      typeof name === 'string',
-      'The parameter name for Schema.$setFlag must be a string',
-    );
+    Dust.assert(typeof name === 'string', 'The parameter name for any.$setFlag must be a string');
 
-    Dust.assert(Dust.isObject(opts), 'The parameter opts for Schema.$setFlag must be an object');
+    Dust.assert(Dust.isObject(opts), 'The parameter opts for any.$setFlag must be an object');
 
     opts = {
       clone: true,
@@ -151,13 +155,13 @@ class _Schema {
 
     Dust.assert(
       typeof opts.clone === 'boolean',
-      'The option clone for Schema.$setFlag must be a boolean',
+      'The option clone for any.$setFlag must be a boolean',
     );
 
     const flagDef = this._definition.flags[name];
 
     // If the flag is set to its default value, we either remove it or do nothing
-    if (flagDef !== undefined && Dust.equal(value, flagDef)) value = undefined;
+    if (flagDef !== undefined && Dust.equal(value, flagDef.default)) value = undefined;
 
     // If the flag and the value are already equal, we don't do anything
     if (Dust.equal(this.$flags[name], value, { symbol: true })) return this;
@@ -169,28 +173,19 @@ class _Schema {
       target.$flags[name] = value;
 
       // For any flags that store refs such as default
-      target.$register(value);
+      target._refs.push(value);
     }
 
     return target;
-  }
-
-  $register(value) {
-    if (isRef(value) && value._ancestor !== 'context' && value._ancestor - 1 >= 0)
-      this._refs.push([value._ancestor - 1, value._root]);
-
-    if (isSchema(value)) {
-      for (const [ancestor, root] of value._refs) {
-        if (ancestor - 1 >= 0) this._refs.push([ancestor - 1, root]);
-      }
-    }
   }
 
   $rebuild() {
     // Reset the refs
     this._refs = [];
 
-    _register(this);
+    _register(this.$flags, this._refs);
+    _register(this._rules, this._refs);
+    _register(this.$index, this._refs);
 
     const rebuild = this._definition.rebuild;
 
@@ -204,26 +199,29 @@ class _Schema {
   }
 
   $addRule(opts) {
-    Dust.assert(Dust.isObject(opts), 'The parameter opts for Schema.$addRule must be an object');
+    Dust.assert(Dust.isObject(opts), 'The parameter opts for any.$addRule must be an object');
 
     opts = {
       args: {},
+      clone: true,
       ...opts,
     };
 
-    Dust.assert(
-      typeof opts.name === 'string',
-      'The option name for Schema.$addRule must be a string',
-    );
+    Dust.assert(typeof opts.name === 'string', 'The option name for any.$addRule must be a string');
 
     Dust.assert(
       opts.method === undefined || typeof opts.method === 'string',
-      'The option method for Schema.$addRule must be a string',
+      'The option method for any.$addRule must be a string',
     );
 
-    Dust.assert(Dust.isObject(opts.args), 'The option args for Schema.$addRule must be an object');
+    Dust.assert(
+      typeof opts.clone === 'boolean',
+      'The option clone for any.$addRule must be a boolean',
+    );
 
-    const target = this.$clone();
+    Dust.assert(Dust.isObject(opts.args), 'The option args for any.$addRule must be an object');
+
+    const target = opts.clone ? this.$clone() : this;
 
     // Infer method
     opts.method = opts.method === undefined ? opts.name : opts.method;
@@ -236,22 +234,22 @@ class _Schema {
     const argDefs = ruleDef.args;
 
     for (const argName of Object.keys(argDefs)) {
-      const { assert, ref, reason } = argDefs[argName];
+      const argDef = argDefs[argName];
       const arg = opts.args[argName];
       const isArgRef = isRef(arg);
 
       // Params assertions
       Dust.assert(
-        assert(arg) || (ref && isArgRef),
+        argDef.assert(arg) || (argDef.ref && isArgRef),
         'The parameter',
         argName,
         'of',
         `${target.type}.${opts.name}`,
-        reason,
+        argDef.reason,
       );
 
       if (isArgRef) {
-        target.$register(arg);
+        target._refs.push(arg);
       }
     }
 
@@ -267,7 +265,7 @@ class _Schema {
   }
 
   extend(opts) {
-    Dust.assert(Dust.isObject(opts), 'The parameter opts for Schema.extend must be an object');
+    Dust.assert(Dust.isObject(opts), 'The parameter opts for any.extend must be an object');
 
     opts = {
       type: 'any',
@@ -278,15 +276,12 @@ class _Schema {
       ...opts,
     };
 
-    Dust.assert(
-      typeof opts.type === 'string',
-      'The option type for Schema.extend must be a string',
-    );
+    Dust.assert(typeof opts.type === 'string', 'The option type for any.extend must be a string');
 
     ['flags', 'index', 'messages', 'rules'].forEach(optName => {
       const opt = opts[optName];
 
-      Dust.assert(Dust.isObject(opt), 'The option', optName, 'for Schema.extend must be an object');
+      Dust.assert(Dust.isObject(opt), 'The option', optName, 'for any.extend must be an object');
     });
 
     ['validate', 'rebuild', 'coerce'].forEach(optName => {
@@ -296,7 +291,7 @@ class _Schema {
         opt === undefined || typeof opt === 'function',
         'The option',
         optName,
-        'for Schema.extend must be a function',
+        'for any.extend must be a function',
       );
     });
 
@@ -310,19 +305,28 @@ class _Schema {
     const def = target._definition;
 
     // Populate definition
-    if (opts.validate !== undefined) def.validate = _joinValidate(def.validate, opts.validate);
+    if (opts.prepare !== undefined) def.prepare = _joinMethod(def.prepare, opts.prepare);
 
-    if (opts.coerce !== undefined) def.coerce = _joinValidate(def.coerce, opts.coerce);
+    if (opts.validate !== undefined) def.validate = _joinMethod(def.validate, opts.validate);
+
+    if (opts.coerce !== undefined) def.coerce = _joinMethod(def.coerce, opts.coerce);
 
     if (opts.rebuild !== undefined) def.rebuild = _joinRebuild(def.rebuild, opts.rebuild);
 
-    def.flags = { ...def.flags, ...opts.flags };
     def.messages = { ...def.messages, ...opts.messages };
 
+    // Flag defaults
+    for (const key of Object.keys(opts.flags)) {
+      Dust.assert(def.flags[key] === undefined, 'The flag', key, 'has already been defined');
+
+      def.flags[key] = { default: opts.flags[key] };
+    }
+
+    // Index
     for (const key of Object.keys(opts.index)) {
       Dust.assert(
         target.$index[key] === undefined,
-        'The index group',
+        'The index terms',
         key,
         'has already been defined',
       );
@@ -336,34 +340,37 @@ class _Schema {
 
       Dust.assert(
         Array.isArray(termsDef.value),
-        'The option value for group',
+        'The option value for terms',
         key,
         'must be an array',
       );
 
       Dust.assert(
         termsDef.describe === undefined || typeof termsDef.describe === 'function',
-        'The option describe for group',
+        'The option describe for terms',
         key,
         'must be a function',
       );
 
       Dust.assert(
         typeof termsDef.merge === 'boolean' || typeof termsDef.merge === 'function',
-        'The option merge for group',
+        'The option merge for terms',
         key,
         'must be a function or a boolean',
       );
 
       Dust.assert(
         termsDef.describe === undefined || !isPrivate,
-        'Cannot have a describe function for private group',
+        'Cannot have a describe function for private terms',
         key,
       );
 
       target.$index[key] = termsDef.value;
 
       delete termsDef.value;
+
+      if (termsDef.merge === true) delete termsDef.merge;
+      if (termsDef.describe === undefined) delete termsDef.describe;
 
       def.index[key] = termsDef;
     }
@@ -569,45 +576,18 @@ class _Schema {
     return desc;
   }
 
-  annotate(...notes) {
-    Dust.assert(
-      notes.length > 0,
-      'The parameter notes for Schema.annotate must have at least a note',
-    );
-
-    Dust.assert(
-      notes.every(note => typeof note === 'string'),
-      'The paramater notes for Schema.annotate must be an array of strings',
-    );
-
-    const target = this.$clone();
-
-    target.$index.notes.push(...notes);
-
-    return target;
-  }
-
   opts(opts) {
     const next = this.$clone();
 
-    next._opts = { ...next._opts, ..._opts('Schema.opts', false, opts) };
+    next._opts = { ...next._opts, ..._opts('any.opts', false, opts) };
 
     return next;
-  }
-
-  strip(enabled = true) {
-    Dust.assert(
-      typeof enabled === 'boolean',
-      'The parameter enabled for Schema.strip must be a boolean',
-    );
-
-    return this.$setFlag('strip', enabled);
   }
 
   presence(presence) {
     Dust.assert(
       presence === 'optional' || presence === 'required' || presence === 'forbidden',
-      'The parameter presence for Schema.presence must be optional, required or forbidden',
+      'The parameter presence for any.presence must be optional, required or forbidden',
     );
 
     return this.$setFlag('presence', presence);
@@ -626,7 +606,7 @@ class _Schema {
   }
 
   default(value, opts) {
-    Dust.assert(value !== undefined, `The parameter value for Schema.default must be provided`);
+    Dust.assert(value !== undefined, `The parameter value for any.default must be provided`);
 
     opts = {
       literal: false,
@@ -635,12 +615,12 @@ class _Schema {
 
     Dust.assert(
       typeof opts.literal === 'boolean',
-      'The option literal for Schema.default must be a boolean',
+      'The option literal for any.default must be a boolean',
     );
 
     Dust.assert(
       typeof value === 'function' || !opts.literal,
-      'The option literal for Schema.default only applies to function value',
+      'The option literal for any.default only applies to function value',
     );
 
     if (typeof value === 'function' && opts.literal)
@@ -650,7 +630,7 @@ class _Schema {
   }
 
   label(label) {
-    Dust.assert(typeof label === 'string', `The parameter label for Schema.label must be a string`);
+    Dust.assert(typeof label === 'string', `The parameter label for any.label must be a string`);
 
     return this.$setFlag('label', label);
   }
@@ -658,7 +638,7 @@ class _Schema {
   only(enabled = true) {
     Dust.assert(
       typeof enabled === 'boolean',
-      'The parameter enabled for Schema.only must be a boolean',
+      'The parameter enabled for any.only must be a boolean',
     );
 
     return this.$setFlag('only', enabled);
@@ -677,7 +657,7 @@ class _Schema {
       typeof customizer === 'function' ||
         customizer instanceof Error ||
         typeof customizer === 'string',
-      'The parameter customizer for Schema.error must be a string, a function or an instance of Error',
+      'The parameter customizer for any.error must be a string, a function or an instance of Error',
     );
 
     return this.$setFlag('error', customizer);
@@ -799,6 +779,7 @@ class _Schema {
           };
         }
 
+        // Deep default. Object schema will loop through all the keys
         value = {};
       }
     }
@@ -836,23 +817,24 @@ class _Schema {
     }
 
     // Rules
-    for (const { method, args: rawArgs, name } of schema._rules) {
-      const { args: argDefs, validate } = def.rules[method];
-      const args = { ...rawArgs };
+    for (const rule of schema._rules) {
+      const ruleDef = def.rules[rule.method];
+      const argDefs = ruleDef.args;
+      const args = { ...rule.args };
       let errored = false;
 
       for (const argName of Object.keys(argDefs)) {
-        const { assert, reason } = argDefs[argName];
+        const argDef = argDefs[argName];
         const arg = args[argName];
 
         if (!isRef(arg)) continue;
 
         const resolved = arg.resolve(value, ancestors, context);
 
-        if (!assert(resolved)) {
+        if (!argDef.assert(resolved)) {
           const err = helpers.error('any.ref', {
             ref: arg,
-            reason,
+            reason: argDef.reason,
           });
 
           errored = true;
@@ -869,7 +851,7 @@ class _Schema {
 
       if (errored) continue;
 
-      const result = validate(value, { ...helpers, args, name });
+      const result = ruleDef.validate(value, { ...helpers, args, name: rule.name });
       const err = _error(result);
 
       if (!err) value = result;
@@ -884,7 +866,7 @@ class _Schema {
   }
 
   validate(value, opts) {
-    return this.$validate(value, _opts('Schema.validate', true, opts), createState());
+    return this.$validate(value, _opts('any.validate', true, opts), createState());
   }
 
   attempt(value, opts) {
@@ -898,23 +880,23 @@ class _Schema {
   when(ref, opts) {
     Dust.assert(
       typeof ref === 'string' || isRef(ref),
-      'The parameter ref for Schema.when must be a valid reference or a string',
+      'The parameter ref for any.when must be a valid reference or a string',
     );
 
-    Dust.assert(Dust.isObject(opts), 'The parameter opts for Schema.when must be an object');
+    Dust.assert(Dust.isObject(opts), 'The parameter opts for any.when must be an object');
 
-    Dust.assert(isSchema(opts.is), 'The option is for Schema.when must be a valid schema');
+    Dust.assert(isSchema(opts.is), 'The option is for any.when must be a valid schema');
 
     Dust.assert(
       isSchema(opts.then) || isSchema(opts.otherwise),
-      'The option then or otherwise for Schema.when must be a valid schema',
+      'The option then or otherwise for any.when must be a valid schema',
     );
 
     ref = typeof ref === 'string' ? createRef(ref) : ref;
 
     const next = this.$clone();
 
-    next.$register(ref);
+    next._refs.push(ref);
 
     next.$index.conditions.push({ ref, ...opts });
 
@@ -929,7 +911,6 @@ const _methods = [
   ['valid', 'allow', 'equal', 'is'],
   ['invalid', 'deny', 'disallow', 'not'],
   ['opts', 'options', 'prefs', 'preferences'],
-  ['annotate', 'note', 'description'],
 ];
 
 for (const [method, ...aliases] of _methods) {
@@ -971,39 +952,20 @@ function _assign(target, src) {
   return target;
 }
 
-function _register(schema) {
-  const flags = schema.$flags;
-  const boundRegister = schema.$register.bind(schema);
-
-  for (const key of Object.keys(flags)) {
-    _walk(flags[key], boundRegister);
-  }
-
-  for (const rule of schema._rules) {
-    _walk(rule, boundRegister);
-  }
-
-  const index = schema.$index;
-
-  for (const key of Object.keys(index)) {
-    _walk(index[key], boundRegister);
-  }
-}
-
-function _walk(value, cb) {
+function _register(value, refs) {
   if (!Dust.isObject(value)) return;
 
-  if (isSchema(value) || isRef(value)) cb(value);
+  if (isSchema(value) || isRef(value)) refs.push(value);
 
   if (Array.isArray(value))
     for (const subValue of value) {
-      _walk(subValue);
+      _register(subValue);
     }
 
   for (const key of Object.keys(value)) {
     if (_isPrivate(key)) continue;
 
-    _walk(value[key]);
+    _register(value[key]);
   }
 }
 
@@ -1016,7 +978,7 @@ function _joinRebuild(target, src) {
   };
 }
 
-function _joinValidate(target, src) {
+function _joinMethod(target, src) {
   if (target === null || src === null) return target || src;
 
   return (value, helpers) => {
@@ -1094,7 +1056,7 @@ function _opts(methodName, withDefaults, opts = {}) {
 }
 
 function _values(schema, values, type) {
-  Dust.assert(values.length > 0, `At least a value must be provided to Schema.${type}`);
+  Dust.assert(values.length > 0, `At least a value must be provided to any.${type}`);
 
   type = `_${type}s`;
 
@@ -1103,7 +1065,7 @@ function _values(schema, values, type) {
 
   for (const value of values) {
     target[other].delete(value);
-    target[type].add(value, schema.$register.bind(schema));
+    target[type].add(value, schema._refs);
   }
 
   return target;
@@ -1182,11 +1144,38 @@ function _error(err) {
 }
 
 const any = new _Schema().extend({
+  flags: {
+    strip: false,
+  },
   messages: {
     'any.custom': '{label} fails validation {name} due to {err}',
   },
+  index: {
+    notes: [],
+  },
 
   rules: {
+    annotate: {
+      alias: ['description', 'note'],
+      method(...notes) {
+        Dust.assert(
+          notes.length > 0,
+          'The parameter notes for any.annotate must have at least a note',
+        );
+
+        Dust.assert(
+          notes.every(note => typeof note === 'string'),
+          'The paramater notes for any.annotate must be an array of strings',
+        );
+
+        const target = this.$clone();
+
+        target.$index.notes.push(...notes);
+
+        return target;
+      },
+    },
+
     custom: {
       single: false,
       method(method, name = 'unknown') {
@@ -1218,6 +1207,17 @@ const any = new _Schema().extend({
           ref: false,
         },
       ],
+    },
+
+    strip: {
+      method(enabled = true) {
+        Dust.assert(
+          typeof enabled === 'boolean',
+          'The parameter enabled for any.strip must be a boolean',
+        );
+
+        return this.$setFlag('strip', enabled);
+      },
     },
   },
 });

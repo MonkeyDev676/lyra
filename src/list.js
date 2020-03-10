@@ -32,11 +32,11 @@ class _List {
     return this;
   }
 
-  add(item, register) {
+  add(item, refs) {
     if (isRef(item)) {
       this._refs.add(item);
 
-      if (register !== undefined) register(item);
+      if (refs !== undefined) refs.push(item);
     } else this._values.add(item);
 
     return this;

@@ -67,6 +67,7 @@ const root = {
 
 for (const methodName of [
   'annotate',
+  'custom',
   'opts',
   'strip',
   'presence',
