@@ -114,7 +114,7 @@ class _Schema {
     for (const key of Object.keys(src.$index)) {
       const srcTerms = src.$index[key];
       const terms = target.$index[key];
-      const termsDef = src._definition.index[key];
+      const termsDef = target._definition.index[key];
 
       if (terms === undefined) {
         target.$index[key] = [...srcTerms];
