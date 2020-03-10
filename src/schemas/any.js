@@ -187,9 +187,9 @@ class _Schema {
     _register(this._rules, this._refs);
     _register(this.$index, this._refs);
 
-    const rebuild = this._definition.rebuild;
+    const def = this._definition;
 
-    if (rebuild !== null) rebuild(this);
+    if (def.rebuild !== null) def.rebuild(this);
 
     return this;
   }
@@ -675,11 +675,15 @@ class _Schema {
     const abortEarly = opts.abortEarly;
     const ancestors = state._ancestors;
 
-    for (const { ref, is, then, otherwise } of this.$index.conditions) {
-      const result = is.$validate(ref.resolve(value, ancestors, context), opts, state);
+    for (const condition of this.$index.conditions) {
+      const result = condition.is.$validate(
+        condition.ref.resolve(value, ancestors, context),
+        opts,
+        state,
+      );
 
-      if (result.errors === null) schema = schema.$merge(then);
-      else schema = schema.$merge(otherwise);
+      if (result.errors === null) schema = schema.$merge(condition.then);
+      else schema = schema.$merge(condition.otherwise);
     }
 
     const errors = [];
