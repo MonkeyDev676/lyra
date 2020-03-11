@@ -16,21 +16,20 @@ module.exports = any.extend({
   rules: {
     inherit: {
       single: false,
-      method(Ctor) {
-        return this.$addRule({ name: 'inherit', args: { Ctor } });
+      method(ctor) {
+        return this.$addRule({ name: 'inherit', args: { ctor } });
       },
-      validate: (value, { args: { Ctor }, error }) => {
-        if (value.prototype instanceof Ctor) return value;
+      validate: (value, { args: { ctor }, error }) => {
+        if (value.prototype instanceof ctor) return value;
 
-        return error('function.inherit', { ctor: Ctor });
+        return error('function.inherit', { ctor });
       },
-      args: [
-        {
-          name: 'Ctor',
+      args: {
+        ctor: {
           assert: resolved => typeof resolved === 'function',
           reason: 'must be a function',
         },
-      ],
+      },
     },
   },
 });

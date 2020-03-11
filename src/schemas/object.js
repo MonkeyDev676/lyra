@@ -61,7 +61,6 @@ module.exports = any.extend({
   validate: (value, { schema, state, opts, error, original }) => {
     if (!Dust.isObject(value) || Array.isArray(value)) return error('object.base');
 
-    const abortEarly = opts.abortEarly;
     const errors = [];
     const keys = new Set(Object.keys(value));
 
@@ -77,7 +76,7 @@ module.exports = any.extend({
       const result = subSchema.$validate(subValue, opts, divedState);
 
       if (result.errors !== null) {
-        if (abortEarly) return result.errors;
+        if (opts.abortEarly) return result.errors;
 
         errors.push(...result.errors);
       } else if (subSchema.$flags.strip) {
@@ -92,7 +91,7 @@ module.exports = any.extend({
       if (!failed) {
         const err = error(`object.${type}`, { peers });
 
-        if (abortEarly) return err;
+        if (opts.abortEarly) return err;
 
         errors.push(err);
       }
@@ -109,7 +108,7 @@ module.exports = any.extend({
       for (const key of keys) {
         const err = error('object.unknown', undefined, state.dive(original, key));
 
-        if (abortEarly) return err;
+        if (opts.abortEarly) return err;
 
         errors.push(err);
       }

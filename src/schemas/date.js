@@ -54,13 +54,12 @@ module.exports = any.extend({
 
         return error(`date.${name}`, { date });
       },
-      args: [
-        {
-          name: 'date',
-          assert: resolved => resolved === 'now' || _isValidDate(resolved),
+      args: {
+        date: {
+          assert: arg => arg === 'now' || _isValidDate(arg),
           reason: 'must be now or an instance of Date',
         },
-      ],
+      },
     },
 
     min: {

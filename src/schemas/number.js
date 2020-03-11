@@ -65,13 +65,12 @@ module.exports = any.extend({
 
         return error(`number.${name}`, { num });
       },
-      args: [
-        {
-          name: 'num',
+      args: {
+        num: {
           assert: _isNumber,
           reason: 'must be a number',
         },
-      ],
+      },
     },
 
     integer: {
@@ -126,13 +125,12 @@ module.exports = any.extend({
 
         return error('number.multiple', { num });
       },
-      args: [
-        {
-          name: 'num',
+      args: {
+        num: {
           assert: _isNumber,
           reason: 'must be a number',
         },
-      ],
+      },
     },
 
     even: {
@@ -151,13 +149,12 @@ module.exports = any.extend({
 
         return error('number.divide', { num });
       },
-      args: [
-        {
-          name: 'num',
+      args: {
+        num: {
           assert: _isNumber,
           reason: 'must be a number',
         },
-      ],
+      },
     },
   },
 });

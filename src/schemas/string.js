@@ -17,7 +17,6 @@ const _regexp = {
 module.exports = any.extend({
   type: 'string',
   flags: {
-    case: null,
     trim: false,
   },
   index: {
@@ -72,13 +71,12 @@ module.exports = any.extend({
 
         return error(`string.${name}`, { length });
       },
-      args: [
-        {
-          name: 'length',
+      args: {
+        length: {
           assert: _isNumber,
           reason: 'must be a number',
         },
-      ],
+      },
     },
 
     length: {
@@ -141,13 +139,12 @@ module.exports = any.extend({
 
         return error(`string.${name}`, name === 'pattern' ? { regexp } : undefined);
       },
-      args: [
-        {
-          name: 'regexp',
-          assert: resolved => resolved instanceof RegExp,
+      args: {
+        regexp: {
+          assert: arg => arg instanceof RegExp,
           reason: 'must be a regular expression',
         },
-      ],
+      },
     },
 
     email: {
@@ -179,13 +176,21 @@ module.exports = any.extend({
     },
 
     case: {
-      method: false,
+      method(dir) {
+        return this.$addRule({ name: 'case', args: { dir } });
+      },
       validate: (value, { args: { dir }, name, error }) => {
         if (dir === 'lower' && value.toLocaleLowerCase() === value) return { value, errors: null };
 
         if (value.toLocaleUpperCase() === value) return value;
 
         return error(`string.${name}`);
+      },
+      args: {
+        dir: {
+          assert: arg => arg === 'upper' || arg === 'lower',
+          reason: 'musst be either upper or lower',
+        },
       },
     },
 

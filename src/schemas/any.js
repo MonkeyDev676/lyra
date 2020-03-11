@@ -15,29 +15,44 @@ class _ValidationError extends Error {
     this.name = 'ValidationError';
     this.code = code;
 
-    const path = state._path;
-
-    this.path = path.length > 0 ? path.join('.') : null;
+    this.path = state._path.length > 0 ? state._path.join('.') : null;
     this.depth = state._depth;
     this.ancestors = state._ancestors;
   }
 }
 
-class _RefRegister extends Array {
-  push(value) {
-    if (isRef(value) && value._ancestor !== 'context' && value._ancestor - 1 >= 0)
-      super.push([value._ancestor - 1, value._root]);
+class _Refs {
+  constructor(refs = []) {
+    this._refs = refs; // Register refs [ancestor, root]
+  }
 
-    if (isSchema(value))
-      for (const [ancestor, root] of value._refs)
-        if (ancestor - 1 >= 0) super.push([ancestor - 1, root]);
+  reset() {
+    this._refs = [];
+  }
+
+  clone() {
+    return new _Refs(this._refs);
+  }
+
+  register(value) {
+    if (isRef(value) && value._ancestor !== 'context' && value._ancestor - 1 >= 0)
+      this._refs.push([value._ancestor - 1, value._root]);
+
+    if (isSchema(value)) {
+      for (const [ancestor, root] of value._refs._refs)
+        if (ancestor - 1 >= 0) this._refs.push([ancestor - 1, root]);
+    }
+  }
+
+  references() {
+    return this._refs.filter(([ancestor]) => ancestor === 0).map(([, root]) => root);
   }
 }
 
 class _Schema {
   constructor() {
     this.type = 'any';
-    this._refs = new _RefRegister(0); // Register refs [ancestor, root]
+    this._refs = new _Refs();
     this._rules = []; // [{ name, method, args }]
 
     // Defined variables that affect the validation internally
@@ -173,7 +188,7 @@ class _Schema {
       target.$flags[name] = value;
 
       // For any flags that store refs such as default
-      target._refs.push(value);
+      target._refs.register(value);
     }
 
     return target;
@@ -181,21 +196,19 @@ class _Schema {
 
   $rebuild() {
     // Reset the refs
-    this._refs = [];
+    this._refs.reset();
 
     _register(this.$flags, this._refs);
     _register(this._rules, this._refs);
     _register(this.$index, this._refs);
 
-    const def = this._definition;
-
-    if (def.rebuild !== null) def.rebuild(this);
+    if (this._definition.rebuild !== null) this._definition.rebuild(this);
 
     return this;
   }
 
   $references() {
-    return this._refs.filter(([ancestor]) => ancestor === 0).map(([, root]) => root);
+    return this._refs.references();
   }
 
   $addRule(opts) {
@@ -249,7 +262,7 @@ class _Schema {
       );
 
       if (isArgRef) {
-        target._refs.push(arg);
+        target._refs.register(arg);
       }
     }
 
@@ -307,9 +320,9 @@ class _Schema {
     // Populate definition
     if (opts.prepare !== undefined) def.prepare = _joinMethod(def.prepare, opts.prepare);
 
-    if (opts.validate !== undefined) def.validate = _joinMethod(def.validate, opts.validate);
-
     if (opts.coerce !== undefined) def.coerce = _joinMethod(def.coerce, opts.coerce);
+
+    if (opts.validate !== undefined) def.validate = _joinMethod(def.validate, opts.validate);
 
     if (opts.rebuild !== undefined) def.rebuild = _joinRebuild(def.rebuild, opts.rebuild);
 
@@ -378,7 +391,7 @@ class _Schema {
     // Populate rule definitions
     for (const ruleName of Object.keys(opts.rules)) {
       const ruleDef = {
-        args: [],
+        args: {},
         alias: [],
         single: true,
         priority: false,
@@ -386,10 +399,10 @@ class _Schema {
       };
 
       Dust.assert(
-        Array.isArray(ruleDef.args),
+        Dust.isObject(ruleDef.args),
         'The option args for rule',
         ruleName,
-        'must be an array',
+        'must be an object',
       );
 
       Dust.assert(
@@ -453,17 +466,10 @@ class _Schema {
       const argDefs = {};
 
       // Create arg definitions
-      for (const { name: argName, ...otherOpts } of ruleDef.args) {
-        Dust.assert(
-          typeof argName === 'string',
-          'The option name for the argument of rule',
-          ruleName,
-          'must be a string',
-        );
-
+      for (const argName of Object.keys(ruleDef.args)) {
         const argDef = {
           ref: true,
-          ...otherOpts,
+          ...ruleDef.args[argName],
         };
 
         Dust.assert(
@@ -586,7 +592,7 @@ class _Schema {
 
   presence(presence) {
     Dust.assert(
-      presence === 'optional' || presence === 'required' || presence === 'forbidden',
+      _validPresence(presence),
       'The parameter presence for any.presence must be optional, required or forbidden',
     );
 
@@ -671,13 +677,9 @@ class _Schema {
       ...schema._opts,
     };
 
-    const context = opts.context;
-    const abortEarly = opts.abortEarly;
-    const ancestors = state._ancestors;
-
     for (const condition of this.$index.conditions) {
       const result = condition.is.$validate(
-        condition.ref.resolve(value, ancestors, context),
+        condition.ref.resolve(value, state._ancestors, opts.context),
         opts,
         state,
       );
@@ -693,21 +695,21 @@ class _Schema {
       opts,
       original: value,
       error: (code, local, divedState = state) =>
-        _createError(schema, code, divedState, context, local),
+        _createError(schema, code, divedState, opts.context, local),
     };
 
     // Valid values
     const valids = schema._valids;
 
     if (valids.size > 0) {
-      if (valids.has(value, ancestors, context)) return { value, errors: null };
+      if (valids.has(value, state._ancestors, opts.context)) return { value, errors: null };
 
       if (schema.$flags.only) {
         const err = helpers.error('any.only', {
           values: valids,
         });
 
-        if (abortEarly)
+        if (opts.abortEarly)
           return {
             value: null,
             errors: [err],
@@ -721,12 +723,12 @@ class _Schema {
     const invalids = schema._invalids;
 
     if (invalids.size > 0) {
-      if (invalids.has(value, ancestors, context)) {
+      if (invalids.has(value, state._ancestors, opts.context)) {
         const err = helpers.error('any.invalid', {
           values: invalids,
         });
 
-        if (abortEarly)
+        if (opts.abortEarly)
           return {
             value: null,
             errors: [err],
@@ -740,11 +742,8 @@ class _Schema {
 
     // If there's no presence override, use the flag
     if (presence === undefined) {
-      presence = schema.$flags.presence;
-      presence = presence === undefined ? opts.presence : presence;
+      presence = schema.$flags.presence === undefined ? opts.presence : schema.$flags.presence;
     }
-
-    const isForbidden = presence === 'forbidden';
 
     // Required
 
@@ -755,7 +754,7 @@ class _Schema {
           errors: [helpers.error('any.required')],
         };
 
-      if (isForbidden) return { value, errors: null };
+      if (presence === 'forbidden') return { value, errors: null };
 
       const defaultValue = schema.$flags.default;
 
@@ -766,7 +765,7 @@ class _Schema {
           if (defaultValue[_literalSymbol]) {
             // If default value is a function and is literal
             try {
-              return { value: defaultValue.value(ancestors[0], helpers), errors: null };
+              return { value: defaultValue.value(state._ancestors[0], helpers), errors: null };
             } catch (err) {
               return {
                 value: null,
@@ -777,7 +776,7 @@ class _Schema {
 
           return {
             value: isRef(defaultValue)
-              ? defaultValue.resolve(value, ancestors, context)
+              ? defaultValue.resolve(value, state._ancestors, opts.context)
               : defaultValue,
             errors: null,
           };
@@ -790,7 +789,7 @@ class _Schema {
 
     // Forbidden
 
-    if (isForbidden) {
+    if (presence === 'forbidden') {
       return {
         value: null,
         errors: [helpers.error('any.forbidden')],
@@ -833,7 +832,7 @@ class _Schema {
 
         if (!isRef(arg)) continue;
 
-        const resolved = arg.resolve(value, ancestors, context);
+        const resolved = arg.resolve(value, state._ancestors, opts.context);
 
         if (!argDef.assert(resolved)) {
           const err = helpers.error('any.ref', {
@@ -843,7 +842,7 @@ class _Schema {
 
           errored = true;
 
-          if (abortEarly)
+          if (opts.abortEarly)
             return {
               value: null,
               errors: [err],
@@ -860,7 +859,7 @@ class _Schema {
 
       if (!err) value = result;
       else {
-        if (abortEarly) return { value: null, errors: err };
+        if (opts.abortEarly) return { value: null, errors: err };
 
         errors.push(...err);
       }
@@ -900,7 +899,7 @@ class _Schema {
 
     const next = this.$clone();
 
-    next._refs.push(ref);
+    next._refs.register(ref);
 
     next.$index.conditions.push({ ref, ...opts });
 
@@ -927,9 +926,10 @@ function isSchema(value) {
   return value != null && !!value[_schemaSymbol];
 }
 
+// internals
 function _assign(target, src) {
   target.type = src.type;
-  target._refs = [...src._refs];
+  target._refs = src._refs.clone();
   target._rules = [...src._rules];
   target._opts = { ...src._opts };
   target._valids = src._valids.clone();
@@ -937,13 +937,8 @@ function _assign(target, src) {
   target.$flags = Dust.clone(src.$flags, { symbol: true });
   target.$index = {};
 
-  for (const key of Object.keys(src.$index)) {
-    const terms = src.$index[key];
+  for (const key of Object.keys(src.$index)) target.$index[key] = [...src.$index[key]];
 
-    target.$index[key] = [...terms];
-  }
-
-  // Merge last due to index
   const srcDef = src._definition;
   const def = { ...srcDef };
 
@@ -959,17 +954,24 @@ function _assign(target, src) {
 function _register(value, refs) {
   if (!Dust.isObject(value)) return;
 
-  if (isSchema(value) || isRef(value)) refs.push(value);
+  if (isSchema(value) || isRef(value)) {
+    refs.register(value);
 
-  if (Array.isArray(value))
+    return;
+  }
+
+  if (Array.isArray(value)) {
     for (const subValue of value) {
-      _register(subValue);
+      _register(subValue, refs);
     }
+
+    return;
+  }
 
   for (const key of Object.keys(value)) {
     if (_isPrivate(key)) continue;
 
-    _register(value[key]);
+    _register(value[key], refs);
   }
 }
 
@@ -989,9 +991,9 @@ function _joinMethod(target, src) {
     const result = target(value, helpers);
     const err = _error(result);
 
-    if (err) return err;
+    if (!err) return src(value, helpers);
 
-    return src(value, helpers);
+    return err;
   };
 }
 
@@ -1015,10 +1017,10 @@ function _describe(term) {
   return desc;
 }
 
-function _opts(methodName, withDefaults, opts = {}) {
-  Dust.assert(Dust.isObject(opts), 'The parameter opts for', methodName, 'must be an object');
+function _opts(methodName, withDefaults, rawOpts = {}) {
+  Dust.assert(Dust.isObject(rawOpts), 'The parameter opts for', methodName, 'must be an object');
 
-  const withDefaultOpts = {
+  const opts = {
     strict: true,
     abortEarly: true,
     recursive: true,
@@ -1026,12 +1028,12 @@ function _opts(methodName, withDefaults, opts = {}) {
     stripUnknown: false,
     context: {},
     presence: 'optional',
-    ...opts,
+    ...rawOpts,
   };
 
   ['strict', 'abortEarly', 'recursive', 'allowUnknown', 'stripUnknown'].forEach(optName =>
     Dust.assert(
-      typeof withDefaultOpts[optName] === 'boolean',
+      typeof opts[optName] === 'boolean',
       'The option',
       optName,
       'for',
@@ -1041,22 +1043,24 @@ function _opts(methodName, withDefaults, opts = {}) {
   );
 
   Dust.assert(
-    Dust.isObject(withDefaultOpts.context),
+    Dust.isObject(opts.context),
     'The option context for',
     methodName,
     'must be an object',
   );
 
-  const presence = withDefaultOpts.presence;
-
   Dust.assert(
-    presence === 'optional' || presence === 'required' || presence === 'forbidden',
+    _validPresence(opts.presence),
     'The option presence for',
     methodName,
     'must be optional, required or forbidden',
   );
 
-  return withDefaults ? withDefaultOpts : opts;
+  return withDefaults ? opts : rawOpts;
+}
+
+function _validPresence(presence) {
+  return presence === 'optional' || presence === 'required' || presence === 'forbidden';
 }
 
 function _values(schema, values, type) {
@@ -1147,15 +1151,16 @@ function _error(err) {
   return false;
 }
 
+// Actual any schema
 const any = new _Schema().extend({
   flags: {
     strip: false,
   },
-  messages: {
-    'any.custom': '{label} fails validation {name} due to {err}',
-  },
   index: {
     notes: [],
+  },
+  messages: {
+    'any.custom': '{label} fails validation {name} due to {err}',
   },
 
   rules: {
@@ -1197,20 +1202,16 @@ const any = new _Schema().extend({
           return error('any.custom', { err, name });
         }
       },
-      args: [
-        {
-          name: 'method',
-          assert: resolved => typeof resolved === 'function',
+      args: {
+        method: {
+          assert: arg => typeof arg === 'function',
           reason: 'must be a function',
-          ref: false,
         },
-        {
-          name: 'name',
-          assert: resolved => typeof resolved === 'string',
+        name: {
+          assert: arg => typeof arg === 'string',
           reason: 'must be a string',
-          ref: false,
         },
-      ],
+      },
     },
 
     strip: {

@@ -4,15 +4,16 @@ const _isNumber = require('../internals/_isNumber');
 
 module.exports = any.extend({
   type: 'array',
+  flags: {
+    sparse: false,
+  },
   index: {
     ordereds: {},
     items: {},
+    // Private terms. Won't be merged and described
     _requireds: {},
     _forbiddens: {},
     _optionals: {},
-  },
-  flags: {
-    sparse: false,
   },
   messages: {
     'array.base': '{label} must be an array',
@@ -63,12 +64,9 @@ module.exports = any.extend({
 
     if (!opts.recursive) return value;
 
-    const stripUnknown = opts.stripUnknown;
-    const abortEarly = opts.abortEarly;
     const errors = [];
     const sparse = schema.$flags.sparse;
     const ordereds = [...schema.$index.ordereds];
-    const items = schema.$index.items;
     const requireds = [...schema.$index._requireds];
     const includeds = [...schema.$index._optionals, ...schema.$index._requireds];
 
@@ -84,7 +82,7 @@ module.exports = any.extend({
       if (!sparse && subValue === undefined) {
         const err = error('array.sparse', undefined, divedState);
 
-        if (abortEarly) return err;
+        if (opts.abortEarly) return err;
 
         errors.push(err);
         ordereds.shift();
@@ -93,6 +91,7 @@ module.exports = any.extend({
       }
 
       let errored = false;
+
       // Forbiddens
       for (const forbidden of schema.$index._forbiddens) {
         // If we don't pass presence: ignore, undefined will result in array.forbidden
@@ -105,7 +104,7 @@ module.exports = any.extend({
 
         const err = error('array.forbidden', { item: subValue });
 
-        if (abortEarly) return err;
+        if (opts.abortEarly) return err;
 
         // If a forbiden schema is met, we move on to the next subValue
         errored = true;
@@ -124,7 +123,7 @@ module.exports = any.extend({
         const result = ordered.$validate(subValue, opts, divedState);
 
         if (result.errors !== null) {
-          if (abortEarly) return result.errors;
+          if (opts.abortEarly) return result.errors;
 
           errors.push(...result.errors);
 
@@ -141,7 +140,7 @@ module.exports = any.extend({
           // If the returned value from the schema is undefined, we check for the sparse item
           const err = error('array.sparse', undefined, divedState);
 
-          if (abortEarly) return err;
+          if (opts.abortEarly) return err;
 
           errors.push(err);
 
@@ -150,12 +149,12 @@ module.exports = any.extend({
 
         // Move on to the next item
         continue;
-      } else if (items.length === 0) {
+      } else if (schema.$index.items.length === 0) {
         // If there is no ordered schemas or item schemas left, we know that we have more items than
         // ordered schemas
         const err = error('array.orderedLength', { length: ordereds.length });
 
-        if (abortEarly) return err;
+        if (opts.abortEarly) return err;
 
         errors.push(err);
 
@@ -185,7 +184,7 @@ module.exports = any.extend({
           } else if (!sparse && result.value === undefined) {
             const err = error('array.sparse', undefined, divedState);
 
-            if (abortEarly) return err;
+            if (opts.abortEarly) return err;
 
             errors.push(err);
           } else value[i] = result.value;
@@ -219,7 +218,7 @@ module.exports = any.extend({
             } else if (!sparse && result.value === undefined) {
               const err = error('array.sparse', undefined, divedState);
 
-              if (abortEarly) return err;
+              if (opts.abortEarly) return err;
 
               errors.push(err);
             } else value[i] = result.value;
@@ -231,7 +230,7 @@ module.exports = any.extend({
 
       // isValid could be false if no required and optional schemas are provided
       if (includeds.length > 0 && !isValid) {
-        if (stripUnknown) {
+        if (opts.stripUnknown) {
           value.splice(i, 1);
 
           i--;
@@ -241,7 +240,7 @@ module.exports = any.extend({
 
         const err = error('array.required', undefined, divedState);
 
-        if (abortEarly) return err;
+        if (opts.abortEarly) return err;
 
         errors.push(err);
       }
@@ -250,7 +249,7 @@ module.exports = any.extend({
     if (requireds.length > 0) {
       const err = _errorMissedRequireds(requireds, error);
 
-      if (abortEarly) return err;
+      if (opts.abortEarly) return err;
 
       errors.push(err);
     }
@@ -260,12 +259,10 @@ module.exports = any.extend({
     if (requiredOrdereds.length > 0) {
       const err = _errorMissedRequireds(requiredOrdereds, error);
 
-      if (abortEarly) return err;
+      if (opts.abortEarly) return err;
 
       errors.push(err);
     }
-
-    if (errors.length > 0) return errors;
 
     return errors.length > 0 ? errors : value;
   },
@@ -303,13 +300,12 @@ module.exports = any.extend({
 
         return error(`array.${name}`, { length });
       },
-      args: [
-        {
-          name: 'length',
+      args: {
+        length: {
           assert: _isNumber,
           reason: 'must be a number',
         },
-      ],
+      },
     },
 
     length: {
@@ -368,7 +364,7 @@ function _errorMissedRequireds(requireds, error) {
   for (const required of requireds) {
     const label = required.$flags.label;
 
-    if (label !== null) knownMisses.push(label);
+    if (label !== undefined) knownMisses.push(label);
     else unknownMisses++;
   }
 

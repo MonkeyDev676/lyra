@@ -1,4 +1,5 @@
 const Dust = require('@botbind/dust');
+const alternatives = require('./schemas/alternatives');
 const any = require('./schemas/any');
 const boolean = require('./schemas/boolean');
 const string = require('./schemas/string');
@@ -16,6 +17,8 @@ const root = {
   ...list,
   ...any,
   symbols,
+  alternatives,
+  alt: alternatives,
   boolean,
   bool: boolean,
   string,

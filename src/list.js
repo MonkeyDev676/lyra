@@ -36,7 +36,7 @@ class _List {
     if (isRef(item)) {
       this._refs.add(item);
 
-      if (refs !== undefined) refs.push(item);
+      if (refs !== undefined) refs.register(item);
     } else this._values.add(item);
 
     return this;
