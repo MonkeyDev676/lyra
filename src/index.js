@@ -10,13 +10,11 @@ const func = require('./schemas/function');
 const object = require('./schemas/object');
 const base = require('./base');
 const ref = require('./ref');
-const list = require('./list');
 const symbols = require('./symbols');
 
 const root = {
   ...base,
   ...ref,
-  ...list,
   symbols,
   alternatives,
   alt: alternatives,

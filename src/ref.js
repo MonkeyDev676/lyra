@@ -4,23 +4,6 @@ const _refSymbol = Symbol('__REF__');
 
 class _Ref {
   constructor(path, opts) {
-    Dust.assert(typeof path === 'string', 'The parameter path for ref must be a string');
-
-    path = path.trim();
-
-    Dust.assert(path !== '', 'The parameter path for ref must be a non-empty string');
-    Dust.assert(Dust.isObject(opts), 'The parameter opts for ref must be an object');
-
-    opts = {
-      separator: '.',
-      ...opts,
-    };
-
-    Dust.assert(
-      typeof opts.separator === 'string',
-      'The option separator for ref must be a string',
-    );
-
     let slice = 1;
 
     if (path[0] === '$') {
@@ -80,6 +63,21 @@ class _Ref {
 Object.defineProperty(_Ref.prototype, _refSymbol, { value: true });
 
 function ref(path, opts = {}) {
+  Dust.assert(typeof path === 'string', 'The parameter path for ref must be a string');
+
+  path = path.trim();
+
+  Dust.assert(path !== '', 'The parameter path for ref must be a non-empty string');
+
+  Dust.assert(Dust.isObject(opts), 'The parameter opts for ref must be an object');
+
+  opts = {
+    separator: '.',
+    ...opts,
+  };
+
+  Dust.assert(typeof opts.separator === 'string', 'The option separator for ref must be a string');
+
   return new _Ref(path, opts);
 }
 

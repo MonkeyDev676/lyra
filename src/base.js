@@ -1,7 +1,6 @@
 const Dust = require('@botbind/dust');
 const Ref = require('./ref');
 const State = require('./state');
-const List = require('./list');
 const symbols = require('./symbols');
 
 const _defaultSymbol = Symbol('__DEFAULT__');
@@ -21,6 +20,7 @@ class _ValidationError extends Error {
   }
 }
 
+// Stores registered refs
 class _Refs {
   constructor(refs = []) {
     this._refs = refs; // Register refs [ancestor, root]
@@ -46,6 +46,81 @@ class _Refs {
 
   references() {
     return this._refs.filter(([ancestor]) => ancestor === 0).map(([, root]) => root);
+  }
+}
+
+// Stores valids/invalids
+class _Values {
+  constructor(values, refs) {
+    this._values = new Set(values);
+    this._refs = new Set(refs);
+  }
+
+  get size() {
+    return this._values.size + this._refs.size;
+  }
+
+  clone() {
+    return new _Values(this._values, this._refs);
+  }
+
+  merge(src, remove) {
+    for (const value of src.values()) this.add(value);
+
+    if (remove !== undefined) for (const value of remove.values()) this.delete(value);
+
+    return this;
+  }
+
+  add(item, refs) {
+    if (Ref.isRef(item)) {
+      this._refs.add(item);
+
+      if (refs !== undefined) refs.register(item);
+    } else this._values.add(item);
+
+    return this;
+  }
+
+  delete(item) {
+    if (Ref.isRef(item)) this._refs.delete(item);
+    else this._values.delete(item);
+
+    return this;
+  }
+
+  has(value, ancestors, context) {
+    if (this._values.has(value)) return true;
+
+    for (const v of this._values) {
+      if (Dust.equal(v, value)) return true;
+    }
+
+    for (const ref of this._refs) {
+      const resolved = ref.resolve(value, ancestors, context);
+
+      if (Dust.equal(resolved, value)) return true;
+    }
+
+    return false;
+  }
+
+  describe() {
+    const desc = [];
+
+    for (const value of this._values) {
+      desc.push(value);
+    }
+
+    for (const ref of this._refs) {
+      desc.push(ref.describe());
+    }
+
+    return desc;
+  }
+
+  values() {
+    return [...this._values, ...this._refs];
   }
 }
 
@@ -128,7 +203,7 @@ function _describe(term) {
 
   if (Array.isArray(term)) return term.map(_describe);
 
-  if (isSchema(term) || Ref.isRef(term) || List.isList(term)) return term.describe();
+  if (isSchema(term) || Ref.isRef(term)) return term.describe();
 
   const desc = {};
 
@@ -250,19 +325,10 @@ function _createError(schema, code, state, context, local = {}) {
 
     Dust.assert(found !== _defaultSymbol, 'Term', match, 'not found');
 
-    return _display(found);
+    return Ref.isRef(found) ? found._display : Dust.display(found);
   });
 
   return new _ValidationError(message, code, state);
-}
-
-// Wrapper that deals with refs and values
-function _display(value) {
-  if (Ref.isRef(value)) return value._display;
-
-  if (List.isList(value)) return _display(value.values().map(_display));
-
-  return Dust.display(value);
 }
 
 function _error(err) {
@@ -304,8 +370,8 @@ class _Base {
 
     // Options that are later combined with ones passed into validation
     this._opts = {};
-    this._valids = List.list();
-    this._invalids = List.list();
+    this._valids = new _Values();
+    this._invalids = new _Values();
 
     // Simple variables that affect outcome of validation (preferably primitives)
     this.$flags = {};
@@ -930,7 +996,7 @@ class _Base {
 
       if (schema.$flags.only) {
         const err = helpers.error('any.only', {
-          values: valids,
+          values: valids.values(),
         });
 
         if (opts.abortEarly)
@@ -949,7 +1015,7 @@ class _Base {
     if (invalids.size > 0) {
       if (invalids.has(value, state._ancestors, opts.context)) {
         const err = helpers.error('any.invalid', {
-          values: invalids,
+          values: invalids.values(),
         });
 
         if (opts.abortEarly)
