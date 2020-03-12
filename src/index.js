@@ -1,5 +1,7 @@
 const assert = require('@botbind/dust/src/assert');
 const attachMethod = require('@botbind/dust/src/attachMethod');
+const Base = require('./base');
+const Ref = require('./ref');
 const alternatives = require('./schemas/alternatives');
 const any = require('./schemas/any');
 const boolean = require('./schemas/boolean');
@@ -9,13 +11,11 @@ const number = require('./schemas/number');
 const array = require('./schemas/array');
 const func = require('./schemas/function');
 const object = require('./schemas/object');
-const base = require('./base');
-const ref = require('./ref');
 const symbols = require('./symbols');
 
 const root = {
-  ...base,
-  ...ref,
+  ...Base,
+  ...Ref,
   symbols,
   alternatives,
   alt: alternatives,
