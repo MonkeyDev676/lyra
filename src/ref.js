@@ -1,4 +1,6 @@
-const Dust = require('@botbind/dust');
+const assert = require('@botbind/dust/src/assert');
+const get = require('@botbind/dust/src/get');
+const isObject = require('@botbind/dust/src/isObject');
 
 const _refSymbol = Symbol('__REF__');
 
@@ -38,18 +40,18 @@ class _Ref {
   resolve(value, ancestors, context) {
     const opts = { separator: this._separator };
 
-    if (this._ancestor === 'context') return Dust.get(context, this._path, opts);
+    if (this._ancestor === 'context') return get(context, this._path, opts);
 
-    if (this._ancestor === 0) return Dust.get(value, this._path, opts);
+    if (this._ancestor === 0) return get(value, this._path, opts);
 
-    Dust.assert(
+    assert(
       this._ancestor <= ancestors.length,
       'Reference to',
       this._path,
       'exceeds the schema root',
     );
 
-    return Dust.get(ancestors[this._ancestor - 1], this._path, opts);
+    return get(ancestors[this._ancestor - 1], this._path, opts);
   }
 
   describe() {
@@ -63,20 +65,20 @@ class _Ref {
 Object.defineProperty(_Ref.prototype, _refSymbol, { value: true });
 
 function ref(path, opts = {}) {
-  Dust.assert(typeof path === 'string', 'The parameter path for ref must be a string');
+  assert(typeof path === 'string', 'The parameter path for ref must be a string');
 
   path = path.trim();
 
-  Dust.assert(path !== '', 'The parameter path for ref must be a non-empty string');
+  assert(path !== '', 'The parameter path for ref must be a non-empty string');
 
-  Dust.assert(Dust.isObject(opts), 'The parameter opts for ref must be an object');
+  assert(isObject(opts), 'The parameter opts for ref must be an object');
 
   opts = {
     separator: '.',
     ...opts,
   };
 
-  Dust.assert(typeof opts.separator === 'string', 'The option separator for ref must be a string');
+  assert(typeof opts.separator === 'string', 'The option separator for ref must be a string');
 
   return new _Ref(path, opts);
 }

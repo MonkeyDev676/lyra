@@ -1,4 +1,4 @@
-const Dust = require('@botbind/dust');
+const compare = require('@botbind/dust/src/compare');
 const any = require('./any');
 
 module.exports = any.extend({
@@ -47,7 +47,7 @@ module.exports = any.extend({
         if (date === 'now') compareDate = Date.now();
         else compareDate = date.getTime();
 
-        return Dust.compare(value.getTime(), compareDate, operator)
+        return compare(value.getTime(), compareDate, operator)
           ? value
           : error(`date.${name}`, { date });
       },

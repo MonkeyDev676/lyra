@@ -1,4 +1,4 @@
-const Dust = require('@botbind/dust');
+const assert = require('@botbind/dust/src/assert');
 const any = require('./any');
 const Base = require('../base');
 
@@ -45,12 +45,12 @@ module.exports = any.extend({
   rules: {
     try: {
       method(...items) {
-        Dust.assert(items.length > 0, 'At least an item must be provided to alternatives.try');
+        assert(items.length > 0, 'At least an item must be provided to alternatives.try');
 
         const target = this.$clone();
 
         for (const item of items) {
-          Dust.assert(
+          assert(
             Base.isSchema(item),
             'The parameter items for alternatives.try must only contain valid schemas',
           );
@@ -65,7 +65,7 @@ module.exports = any.extend({
     mode: {
       alias: ['match'],
       method(mode) {
-        Dust.assert(
+        assert(
           mode === 'all' || mode === 'one' || mode === 'any',
           'The parameter mode for alternatives.mode must be all, one or any',
         );

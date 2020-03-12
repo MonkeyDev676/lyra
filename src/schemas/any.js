@@ -1,4 +1,4 @@
-const Dust = require('@botbind/dust');
+const assert = require('@botbind/dust/src/assert');
 const Base = require('../base');
 
 module.exports = Base.base().extend({
@@ -16,12 +16,9 @@ module.exports = Base.base().extend({
     annotate: {
       alias: ['description', 'note'],
       method(...notes) {
-        Dust.assert(
-          notes.length > 0,
-          'The parameter notes for any.annotate must have at least a note',
-        );
+        assert(notes.length > 0, 'The parameter notes for any.annotate must have at least a note');
 
-        Dust.assert(
+        assert(
           notes.every(note => typeof note === 'string'),
           'The paramater notes for any.annotate must be an array of strings',
         );
@@ -65,7 +62,7 @@ module.exports = Base.base().extend({
 
     strip: {
       method(enabled = true) {
-        Dust.assert(
+        assert(
           typeof enabled === 'boolean',
           'The parameter enabled for any.strip must be a boolean',
         );

@@ -1,4 +1,4 @@
-const Dust = require('@botbind/dust');
+const assert = require('@botbind/dust/src/assert');
 const any = require('./any');
 
 module.exports = any.extend({
@@ -32,7 +32,7 @@ module.exports = any.extend({
   rules: {
     sensitive: {
       method(enabled = true) {
-        Dust.assert(
+        assert(
           typeof enabled === 'boolean',
           'The parameter enabled for boolean.sensitive must be a boolean',
         );

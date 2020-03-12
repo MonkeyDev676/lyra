@@ -1,4 +1,5 @@
-const Dust = require('@botbind/dust');
+const assert = require('@botbind/dust/src/assert');
+const attachMethod = require('@botbind/dust/src/attachMethod');
 const alternatives = require('./schemas/alternatives');
 const any = require('./schemas/any');
 const boolean = require('./schemas/boolean');
@@ -42,7 +43,7 @@ const root = {
     const Lyra = { ...this };
 
     for (let definition of definitions) {
-      Dust.assert(
+      assert(
         Lyra[definition.type] === undefined,
         'The option type for extend is invalid as it is built-in',
       );
@@ -52,10 +53,7 @@ const root = {
         ...definition,
       };
 
-      Dust.assert(
-        this.isSchema(definition.from),
-        'The option from for extend must be a valid schema',
-      );
+      assert(this.isSchema(definition.from), 'The option from for extend must be a valid schema');
 
       const from = definition.from;
 
@@ -96,7 +94,7 @@ for (const methodName of [
   'note',
   'description',
 ])
-  Dust.attachMethod(root, methodName, function method(...args) {
+  attachMethod(root, methodName, function method(...args) {
     return any[methodName](...args);
   });
 

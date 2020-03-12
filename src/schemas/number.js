@@ -1,4 +1,5 @@
-const Dust = require('@botbind/dust');
+const assert = require('@botbind/dust/src/assert');
+const compare = require('@botbind/dust/src/compare');
 const any = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
@@ -49,7 +50,7 @@ module.exports = any.extend({
   rules: {
     unsafe: {
       method(enabled = true) {
-        Dust.assert(
+        assert(
           typeof enabled === 'boolean',
           'The parameter enabled for number.unsafe must be a boolean',
         );
@@ -61,7 +62,7 @@ module.exports = any.extend({
     compare: {
       method: false,
       validate: (value, { args: { num, operator }, name, error }) => {
-        return Dust.compare(value, num, operator) ? value : error(`number.${name}`, { num });
+        return compare(value, num, operator) ? value : error(`number.${name}`, { num });
       },
       args: {
         num: {

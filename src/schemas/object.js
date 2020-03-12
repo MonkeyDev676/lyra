@@ -1,16 +1,17 @@
 const Constellation = require('@botbind/constellation');
-const Dust = require('@botbind/dust');
+const assert = require('@botbind/dust/src/assert');
+const clone = require('@botbind/dust/src/clone');
+const compare = require('@botbind/dust/src/compare');
+const isObject = require('@botbind/dust/src/isObject');
 const any = require('./any');
 const Base = require('../base');
 const Ref = require('../ref');
 const _isNumber = require('../internals/_isNumber');
 
 function _dependency(schema, peers, type) {
-  Dust.assert(
-    peers.length > 0,
-    `The parameter peers for object.${type} must have at least one item`,
-  );
-  Dust.assert(
+  assert(peers.length > 0, `The parameter peers for object.${type} must have at least one item`);
+
+  assert(
     peers.every(peer => typeof peer === 'string' || Ref.isRef(peer)),
     `The parameter peers for object.${type} must contain only instances of Ref or strings`,
   );
@@ -129,13 +130,13 @@ module.exports = any.extend({
   },
 
   validate: (value, { schema, state, opts, error, original }) => {
-    if (!Dust.isObject(value) || Array.isArray(value)) return error('object.base');
+    if (!isObject(value) || Array.isArray(value)) return error('object.base');
 
     const errors = [];
     const keys = new Set(Object.keys(value));
 
     // Shallow clone
-    value = Dust.clone(value, { recursive: false });
+    value = clone(value, { recursive: false });
 
     for (const [key, subSchema] of schema.$index.keys) {
       const subValue = value[key];
@@ -191,20 +192,17 @@ module.exports = any.extend({
     keys: {
       alias: ['of', 'shape'],
       method(keys) {
-        Dust.assert(
-          Dust.isPlainObject(keys),
-          'The parameter keys for object.keys must be a plain object',
-        );
+        assert(isObject(keys), 'The parameter keys for object.keys must be a plain object');
 
         const target = this.$clone();
         const keysKeys = Object.keys(keys);
 
-        Dust.assert(
+        assert(
           keysKeys.length > 0,
           'The parameter keys for object keys must contain at least a valid schema',
         );
 
-        Dust.assert(
+        assert(
           keysKeys.every(key => Base.isSchema(keys[key])),
           'The parameter keys for object.keys must contain valid schemas',
         );
@@ -222,7 +220,7 @@ module.exports = any.extend({
     compare: {
       method: false,
       validate: (value, { args: { length, operator }, error, name }) => {
-        return Dust.compare(Object.keys(value).length, length, operator)
+        return compare(Object.keys(value).length, length, operator)
           ? value
           : error(`object.${name}`, { length });
       },

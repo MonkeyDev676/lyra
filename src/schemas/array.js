@@ -1,15 +1,17 @@
-const Dust = require('@botbind/dust');
+const assert = require('@botbind/dust/src/assert');
+const clone = require('@botbind/dust/src/clone');
+const compare = require('@botbind/dust/src/compare');
 const any = require('./any');
 const Base = require('../base');
 const _isNumber = require('../internals/_isNumber');
 
 function _items(schema, items, type) {
-  Dust.assert(items.length > 0, `At least an item must be provided to array.${type}`);
+  assert(items.length > 0, `At least an item must be provided to array.${type}`);
 
   const target = schema.$clone();
 
   for (const item of items) {
-    Dust.assert(
+    assert(
       Base.isSchema(item),
       `The parameter items for array.${type} must only contain valid schemas`,
     );
@@ -116,7 +118,7 @@ module.exports = any.extend({
     const includeds = [...schema.$index._optionals, ...schema.$index._requireds];
 
     // Shallow clone value
-    value = Dust.clone(value, { recursive: false });
+    value = clone(value, { recursive: false });
 
     for (let i = 0; i < value.length; i++) {
       const subValue = value[i];
@@ -329,7 +331,7 @@ module.exports = any.extend({
 
     sparse: {
       method(enabled = true) {
-        Dust.assert(
+        assert(
           typeof enabled === 'boolean',
           'The parameter enabled for array.sparse must be a boolean',
         );
@@ -341,9 +343,7 @@ module.exports = any.extend({
     compare: {
       method: false,
       validate: (value, { args: { length, operator }, error, name }) => {
-        return Dust.compare(value.length, length, operator)
-          ? value
-          : error(`array.${name}`, { length });
+        return compare(value.length, length, operator) ? value : error(`array.${name}`, { length });
       },
       args: {
         length: {
