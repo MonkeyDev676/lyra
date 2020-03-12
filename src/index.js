@@ -1,30 +1,26 @@
+/* eslint-disable global-require */
 const assert = require('@botbind/dust/src/assert');
 const attachMethod = require('@botbind/dust/src/attachMethod');
-const Base = require('./base');
-const Ref = require('./ref');
 const alternatives = require('./schemas/alternatives');
-const any = require('./schemas/any');
 const boolean = require('./schemas/boolean');
 const string = require('./schemas/string');
-const date = require('./schemas/date');
 const number = require('./schemas/number');
 const array = require('./schemas/array');
 const func = require('./schemas/function');
 const object = require('./schemas/object');
-const symbols = require('./symbols');
 
 const root = {
-  ...Base,
-  ...Ref,
-  symbols,
+  ...require('./base'),
+  ...require('./ref'),
+  symbols: require('./symbols'),
   alternatives,
   alt: alternatives,
-  any,
+  any: require('./schemas/any'),
   boolean,
   bool: boolean,
   string,
   str: string,
-  date,
+  date: require('./schemas/date'),
   number,
   num: number,
   array,
@@ -97,7 +93,7 @@ for (const methodName of [
   'description',
 ])
   attachMethod(root, methodName, function method(...args) {
-    return any[methodName](...args);
+    return this.any[methodName](...args);
   });
 
 module.exports = root;
