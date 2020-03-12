@@ -530,8 +530,11 @@ class _Base {
 
     const target = opts.clone ? this.$clone() : this;
 
+    delete opts.clone;
+
     // Infer method
     opts.method = opts.method === undefined ? opts.name : opts.method;
+    opts.refs = [];
 
     const ruleDef = target._definition.rules[opts.method];
 
@@ -546,18 +549,18 @@ class _Base {
       const isArgRef = Ref.isRef(arg);
 
       // Params assertions
-      assert(
-        argDef.assert(arg) || (argDef.ref && isArgRef),
-        'The parameter',
-        argName,
-        'of',
-        `${target.type}.${opts.name}`,
-        argDef.reason,
-      );
-
-      if (isArgRef) {
+      if (argDef.ref && isArgRef) {
+        opts.refs.push(argName);
         target._refs.register(arg);
-      }
+      } else
+        assert(
+          argDef.assert === undefined || argDef.assert(arg),
+          'The parameter',
+          argName,
+          'of',
+          `${target.type}.${opts.name}`,
+          argDef.reason,
+        );
     }
 
     if (ruleDef.single) {
@@ -1096,15 +1099,13 @@ class _Base {
       const args = { ...rule.args };
       let errored = false;
 
-      for (const argName of Object.keys(argDefs)) {
+      for (const argName of rule.refs) {
         const argDef = argDefs[argName];
         const arg = args[argName];
 
-        if (!Ref.isRef(arg)) continue;
-
         const resolved = arg.resolve(value, state._ancestors, opts.context);
 
-        if (!argDef.assert(resolved)) {
+        if (argDef.assert !== undefined && !argDef.assert(resolved)) {
           const err = helpers.error('any.ref', {
             ref: arg,
             reason: argDef.reason,

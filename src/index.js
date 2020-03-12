@@ -43,6 +43,8 @@ const root = {
     const Lyra = { ...this };
 
     for (let definition of definitions) {
+      if (typeof definition === 'function') definition = definition(Lyra);
+
       assert(
         Lyra[definition.type] === undefined,
         'The option type for extend is invalid as it is built-in',
