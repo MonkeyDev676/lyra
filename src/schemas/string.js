@@ -1,5 +1,5 @@
 const Dust = require('@botbind/dust');
-const { any } = require('./any');
+const any = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
 const _regexp = {

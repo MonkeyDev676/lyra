@@ -1,6 +1,51 @@
 const Dust = require('@botbind/dust');
-const { any, isSchema } = require('./any');
+const any = require('./any');
+const Base = require('../base');
 const _isNumber = require('../internals/_isNumber');
+
+function _items(schema, items, type) {
+  Dust.assert(items.length > 0, `At least an item must be provided to array.${type}`);
+
+  const target = schema.$clone();
+
+  for (const item of items) {
+    Dust.assert(
+      Base.isSchema(item),
+      `The parameter items for array.${type} must only contain valid schemas`,
+    );
+
+    target.$index[type].push(item);
+  }
+
+  return target.$rebuild();
+}
+
+function _errorMissedRequireds(requireds, error) {
+  const knownMisses = [];
+  let unknownMisses = 0;
+
+  for (const required of requireds) {
+    const label = required.$flags.label;
+
+    if (label !== undefined) knownMisses.push(label);
+    else unknownMisses++;
+  }
+
+  const s = unknownMisses > 1 ? 's' : '';
+
+  if (knownMisses.length) {
+    if (unknownMisses > 0)
+      return error('array.requiredBoth', {
+        knownMisses,
+        unknownMisses,
+        grammar: { s },
+      });
+
+    return error('array.requiredKnowns', { knownMisses });
+  }
+
+  return error('array.requiredUnknowns', { unknownMisses, grammar: { s } });
+}
 
 module.exports = any.extend({
   type: 'array',
@@ -339,47 +384,3 @@ module.exports = any.extend({
     },
   },
 });
-
-function _items(schema, items, type) {
-  Dust.assert(items.length > 0, `At least an item must be provided to array.${type}`);
-
-  const target = schema.$clone();
-
-  for (const item of items) {
-    Dust.assert(
-      isSchema(item),
-      `The parameter items for array.${type} must only contain valid schemas`,
-    );
-
-    target.$index[type].push(item);
-  }
-
-  return target.$rebuild();
-}
-
-function _errorMissedRequireds(requireds, error) {
-  const knownMisses = [];
-  let unknownMisses = 0;
-
-  for (const required of requireds) {
-    const label = required.$flags.label;
-
-    if (label !== undefined) knownMisses.push(label);
-    else unknownMisses++;
-  }
-
-  const s = unknownMisses > 1 ? 's' : '';
-
-  if (knownMisses.length) {
-    if (unknownMisses > 0)
-      return error('array.requiredBoth', {
-        knownMisses,
-        unknownMisses,
-        grammar: { s },
-      });
-
-    return error('array.requiredKnowns', { knownMisses });
-  }
-
-  return error('array.requiredUnknowns', { unknownMisses, grammar: { s } });
-}

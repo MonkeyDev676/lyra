@@ -1,5 +1,6 @@
 const Dust = require('@botbind/dust');
-const { any, isSchema } = require('./any');
+const any = require('./any');
+const Base = require('../base');
 
 module.exports = any.extend({
   type: 'alternatives',
@@ -50,7 +51,7 @@ module.exports = any.extend({
 
         for (const item of items) {
           Dust.assert(
-            isSchema(item),
+            Base.isSchema(item),
             'The parameter items for alternatives.try must only contain valid schemas',
           );
 

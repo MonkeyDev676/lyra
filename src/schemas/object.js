@@ -1,8 +1,78 @@
 const Constellation = require('@botbind/constellation');
 const Dust = require('@botbind/dust');
-const { any, isSchema } = require('./any');
-const { ref, isRef } = require('../ref');
+const any = require('./any');
+const Base = require('../base');
+const Ref = require('../ref');
 const _isNumber = require('../internals/_isNumber');
+
+function _dependency(schema, peers, type) {
+  Dust.assert(
+    peers.length > 0,
+    `The parameter peers for object.${type} must have at least one item`,
+  );
+  Dust.assert(
+    peers.every(peer => typeof peer === 'string' || Ref.isRef(peer)),
+    `The parameter peers for object.${type} must contain only instances of Ref or strings`,
+  );
+
+  peers = peers.map(peer => (typeof peer === 'string' ? Ref.ref(peer) : peer));
+
+  const target = schema.$clone();
+
+  target.$index.dependencies.push([type, peers]);
+
+  return target;
+}
+
+const _dependencies = {
+  and: (value, peers, ancestors, context) => {
+    for (const peer of peers) {
+      if (peer.resolve(value, ancestors, context) === undefined) return peers;
+    }
+
+    return false;
+  },
+  nand: (value, peers, ancestors, context) => {
+    for (const peer of peers) {
+      if (peer.resolve(value, ancestors, context) === undefined) return false;
+    }
+
+    return peers;
+  },
+  or: (value, peers, ancestors, context) => {
+    for (const peer of peers) {
+      if (peer.resolve(value, ancestors, context) !== undefined) return false;
+    }
+
+    return peers;
+  },
+  xor: (value, peers, ancestors, context) => {
+    let count = 0;
+
+    for (const peer of peers) {
+      if (peer.resolve(value, ancestors, context) !== undefined) {
+        if (count === 0) count++;
+        else return peers;
+      }
+    }
+
+    if (count === 0) return peers;
+
+    return false;
+  },
+  oxor: (value, peers, ancestors, context) => {
+    let count = 0;
+
+    for (const peer of peers) {
+      if (peer.resolve(value, ancestors, context) !== undefined) {
+        if (count === 0) count++;
+        else return peers;
+      }
+    }
+
+    return false;
+  },
+};
 
 module.exports = any.extend({
   type: 'object',
@@ -135,7 +205,7 @@ module.exports = any.extend({
         );
 
         Dust.assert(
-          keysKeys.every(key => isSchema(keys[key])),
+          keysKeys.every(key => Base.isSchema(keys[key])),
           'The parameter keys for object.keys must contain valid schemas',
         );
 
@@ -242,72 +312,3 @@ module.exports = any.extend({
     },
   },
 });
-
-function _dependency(schema, peers, type) {
-  Dust.assert(
-    peers.length > 0,
-    `The parameter peers for object.${type} must have at least one item`,
-  );
-  Dust.assert(
-    peers.every(peer => typeof peer === 'string' || isRef(peer)),
-    `The parameter peers for object.${type} must contain only instances of Ref or strings`,
-  );
-
-  peers = peers.map(peer => (typeof peer === 'string' ? ref(peer) : peer));
-
-  const target = schema.$clone();
-
-  target.$index.dependencies.push([type, peers]);
-
-  return target;
-}
-
-const _dependencies = {
-  and: (value, peers, ancestors, context) => {
-    for (const peer of peers) {
-      if (peer.resolve(value, ancestors, context) === undefined) return peers;
-    }
-
-    return false;
-  },
-  nand: (value, peers, ancestors, context) => {
-    for (const peer of peers) {
-      if (peer.resolve(value, ancestors, context) === undefined) return false;
-    }
-
-    return peers;
-  },
-  or: (value, peers, ancestors, context) => {
-    for (const peer of peers) {
-      if (peer.resolve(value, ancestors, context) !== undefined) return false;
-    }
-
-    return peers;
-  },
-  xor: (value, peers, ancestors, context) => {
-    let count = 0;
-
-    for (const peer of peers) {
-      if (peer.resolve(value, ancestors, context) !== undefined) {
-        if (count === 0) count++;
-        else return peers;
-      }
-    }
-
-    if (count === 0) return peers;
-
-    return false;
-  },
-  oxor: (value, peers, ancestors, context) => {
-    let count = 0;
-
-    for (const peer of peers) {
-      if (peer.resolve(value, ancestors, context) !== undefined) {
-        if (count === 0) count++;
-        else return peers;
-      }
-    }
-
-    return false;
-  },
-};

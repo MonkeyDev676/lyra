@@ -8,17 +8,19 @@ const number = require('./schemas/number');
 const array = require('./schemas/array');
 const func = require('./schemas/function');
 const object = require('./schemas/object');
+const base = require('./base');
 const ref = require('./ref');
 const list = require('./list');
 const symbols = require('./symbols');
 
 const root = {
+  ...base,
   ...ref,
   ...list,
-  ...any,
   symbols,
   alternatives,
   alt: alternatives,
+  any,
   boolean,
   bool: boolean,
   string,

@@ -1,7 +1,7 @@
 const Dust = require('@botbind/dust');
-const { isRef } = require('./ref');
+const Ref = require('./ref');
 
-const _listSymbol = Symbol('__LIST');
+const _listSymbol = Symbol('__LIST__');
 
 class _List {
   constructor(values, refs) {
@@ -33,7 +33,7 @@ class _List {
   }
 
   add(item, refs) {
-    if (isRef(item)) {
+    if (Ref.isRef(item)) {
       this._refs.add(item);
 
       if (refs !== undefined) refs.register(item);
@@ -43,7 +43,7 @@ class _List {
   }
 
   delete(item) {
-    if (isRef(item)) this._refs.delete(item);
+    if (Ref.isRef(item)) this._refs.delete(item);
     else this._values.delete(item);
 
     return this;
