@@ -585,22 +585,18 @@ class _Base {
 
     assert(typeof opts.type === 'string', 'The option type for any.extend must be a string');
 
-    ['flags', 'index', 'messages', 'rules'].forEach(optName => {
-      const opt = opts[optName];
+    ['flags', 'index', 'messages', 'rules'].forEach(optName =>
+      assert(isObject(opts[optName]), 'The option', optName, 'for any.extend must be an object'),
+    );
 
-      assert(isObject(opt), 'The option', optName, 'for any.extend must be an object');
-    });
-
-    ['validate', 'rebuild', 'coerce'].forEach(optName => {
-      const opt = opts[optName];
-
+    ['validate', 'rebuild', 'coerce'].forEach(optName =>
       assert(
-        opt === undefined || typeof opt === 'function',
+        opts[optName] === undefined || typeof opts[optName] === 'function',
         'The option',
         optName,
         'for any.extend must be a function',
-      );
-    });
+      ),
+    );
 
     // Have to clone proto for $clone to work on different types
     // If only instances are cloned then $clone() will not return the extended rules
@@ -691,18 +687,16 @@ class _Base {
         'must be an array of strings',
       );
 
-      ['single', 'priority'].forEach(optName => {
-        const opt = ruleDef[optName];
-
+      ['single', 'priority'].forEach(optName =>
         assert(
-          typeof opt === 'boolean',
+          typeof ruleDef[optName] === 'boolean',
           'The option',
           optName,
           'for rule',
           ruleName,
           'must be a boolean',
-        );
-      });
+        ),
+      );
 
       assert(
         ruleDef.validate === undefined || typeof ruleDef.validate === 'function',
