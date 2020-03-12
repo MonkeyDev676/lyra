@@ -341,9 +341,9 @@ module.exports = any.extend({
     compare: {
       method: false,
       validate: (value, { args: { length, operator }, error, name }) => {
-        if (Dust.compare(value.length, length, operator)) return value;
-
-        return error(`array.${name}`, { length });
+        return Dust.compare(value.length, length, operator)
+          ? value
+          : error(`array.${name}`, { length });
       },
       args: {
         length: {

@@ -35,10 +35,7 @@ module.exports = any.extend({
   },
 
   validate: (value, { error }) => {
-    // Check for invalid dates
-    if (_isValidDate(value)) return value;
-
-    return error('date.base');
+    return _isValidDate(value) ? value : error('date.base');
   },
 
   rules: {
@@ -50,9 +47,9 @@ module.exports = any.extend({
         if (date === 'now') compareDate = Date.now();
         else compareDate = date.getTime();
 
-        if (Dust.compare(value.getTime(), compareDate, operator)) return value;
-
-        return error(`date.${name}`, { date });
+        return Dust.compare(value.getTime(), compareDate, operator)
+          ? value
+          : error(`date.${name}`, { date });
       },
       args: {
         date: {

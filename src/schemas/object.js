@@ -221,16 +221,17 @@ module.exports = any.extend({
 
     compare: {
       method: false,
-      validate({ value, params }) {
-        return Dust.compare(Object.keys(value).length, params.length, params.operator);
+      validate: (value, { args: { length, operator }, error, name }) => {
+        return Dust.compare(Object.keys(value).length, length, operator)
+          ? value
+          : error(`object.${name}`, { length });
       },
-      params: [
-        {
-          name: 'length',
+      args: {
+        length: {
           assert: _isNumber,
           reason: 'must be a number',
         },
-      ],
+      },
     },
 
     length: {
@@ -238,7 +239,7 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'length',
           method: 'compare',
-          params: { length, operator: '=' },
+          args: { length, operator: '=' },
         });
       },
     },
@@ -248,7 +249,7 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'min',
           method: 'compare',
-          params: { length, operator: '>=' },
+          args: { length, operator: '>=' },
         });
       },
     },
@@ -258,27 +259,24 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'max',
           method: 'compare',
-          params: { length, operator: '<=' },
+          args: { length, operator: '<=' },
         });
       },
     },
 
     instance: {
       method(ctor) {
-        return this.$addRule({ name: 'instance', params: { ctor } });
+        return this.$addRule({ name: 'instance', args: { ctor } });
       },
-      validate({ value, params }) {
-        return value instanceof params.ctor;
+      validate: (value, { args: { ctor }, error }) => {
+        return value instanceof ctor ? value : error('object.instance', { ctor });
       },
-      params: [
-        {
-          name: 'ctor',
-          assert(resolved) {
-            return resolved === 'function';
-          },
+      args: {
+        ctor: {
+          assert: arg => typeof arg === 'function',
           reason: 'must be a function',
         },
-      ],
+      },
     },
 
     and: {

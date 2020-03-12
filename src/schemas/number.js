@@ -61,9 +61,7 @@ module.exports = any.extend({
     compare: {
       method: false,
       validate: (value, { args: { num, operator }, name, error }) => {
-        if (Dust.compare(value, num, operator)) return value;
-
-        return error(`number.${name}`, { num });
+        return Dust.compare(value, num, operator) ? value : error(`number.${name}`, { num });
       },
       args: {
         num: {
@@ -75,9 +73,7 @@ module.exports = any.extend({
 
     integer: {
       validate: (value, { error }) => {
-        if (Number.isInteger(value)) return value;
-
-        return error('number.integer');
+        return Number.isInteger(value) ? value : error('number.integer');
       },
     },
 
@@ -121,9 +117,7 @@ module.exports = any.extend({
         return this.$addRule({ name: 'multiple', args: { num } });
       },
       validate: (value, { args: { num }, error }) => {
-        if (value % num === 0) return value;
-
-        return error('number.multiple', { num });
+        return value % num === 0 ? value : error('number.multiple', { num });
       },
       args: {
         num: {
@@ -145,9 +139,7 @@ module.exports = any.extend({
         return this.$addRule({ name: 'divide', args: { num } });
       },
       validate: (value, { args: { num }, error }) => {
-        if (num % value === 0) return value;
-
-        return error('number.divide', { num });
+        return num % value === 0 ? value : error('number.divide', { num });
       },
       args: {
         num: {

@@ -58,18 +58,16 @@ module.exports = any.extend({
   },
 
   validate: (value, { error }) => {
-    if (typeof value !== 'string') return error('string.base');
-
-    return value;
+    return typeof value === 'string' ? value : error('string.base');
   },
 
   rules: {
     compare: {
       method: false,
       validate: (value, { args: { length, operator }, error, name }) => {
-        if (Dust.compare(value.length, length, operator)) return value;
-
-        return error(`string.${name}`, { length });
+        return Dust.compare(value.length, length, operator)
+          ? value
+          : error(`string.${name}`, { length });
       },
       args: {
         length: {
@@ -123,9 +121,7 @@ module.exports = any.extend({
           mul ^= 3;
         }
 
-        if (sum > 0 && sum % 10 === 0) return value;
-
-        return error('string.creditCard');
+        return sum > 0 && sum % 10 === 0 ? value : error('string.creditCard');
       },
     },
 
@@ -135,9 +131,9 @@ module.exports = any.extend({
         return this.$addRule({ name: 'pattern', args: { regexp } });
       },
       validate: (value, { args: { regexp }, error, name }) => {
-        if (regexp.test(value)) return value;
-
-        return error(`string.${name}`, name === 'pattern' ? { regexp } : undefined);
+        return regexp.test(value)
+          ? value
+          : error(`string.${name}`, name === 'pattern' ? { regexp } : undefined);
       },
       args: {
         regexp: {
@@ -180,11 +176,9 @@ module.exports = any.extend({
         return this.$addRule({ name: 'case', args: { dir } });
       },
       validate: (value, { args: { dir }, name, error }) => {
-        if (dir === 'lower' && value.toLocaleLowerCase() === value) return { value, errors: null };
+        if (dir === 'lower' && value.toLocaleLowerCase() === value) return value;
 
-        if (value.toLocaleUpperCase() === value) return value;
-
-        return error(`string.${name}`);
+        return value.toLocaleUpperCase() === value ? value : error(`string.${name}`);
       },
       args: {
         dir: {
@@ -228,9 +222,7 @@ module.exports = any.extend({
         return target;
       },
       validate: (value, { error, args: { enabled } }) => {
-        if (!enabled || value === value.trim()) return value;
-
-        return { value: null, errors: [error('string.trim')] };
+        return !enabled || value === value.trim() ? value : error('string.trim');
       },
     },
 

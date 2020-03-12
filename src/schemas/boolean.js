@@ -26,9 +26,7 @@ module.exports = any.extend({
   },
 
   validate: (value, { error }) => {
-    if (typeof value !== 'boolean') return error('boolean.base');
-
-    return value;
+    return typeof value === 'boolean' ? value : error('boolean.base');
   },
 
   rules: {
@@ -45,17 +43,13 @@ module.exports = any.extend({
 
     truthy: {
       validate: (value, { error }) => {
-        if (value) return value;
-
-        return error('boolean.truthy');
+        return value || error('boolean.truthy');
       },
     },
 
     falsy: {
       validate: (value, { error }) => {
-        if (!value) return value;
-
-        return error('boolean.falsy');
+        return !value || error('boolean.falsy');
       },
     },
   },

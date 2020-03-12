@@ -20,9 +20,9 @@ module.exports = any.extend({
         return this.$addRule({ name: 'inherit', args: { ctor } });
       },
       validate: (value, { args: { ctor }, error }) => {
-        if (value.prototype instanceof ctor) return value;
-
-        return error('function.inherit', { ctor });
+        return value.prototype instanceof ctor
+          ? value
+          : error('function.inherit', { ctor: ctor.name });
       },
       args: {
         ctor: {
