@@ -305,12 +305,13 @@ function _createError(schema, code, state, context, local = {}) {
       err = err(code, state, context, local);
 
       assert(
-        typeof err === 'string' || err instanceof Error,
-        'The error customizer function must return either a string or an instance of Error',
+        err === symbols.next || typeof err === 'string' || err instanceof Error,
+        'The error customizer function must return a string or an instance of Error',
       );
     }
 
-    return new _ValidationError(err instanceof Error ? err.message : err, code, state);
+    if (err !== symbols.next)
+      return new _ValidationError(err instanceof Error ? err.message : err, code, state);
   }
 
   const template = schema._definition.messages[code];
@@ -320,9 +321,7 @@ function _createError(schema, code, state, context, local = {}) {
   let label = schema.$flags.label;
 
   if (label === undefined) {
-    const path = state._path;
-
-    if (path.length > 0) label = path.join('.');
+    if (state._path.length > 0) label = state._path.join('.');
     else label = 'unknown';
   }
 
