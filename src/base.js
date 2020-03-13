@@ -564,7 +564,7 @@ class _Base {
 
     if (ruleDef.single) {
       // Remove duplicate rules
-      target._rules = target._rules.filter(({ method }) => method !== opts.method);
+      target._rules = target._rules.filter(rule => rule.name !== opts.name);
     }
 
     if (ruleDef.priority) target._rules.unshift(opts);
