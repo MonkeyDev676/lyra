@@ -1179,14 +1179,12 @@ class _Base {
 
 Object.defineProperty(_Base.prototype, _schemaSymbol, { value: true });
 
-const _methods = [
+for (const [method, ...aliases] of [
   ['required', 'exists', 'present'],
   ['valid', 'allow', 'equal', 'is'],
   ['invalid', 'deny', 'disallow', 'not'],
   ['opts', 'options', 'prefs', 'preferences'],
-];
-
-for (const [method, ...aliases] of _methods) {
+]) {
   aliases.forEach(alias => {
     attachMethod(_Base.prototype, alias, _Base.prototype[method]);
   });
