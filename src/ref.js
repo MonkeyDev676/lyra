@@ -56,6 +56,7 @@ class _Ref {
 
   describe() {
     return {
+      root: this._root,
       originalPath: this._originalPath,
       separator: this._separator,
     };
