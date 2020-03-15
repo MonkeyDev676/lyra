@@ -7,10 +7,10 @@ module.exports = any.extend({
     sensitive: false,
   },
   messages: {
-    'boolean.base': '{label} must be a boolean',
-    'boolean.coerce': '{label} cannot be coerced to a boolean',
-    'boolean.truthy': '{label} must be truthy',
-    'boolean.falsy': '{label} must be falsy',
+    'boolean.base': '{#label} must be a boolean',
+    'boolean.coerce': '{#label} cannot be coerced to a boolean',
+    'boolean.truthy': '{#label} must be truthy',
+    'boolean.falsy': '{#label} must be falsy',
   },
 
   coerce: (value, { schema, error }) => {

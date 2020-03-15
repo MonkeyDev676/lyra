@@ -11,9 +11,9 @@ module.exports = any.extend({
     items: {},
   },
   messages: {
-    'alternatives.any': '{label} must match at least one of the provided schemas',
-    'alternatives.one': '{label} must not match more than one of the provided schemas',
-    'alternatives.all': '{label} must match all of the provided schemas',
+    'alternatives.any': '{#label} must match at least one of the provided schemas',
+    'alternatives.one': '{#label} must not match more than one of the provided schemas',
+    'alternatives.all': '{#label} must match all of the provided schemas',
   },
 
   validate: (value, { schema, opts, state, error }) => {

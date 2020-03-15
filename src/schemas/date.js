@@ -4,12 +4,12 @@ const any = require('./any');
 module.exports = any.extend({
   type: 'date',
   messages: {
-    'date.base': '{label} must be a valid date',
-    'date.coerce': '{label}} cannot be coerced to a date object',
-    'date.max': '{label} must be smaller than or equal to {date}',
-    'date.min': '{label} must be greater than or equal to {date}',
-    'date.greater': '{label} must be greater than {date}',
-    'date.smaller': '{label} must be smaller than {date}',
+    'date.base': '{#label} must be a valid date',
+    'date.coerce': '{#label}} cannot be coerced to a date object',
+    'date.max': '{#label} must be smaller than or equal to {date}',
+    'date.min': '{#label} must be greater than or equal to {date}',
+    'date.greater': '{#label} must be greater than {date}',
+    'date.smaller': '{#label} must be smaller than {date}',
   },
 
   coerce: (value, { error }) => {

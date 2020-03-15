@@ -3,8 +3,8 @@ const any = require('./any');
 module.exports = any.extend({
   type: 'function',
   messages: {
-    'function.base': '{label} must be a function',
-    'function.inherit': '{label} must inherit {ctor}',
+    'function.base': '{#label} must be a function',
+    'function.inherit': '{#label} must inherit {ctor}',
   },
 
   validate: (value, { error }) => {

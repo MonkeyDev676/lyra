@@ -9,7 +9,7 @@ module.exports = Base.base().extend({
     notes: [],
   },
   messages: {
-    'any.custom': '{label} fails validation {name} due to {err}',
+    'any.custom': '{#label} fails validation {name} due to {err}',
   },
 
   rules: {

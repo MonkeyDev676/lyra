@@ -290,19 +290,19 @@ function _values(schema, values, type) {
   return target;
 }
 
-function _createError(schema, code, state, context, local = {}) {
+function _createError(schema, code, state, context, terms = {}) {
   assert(typeof code === 'string', 'The parameter code for error must be a string');
 
   assert(state instanceof _State, 'The parameter state for error must be a valid state');
 
-  assert(isObject(local), 'The parameter local for error must be an object');
+  assert(isObject(terms), 'The parameter terms for error must be an object');
 
   // Return the error customizer if there is one
   let err = schema.$flags.error;
 
   if (err !== undefined) {
     if (typeof err === 'function') {
-      err = err(code, state, context, local);
+      err = err(code, state, context, terms);
 
       assert(
         err === symbols.next || typeof err === 'string' || err instanceof Error,
@@ -325,16 +325,21 @@ function _createError(schema, code, state, context, local = {}) {
     else label = 'unknown';
   }
 
-  // Reserved terms
-  let message = template.replace(/{label}/g, label);
+  const reserved = { label };
 
-  message = message.replace(/{([\w+.]+)}/g, (_, match) => {
-    const isContext = match[0] === '$';
+  // Message {#reserved} {$context} {normal}
+  const message = template.replace(/{([a-zA-z0-9$#]+)}/g, (_, match) => {
+    const prefix = match[0];
+    const isContext = prefix === '$';
+    const isReserved = prefix === '#';
 
-    local = isContext ? context : local;
-    match = isContext ? match.slice(1) : match;
+    if (isContext) terms = context;
 
-    const found = get(local, match, { default: _defaultSymbol });
+    if (isReserved) terms = reserved;
+
+    if (isContext || isReserved) match = match.slice(1);
+
+    const found = get(terms, match, { default: _defaultSymbol });
 
     assert(found !== _defaultSymbol, 'Term', match, 'not found');
 
@@ -372,12 +377,12 @@ class _Base {
       },
       rules: {}, // Rule definition, different from the rules array
       messages: {
-        'any.required': '{label} is required',
-        'any.forbidden': '{label} is forbidden',
-        'any.default': "Default value for {label} fails to resolve due to '{error}'",
+        'any.required': '{#label} is required',
+        'any.forbidden': '{#label} is forbidden',
+        'any.default': "Default value for {#label} fails to resolve due to '{error}'",
         'any.ref': '{ref} {reason}',
-        'any.only': '{label} must be {values}',
-        'any.invalid': '{label} must not be {values}',
+        'any.only': '{#label} must be {values}',
+        'any.invalid': '{#label} must not be {values}',
       },
     };
 
@@ -966,8 +971,8 @@ class _Base {
       state,
       opts,
       original: value,
-      error: (code, local, divedState = state) =>
-        _createError(schema, code, divedState, opts.context, local),
+      error: (code, terms, divedState = state) =>
+        _createError(schema, code, divedState, opts.context, terms),
     };
 
     // Valid values
