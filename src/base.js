@@ -29,45 +29,45 @@ class _ValidationError extends Error {
 // Stores registered refs
 class _Refs {
   constructor(refs = []) {
-    this._refs = refs; // Register refs [ancestor, root]
+    this.refs = refs; // Register refs [ancestor, root]
   }
 
   reset() {
-    this._refs = [];
+    this.refs = [];
   }
 
   clone() {
-    return new _Refs(this._refs);
+    return new _Refs(this.refs);
   }
 
   register(value) {
     if (Ref.isRef(value) && value._ancestor !== 'context' && value._ancestor - 1 >= 0)
-      this._refs.push([value._ancestor - 1, value._root]);
+      this.refs.push([value._ancestor - 1, value._root]);
 
     if (isSchema(value)) {
-      for (const [ancestor, root] of value._refs._refs)
-        if (ancestor - 1 >= 0) this._refs.push([ancestor - 1, root]);
+      for (const [ancestor, root] of value._refs.refs)
+        if (ancestor - 1 >= 0) this.refs.push([ancestor - 1, root]);
     }
   }
 
   references() {
-    return this._refs.filter(([ancestor]) => ancestor === 0).map(([, root]) => root);
+    return this.refs.filter(([ancestor]) => ancestor === 0).map(([, root]) => root);
   }
 }
 
 // Stores valids/invalids
 class _Values {
   constructor(values, refs) {
-    this._values = new Set(values);
-    this._refs = new Set(refs);
+    this.values = new Set(values);
+    this.refs = new Set(refs);
   }
 
   get size() {
-    return this._values.size + this._refs.size;
+    return this.values.size + this.refs.size;
   }
 
   clone() {
-    return new _Values(this._values, this._refs);
+    return new _Values(this.values, this.refs);
   }
 
   merge(src, remove) {
@@ -80,29 +80,29 @@ class _Values {
 
   add(item, refs) {
     if (Ref.isRef(item)) {
-      this._refs.add(item);
+      this.refs.add(item);
 
       if (refs !== undefined) refs.register(item);
-    } else this._values.add(item);
+    } else this.values.add(item);
 
     return this;
   }
 
   delete(item) {
-    if (Ref.isRef(item)) this._refs.delete(item);
-    else this._values.delete(item);
+    if (Ref.isRef(item)) this.refs.delete(item);
+    else this.values.delete(item);
 
     return this;
   }
 
   has(value, ancestors, context) {
-    if (this._values.has(value)) return true;
+    if (this.values.has(value)) return true;
 
-    for (const v of this._values) {
+    for (const v of this.values) {
       if (equal(v, value)) return true;
     }
 
-    for (const ref of this._refs) {
+    for (const ref of this.refs) {
       const resolved = ref.resolve(value, ancestors, context);
 
       if (equal(resolved, value)) return true;
@@ -114,11 +114,11 @@ class _Values {
   describe() {
     const desc = [];
 
-    for (const value of this._values) {
+    for (const value of this.values) {
       desc.push(value);
     }
 
-    for (const ref of this._refs) {
+    for (const ref of this.refs) {
       desc.push(ref.describe());
     }
 
@@ -126,7 +126,7 @@ class _Values {
   }
 
   values() {
-    return [...this._values, ...this._refs];
+    return [...this.values, ...this.refs];
   }
 }
 
