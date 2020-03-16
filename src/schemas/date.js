@@ -1,6 +1,10 @@
 const compare = require('@botbind/dust/src/compare');
 const any = require('./any');
 
+function _isValidDate(value) {
+  return value instanceof Date && !Number.isNaN(value.getTime());
+}
+
 module.exports = any.extend({
   type: 'date',
   messages: {
@@ -101,7 +105,3 @@ module.exports = any.extend({
     },
   },
 });
-
-function _isValidDate(value) {
-  return value instanceof Date && !Number.isNaN(value.getTime());
-}

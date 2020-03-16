@@ -995,7 +995,6 @@ class _Base {
     // Invalid values
     const invalids = schema._invalids;
 
-    console.log(invalids.values);
     if (invalids.size > 0) {
       if (invalids.has(value, state._ancestors, opts.context)) {
         const err = helpers.error('any.invalid', {
