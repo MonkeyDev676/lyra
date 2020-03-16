@@ -66,14 +66,18 @@ class _Values {
     return this.values.size + this.refs.size;
   }
 
+  get items() {
+    return [...this.values, ...this.refs];
+  }
+
   clone() {
     return new _Values(this.values, this.refs);
   }
 
   merge(src, remove) {
-    for (const value of src.values()) this.add(value);
+    for (const value of src.items) this.add(value);
 
-    if (remove !== undefined) for (const value of remove.values()) this.delete(value);
+    if (remove !== undefined) for (const value of remove.items) this.delete(value);
 
     return this;
   }
@@ -123,10 +127,6 @@ class _Values {
     }
 
     return desc;
-  }
-
-  values() {
-    return [...this.values, ...this.refs];
   }
 }
 
@@ -327,21 +327,17 @@ function _createError(schema, code, state, context, terms = {}) {
 
   const reserved = { label };
 
-  // Message {#reserved} {$context} {normal}
-  const message = template.replace(/{([a-zA-z0-9$#]+)}/g, (_, match) => {
-    const prefix = match[0];
-    const isContext = prefix === '$';
-    const isReserved = prefix === '#';
+  // Message {#reserved} {$context} {terms}
+  const message = template.replace(/{(#|\$)?([a-zA-z0-9_-]+)}/g, (_, prefix, term) => {
+    let newTerms = terms;
 
-    if (isContext) terms = context;
+    if (prefix === '$') newTerms = context;
 
-    if (isReserved) terms = reserved;
+    if (prefix === '#') newTerms = reserved;
 
-    if (isContext || isReserved) match = match.slice(1);
+    const found = get(newTerms, term, { default: _defaultSymbol });
 
-    const found = get(terms, match, { default: _defaultSymbol });
-
-    assert(found !== _defaultSymbol, 'Term', match, 'not found');
+    assert(found !== _defaultSymbol, 'Term', term, 'not found');
 
     return Ref.isRef(found) ? found._display : display(found);
   });
@@ -983,7 +979,7 @@ class _Base {
 
       if (schema.$flags.only) {
         const err = helpers.error('any.only', {
-          values: valids.values(),
+          values: valids.items,
         });
 
         if (opts.abortEarly)
@@ -999,10 +995,11 @@ class _Base {
     // Invalid values
     const invalids = schema._invalids;
 
+    console.log(invalids.values);
     if (invalids.size > 0) {
       if (invalids.has(value, state._ancestors, opts.context)) {
         const err = helpers.error('any.invalid', {
-          values: invalids.values(),
+          values: invalids.items,
         });
 
         if (opts.abortEarly)
