@@ -43,13 +43,13 @@ module.exports = any.extend({
   coerce: (value, { schema }) => {
     value = String(value);
 
-    const casing = schema.$flags.case;
+    const casing = schema.$getFlag('case');
 
     if (casing === 'upper') value = value.toLocaleUpperCase();
 
     if (casing === 'lower') value.toLocaleLowerCase();
 
-    if (schema.$flags.trim) value = value.trim();
+    if (schema.$getFlag('trim')) value = value.trim();
 
     for (const [pattern, replacement] of schema.$index.replace)
       value = value.replace(pattern, replacement);

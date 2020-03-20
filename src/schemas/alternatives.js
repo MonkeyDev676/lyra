@@ -31,9 +31,9 @@ module.exports = any.extend({
       matched = result.value;
     }
 
-    const mode = schema.$flags.mode;
+    const mode = schema.$getFlag('mode');
 
-    if (mode === undefined && matches === 0) return error('alternatives.any');
+    if (mode === 'any' && matches === 0) return error('alternatives.any');
 
     if (mode === 'one' && matches !== 1) return error('alternatives.one');
 

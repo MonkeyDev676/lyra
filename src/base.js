@@ -156,7 +156,7 @@ function _assign(target, src) {
   target._opts = { ...src._opts };
   target._valids = src._valids.clone();
   target._invalids = src._invalids.clone();
-  target.$flags = clone(src.$flags, { symbol: true });
+  target._flags = clone(src._flags, { symbol: true });
   target.$index = {};
 
   for (const key of Object.keys(src.$index)) target.$index[key] = [...src.$index[key]];
@@ -249,7 +249,6 @@ function _opts(methodName, withDefaults, rawOpts = {}) {
     allowUnknown: false,
     stripUnknown: false,
     context: {},
-    presence: 'optional',
     ...rawOpts,
   };
 
@@ -266,18 +265,7 @@ function _opts(methodName, withDefaults, rawOpts = {}) {
 
   assert(isObject(opts.context), 'The option context for', methodName, 'must be an object');
 
-  assert(
-    _validPresence(opts.presence),
-    'The option presence for',
-    methodName,
-    'must be optional, required or forbidden',
-  );
-
   return withDefaults ? opts : rawOpts;
-}
-
-function _validPresence(presence) {
-  return presence === 'optional' || presence === 'required' || presence === 'forbidden';
 }
 
 function _values(schema, values, type) {
@@ -304,7 +292,7 @@ function _createError(schema, code, state, context, terms = {}) {
   assert(isObject(terms), 'The parameter terms for error must be an object');
 
   // Return the error customizer if there is one
-  let err = schema.$flags.error;
+  let err = schema.$getFlag('error');
 
   if (err !== undefined) {
     if (typeof err === 'function') {
@@ -324,7 +312,7 @@ function _createError(schema, code, state, context, terms = {}) {
 
   assert(template !== undefined, 'Message template', code, 'not found');
 
-  let label = schema.$flags.label;
+  let label = schema.$getFlag('label');
 
   if (label === undefined) {
     if (state._path.length > 0) label = state._path.join('.');
@@ -373,6 +361,7 @@ class _Base {
       validate: null,
       flags: {
         only: { default: false },
+        presence: { default: 'optional' },
       },
       index: {
         conditions: {},
@@ -394,7 +383,7 @@ class _Base {
     this._invalids = new _Values();
 
     // Simple variables that affect outcome of validation (preferably primitives)
-    this.$flags = {};
+    this._flags = {};
     // Hash of arrays of immutable objects
     this.$index = {
       conditions: [],
@@ -440,7 +429,7 @@ class _Base {
     target._invalids = target._invalids.merge(src._invalids, src._valids);
 
     // Flags
-    target.$flags = merge(target.$flags, src.$flags, { symbol: true });
+    target._flags = merge(target._flags, src._flags, { symbol: true });
 
     // Index
     for (const key of Object.keys(src.$index)) {
@@ -464,6 +453,16 @@ class _Base {
     return target;
   }
 
+  $getFlag(name) {
+    if (!Object.prototype.hasOwnProperty.call(this._flags, name)) {
+      const flagDef = this._definition.flags[name];
+
+      return flagDef === undefined ? undefined : flagDef.default;
+    }
+
+    return this._flags[name];
+  }
+
   $setFlag(name, value, opts = {}) {
     assert(typeof name === 'string', 'The parameter name for any.$setFlag must be a string');
 
@@ -478,17 +477,17 @@ class _Base {
 
     const flagDef = this._definition.flags[name];
 
-    // If the flag is set to its default value, we either remove it or do nothing
-    if (flagDef !== undefined && equal(value, flagDef.default)) value = undefined;
+    // If the flag is set to its default value, we remove it
+    if (flagDef !== undefined && equal(value, flagDef.default)) value = symbols.removeFlag;
 
     // If the flag and the value are already equal, we don't do anything
-    if (equal(this.$flags[name], value, { symbol: true })) return this;
+    if (equal(this._flags[name], value, { symbol: true })) return this;
 
     const target = opts.clone ? this.$clone() : this;
 
-    if (value === undefined) delete target.$flags[name];
+    if (value === symbols.removeFlag) delete target._flags[name];
     else {
-      target.$flags[name] = value;
+      target._flags[name] = value;
 
       // For any flags that store refs such as default
       target._refs.register(value);
@@ -501,7 +500,7 @@ class _Base {
     // Reset the refs
     this._refs.reset();
 
-    _register(this.$flags, this._refs);
+    _register(this._flags, this._refs);
     _register(this._rules, this._refs);
     _register(this.$index, this._refs);
 
@@ -817,7 +816,7 @@ class _Base {
 
     desc.type = this.type;
 
-    if (Object.keys(this.$flags).length > 0) desc.flags = clone(this.$flags, { symbol: true });
+    if (Object.keys(this._flags).length > 0) desc.flags = clone(this._flags, { symbol: true });
 
     if (this._rules.length > 0)
       desc.rules = this._rules.map(({ name, args }) => {
@@ -874,7 +873,7 @@ class _Base {
 
   presence(presence) {
     assert(
-      _validPresence(presence),
+      presence === 'optional' || presence === 'required' || presence === 'forbidden',
       'The parameter presence for any.presence must be optional, required or forbidden',
     );
 
@@ -983,7 +982,7 @@ class _Base {
     if (valids.size > 0) {
       if (valids.has(value, state._ancestors, opts.context)) return { value, errors: null };
 
-      if (schema.$flags.only) {
+      if (schema.$getFlag('only')) {
         const err = helpers.error('any.only', {
           values: valids.display,
         });
@@ -1021,7 +1020,7 @@ class _Base {
 
     // If there's no presence override, use the flag
     if (presence === undefined) {
-      presence = schema.$flags.presence === undefined ? opts.presence : schema.$flags.presence;
+      presence = schema.$getFlag('presence');
     }
 
     // Required
@@ -1035,7 +1034,7 @@ class _Base {
 
       if (presence === 'forbidden') return { value, errors: null };
 
-      const defaultValue = schema.$flags.default;
+      const defaultValue = schema.$getFlag('default');
 
       if (presence === 'optional') {
         if (defaultValue === undefined) return { value: undefined, errors: null };

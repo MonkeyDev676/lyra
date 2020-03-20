@@ -16,7 +16,7 @@ module.exports = any.extend({
   coerce: (value, { schema, error }) => {
     if (typeof value !== 'string') return value;
 
-    value = schema.$flags.sensitive ? value.toLowerCase() : value;
+    value = schema.$getFlag('sensitive') ? value.toLowerCase() : value;
 
     if (value === 'true') return true;
 

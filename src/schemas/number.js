@@ -39,7 +39,7 @@ module.exports = any.extend({
     if (!_isNumber(value)) return error('number.base');
 
     if (
-      !schema.$flags.unsafe &&
+      !schema.$getFlag('unsafe') &&
       (value > Number.MAX_SAFE_INTEGER || value < Number.MIN_SAFE_INTEGER)
     )
       return error('number.unsafe');

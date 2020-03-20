@@ -150,7 +150,7 @@ module.exports = any.extend({
         if (opts.abortEarly) return result.errors;
 
         errors.push(...result.errors);
-      } else if (subSchema.$flags.strip) {
+      } else if (subSchema.$getFlag('strip')) {
         delete value[key];
       } else if (result.value !== undefined || Object.prototype.hasOwnProperty.call(value, key))
         value[key] = result.value;

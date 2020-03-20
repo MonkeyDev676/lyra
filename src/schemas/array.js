@@ -27,7 +27,7 @@ function _errorMissedRequireds(requireds, error) {
   let unknownMisses = 0;
 
   for (const required of requireds) {
-    const label = required.$flags.label;
+    const label = required.$getFlag('label');
 
     if (label !== undefined) knownMisses.push(label);
     else unknownMisses++;
@@ -99,9 +99,9 @@ module.exports = any.extend({
     schema.$index._forbiddens = [];
 
     for (const item of schema.$index.items) {
-      if (item.$flags.presence === 'required') schema.$index._requireds.push(item);
+      if (item.$getFlag('presence') === 'required') schema.$index._requireds.push(item);
 
-      if (item.$flags.presence === 'forbidden') schema.$index._forbiddens.push(item);
+      if (item.$getFlag('presence') === 'forbidden') schema.$index._forbiddens.push(item);
       else schema.$index._optionals.push(item);
     }
   },
@@ -112,7 +112,7 @@ module.exports = any.extend({
     if (!opts.recursive) return value;
 
     const errors = [];
-    const sparse = schema.$flags.sparse;
+    const sparse = schema.$getFlag('sparse');
     const ordereds = [...schema.$index.ordereds];
     const requireds = [...schema.$index._requireds];
     const includeds = [...schema.$index._optionals, ...schema.$index._requireds];
@@ -178,7 +178,7 @@ module.exports = any.extend({
         }
 
         // Strip
-        if (ordered.$flags.strip) {
+        if (ordered.$getFlag('strip')) {
           value.splice(i, 1);
 
           // Decrease i since the item has been spliced
@@ -224,7 +224,7 @@ module.exports = any.extend({
         if (result.errors === null) {
           isValid = true;
 
-          if (required.$flags.strip) {
+          if (required.$getFlag('strip')) {
             value.splice(i, 1);
 
             i--;
@@ -258,7 +258,7 @@ module.exports = any.extend({
           if (result.errors === null) {
             isValid = true;
 
-            if (included.$flags.strip) {
+            if (included.$getFlag('strip')) {
               value.splice(i, 1);
 
               i--;
@@ -301,7 +301,9 @@ module.exports = any.extend({
       errors.push(err);
     }
 
-    const requiredOrdereds = ordereds.filter(ordered => ordered.$flags.presence === 'required');
+    const requiredOrdereds = ordereds.filter(
+      ordered => ordered.$getFlag('presence') === 'required',
+    );
 
     if (requiredOrdereds.length > 0) {
       const err = _errorMissedRequireds(requiredOrdereds, error);
