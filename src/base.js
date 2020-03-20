@@ -440,7 +440,7 @@ class _Base {
       if (terms === undefined) {
         target.$index[key] = [...srcTerms];
       } else if (typeof termsDef.merge === 'function')
-        target.$index[key] = merge(terms, srcTerms, target, src);
+        target.$index[key] = termsDef.merge(terms, srcTerms, target, src);
       // If merge is undefined (default) then we perform concating
       else if (termsDef.merge === undefined) target.$index[key] = [...terms, ...srcTerms];
 
