@@ -2,7 +2,9 @@ const assert = require('@botbind/dust/src/assert');
 const get = require('@botbind/dust/src/get');
 const isObject = require('@botbind/dust/src/isObject');
 
-const _refSymbol = Symbol('__REF__');
+const _symbols = {
+  ref: Symbol('__REF__'),
+};
 
 class _Ref {
   constructor(path, opts) {
@@ -63,7 +65,7 @@ class _Ref {
   }
 }
 
-Object.defineProperty(_Ref.prototype, _refSymbol, { value: true });
+Object.defineProperty(_Ref.prototype, _symbols.ref, { value: true });
 
 function ref(path, opts = {}) {
   assert(typeof path === 'string', 'The parameter path for ref must be a string');
@@ -85,7 +87,7 @@ function ref(path, opts = {}) {
 }
 
 function isRef(value) {
-  return value != null && !!value[_refSymbol];
+  return value != null && !!value[_symbols.ref];
 }
 
 module.exports = {

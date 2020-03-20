@@ -3,14 +3,16 @@ const compare = require('@botbind/dust/src/compare');
 const any = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
-// The email regex is meant to be simple. Custom implementation can use any.custom
-// Copied from https://stackoverflow.com/a/41437076/10598722
-// eslint-disable-next-line no-useless-escape
-const _emailRegExp = /(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@[*[a-zA-Z0-9-]+.[a-zA-Z0-9-.]+]*/;
-// Copied from https://mathiasbynens.be/demo/url-regex @stephenhay
-const _urlRegExp = /^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/;
-const _alphanumRegExp = /^[a-zA-Z0-9]+$/;
-const _numRegExp = /^[0-9]+$/;
+const _regexp = {
+  // The email regex is meant to be simple. Custom implementation can use any.custom
+  // Copied from https://stackoverflow.com/a/41437076/10598722
+  // eslint-disable-next-line no-useless-escape
+  email: /(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@[*[a-zA-Z0-9-]+.[a-zA-Z0-9-.]+]*/,
+  // Copied from https://mathiasbynens.be/demo/url-regex @stephenhay
+  url: /^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/,
+  alphanum: /^[a-zA-Z0-9]+$/,
+  num: /^[0-9]+$/,
+};
 
 module.exports = any.extend({
   type: 'string',
@@ -143,13 +145,13 @@ module.exports = any.extend({
 
     email: {
       method() {
-        return this.$addRule({ name: 'email', method: 'pattern', args: { regexp: _emailRegExp } });
+        return this.$addRule({ name: 'email', method: 'pattern', args: { regexp: _regexp.email } });
       },
     },
 
     url: {
       method() {
-        return this.$addRule({ name: 'url', method: 'pattern', args: { regexp: _urlRegExp } });
+        return this.$addRule({ name: 'url', method: 'pattern', args: { regexp: _regexp.url } });
       },
     },
 
@@ -158,14 +160,14 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'alphanum',
           method: 'pattern',
-          args: { regexp: _alphanumRegExp },
+          args: { regexp: _regexp.alphanum },
         });
       },
     },
 
     numeric: {
       method() {
-        return this.$addRule({ name: 'numeric', method: 'pattern', args: { regexp: _numRegExp } });
+        return this.$addRule({ name: 'numeric', method: 'pattern', args: { regexp: _regexp.num } });
       },
     },
 

@@ -9,9 +9,11 @@ const merge = require('@botbind/dust/src/merge');
 const Ref = require('./ref');
 const symbols = require('./symbols');
 
-const _defaultSymbol = Symbol('__DEFAULT__');
-const _literalSymbol = Symbol('__LITERAL__');
-const _schemaSymbol = Symbol('__SCHEMA__');
+const _symbols = {
+  default: Symbol('__DEFAULT__'),
+  literal: Symbol('__LITERAL__'),
+  schema: Symbol('__SCHEMA__'),
+};
 
 class _ValidationError extends Error {
   constructor(message, code, state) {
@@ -68,6 +70,10 @@ class _Values {
 
   get items() {
     return [...this.values, ...this.refs];
+  }
+
+  get display() {
+    return [...this.values, ...this.refs.map(ref => ref._display)];
   }
 
   clone() {
@@ -335,9 +341,9 @@ function _createError(schema, code, state, context, terms = {}) {
 
     if (prefix === '#') newTerms = reserved;
 
-    const found = get(newTerms, term, { default: _defaultSymbol });
+    const found = get(newTerms, term, { default: _symbols.default });
 
-    assert(found !== _defaultSymbol, 'Term', term, 'not found');
+    assert(found !== _symbols.default, 'Term', term, 'not found');
 
     return Ref.isRef(found) ? found._display : display(found);
   });
@@ -906,7 +912,7 @@ class _Base {
     );
 
     if (typeof value === 'function' && opts.literal)
-      return this.$setFlag('default', { [_literalSymbol]: true, value });
+      return this.$setFlag('default', { [_symbols.literal]: true, value });
 
     return this.$setFlag('default', clone(value, opts.cloneOpts));
   }
@@ -979,7 +985,7 @@ class _Base {
 
       if (schema.$flags.only) {
         const err = helpers.error('any.only', {
-          values: valids.items,
+          values: valids.display,
         });
 
         if (opts.abortEarly)
@@ -998,7 +1004,7 @@ class _Base {
     if (invalids.size > 0) {
       if (invalids.has(value, state._ancestors, opts.context)) {
         const err = helpers.error('any.invalid', {
-          values: invalids.items,
+          values: invalids.display,
         });
 
         if (opts.abortEarly)
@@ -1035,7 +1041,7 @@ class _Base {
         if (defaultValue === undefined) return { value: undefined, errors: null };
 
         if (defaultValue !== symbols.deepDefault) {
-          if (defaultValue[_literalSymbol]) {
+          if (defaultValue[_symbols.literal]) {
             // If default value is a function and is literal
             try {
               return { value: defaultValue.value(state._ancestors[0], helpers), errors: null };
@@ -1178,7 +1184,7 @@ class _Base {
   }
 }
 
-Object.defineProperty(_Base.prototype, _schemaSymbol, { value: true });
+Object.defineProperty(_Base.prototype, _symbols.schema, { value: true });
 
 for (const [method, ...aliases] of [
   ['required', 'exists', 'present'],
@@ -1196,7 +1202,7 @@ function base() {
 }
 
 function isSchema(value) {
-  return value != null && !!value[_schemaSymbol];
+  return value != null && !!value[_symbols.schema];
 }
 
 module.exports = {
