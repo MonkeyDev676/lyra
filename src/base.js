@@ -597,7 +597,7 @@ class _Base {
       assert(isObject(opts[optName]), 'The option', optName, 'for any.extend must be an object'),
     );
 
-    ['validate', 'rebuild', 'coerce'].forEach(optName =>
+    ['validate', 'rebuild', 'coerce', 'prepare'].forEach(optName =>
       assert(
         opts[optName] === undefined || typeof opts[optName] === 'function',
         'The option',
@@ -1076,25 +1076,18 @@ class _Base {
 
     const def = schema._definition;
 
-    // Coerce
+    // Methods
     // Always exit early
+    for (const method of ['prepare', 'coerce', 'validate']) {
+      const isCoerce = method === 'coerce';
 
-    if (!opts.strict && def.coerce !== null) {
-      const coerced = def.coerce(value, helpers);
-      const err = _error(coerced);
+      if (def[method] && isCoerce && !opts.strict) {
+        const result = def[method](value, helpers);
+        const err = _error(result);
 
-      if (!err) value = coerced;
-      else return { value: null, errors: err };
-    }
-
-    // Base check
-    // Always exit early
-    if (def.validate !== null) {
-      const result = def.validate(value, helpers);
-      const err = _error(result);
-
-      if (!err) value = result;
-      else return { value: null, errors: err };
+        if (!err) value = result;
+        else return { value: null, errors: err };
+      }
     }
 
     // Rules
