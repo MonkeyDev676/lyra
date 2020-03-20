@@ -15,6 +15,7 @@ module.exports = {
   rules: {
     'prefer-destructuring': 'off',
     'new-cap': 'off',
+    'max-classes-per-file': 'off',
     'no-use-before-define': 'off',
     'no-underscore-dangle': 'off',
     'no-param-reassign': 'off',
