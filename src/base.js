@@ -11,7 +11,7 @@ const symbols = require('./symbols');
 
 const _symbols = {
   default: Symbol('__DEFAULT__'),
-  literal: Symbol('__LITERAL__'),
+  callableDefault: Symbol('__CALLABLE_DEFAULT__'),
   schema: Symbol('__SCHEMA__'),
 };
 
@@ -910,8 +910,8 @@ class _Base {
       'The option literal for any.default only applies to function value',
     );
 
-    if (typeof value === 'function' && opts.literal)
-      return this.$setFlag('default', { [_symbols.literal]: true, value });
+    if (typeof value === 'function' && !opts.literal)
+      return this.$setFlag('default', { [_symbols.callableDefault]: true, value });
 
     return this.$setFlag('default', clone(value, opts.cloneOpts));
   }
@@ -1040,7 +1040,7 @@ class _Base {
         if (defaultValue === undefined) return { value: undefined, errors: null };
 
         if (defaultValue !== symbols.deepDefault) {
-          if (defaultValue[_symbols.literal]) {
+          if (defaultValue[_symbols.callableDefault]) {
             // If default value is a function and is literal
             try {
               return { value: defaultValue.value(state._ancestors[0], helpers), errors: null };
