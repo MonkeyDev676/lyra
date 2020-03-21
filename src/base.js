@@ -1041,7 +1041,7 @@ class _Base {
 
         if (defaultValue !== symbols.deepDefault) {
           if (defaultValue[_symbols.callableDefault]) {
-            // If default value is a function and is literal
+            // If default value is a function and is callable
             try {
               return { value: defaultValue.value(state._ancestors[0], helpers), errors: null };
             } catch (err) {
