@@ -132,6 +132,8 @@ module.exports = any.extend({
   validate: (value, { schema, state, opts, error, original }) => {
     if (!isObject(value) || Array.isArray(value)) return error('object.base');
 
+    if (opts.recursive === false) return value;
+
     const errors = [];
     const keys = new Set(Object.keys(value));
 
@@ -175,7 +177,7 @@ module.exports = any.extend({
       });
     }
 
-    if (!opts.allowUnknown) {
+    if (/* Defaults to false */ !opts.allowUnknown) {
       for (const key of keys) {
         const err = error('object.unknown', undefined, state.dive(original, key));
 

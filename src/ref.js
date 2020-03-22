@@ -8,23 +8,24 @@ const _symbols = {
 
 class _Ref {
   constructor(path, opts) {
+    const separator = opts.separator === undefined ? '.' : opts.separator;
     let slice = 1;
 
     if (path[0] === '$') {
       // Context
       this._ancestor = 'context';
-    } else if (path[0] !== opts.separator) {
+    } else if (path[0] !== separator) {
       // a.b => sibling
       this._ancestor = 1;
       slice = 0;
-    } else if (path[1] !== opts.separator) {
+    } else if (path[1] !== separator) {
       // .a.b => self
       this._ancestor = 0;
     } else {
       // We now scan for the separator starting from the third character
       let i = 2;
 
-      while (path[i] === opts.separator) {
+      while (path[i] === separator) {
         i++;
       }
 
@@ -33,13 +34,13 @@ class _Ref {
     }
 
     this._originalPath = path;
-    this._separator = opts.separator;
+    this._separator = separator;
     this._path = this._originalPath.slice(slice);
-    this._root = this._path.split(opts.separator)[0];
+    this._root = this._path.split(separator)[0];
     this._display = `ref(${path})`;
   }
 
-  resolve(value, ancestors, context) {
+  resolve(value, ancestors, context = {}) {
     const opts = { separator: this._separator };
 
     if (this._ancestor === 'context') return get(context, this._path, opts);
@@ -76,12 +77,10 @@ function ref(path, opts = {}) {
 
   assert(isObject(opts), 'The parameter opts for ref must be an object');
 
-  opts = {
-    separator: '.',
-    ...opts,
-  };
-
-  assert(typeof opts.separator === 'string', 'The option separator for ref must be a string');
+  assert(
+    opts.separator === undefined || typeof opts.separator === 'string',
+    'The option separator for ref must be a string',
+  );
 
   return new _Ref(path, opts);
 }

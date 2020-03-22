@@ -109,7 +109,7 @@ module.exports = any.extend({
   validate: (value, { error, state, schema, opts, original }) => {
     if (!Array.isArray(value)) return error('array.base');
 
-    if (!opts.recursive) return value;
+    if (/* Defaults to true */ opts.recursive === false) return value;
 
     const errors = [];
     const sparse = schema.$getFlag('sparse');
@@ -277,7 +277,7 @@ module.exports = any.extend({
 
       // isValid could be false if no required and optional schemas are provided
       if (includeds.length > 0 && !isValid) {
-        if (opts.stripUnknown) {
+        if (/* Defaults to false */ opts.stripUnknown) {
           value.splice(i, 1);
 
           i--;

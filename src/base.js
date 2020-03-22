@@ -161,14 +161,12 @@ function _assign(target, src) {
 
   for (const key of Object.keys(src.$index)) target.$index[key] = [...src.$index[key]];
 
-  const srcDef = src._definition;
-  const def = { ...srcDef };
-
-  def.messages = { ...srcDef.messages };
-  def.rules = { ...srcDef.rules };
-  def.index = { ...srcDef.index };
-
-  target._definition = def;
+  target._definition = {
+    ...src._definition,
+    messages: { ...src._definition.messages },
+    rules: { ...src._definition.rules },
+    index: { ...src._definition.index },
+  };
 
   return target;
 }
@@ -198,7 +196,7 @@ function _register(value, refs) {
 }
 
 function _joinRebuild(target, src) {
-  if (target === null || src === null) return target || src;
+  if (target === undefined || src === undefined) return target || src;
 
   return schema => {
     target(schema);
@@ -207,7 +205,7 @@ function _joinRebuild(target, src) {
 }
 
 function _joinMethod(target, src) {
-  if (target === null || src === null) return target || src;
+  if (target === undefined || src === undefined) return target || src;
 
   return (value, helpers) => {
     const result = target(value, helpers);
@@ -239,22 +237,12 @@ function _describe(term) {
   return desc;
 }
 
-function _opts(methodName, withDefaults, rawOpts = {}) {
-  assert(isObject(rawOpts), 'The parameter opts for', methodName, 'must be an object');
-
-  const opts = {
-    strict: true,
-    abortEarly: true,
-    recursive: true,
-    allowUnknown: false,
-    stripUnknown: false,
-    context: {},
-    ...rawOpts,
-  };
+function _opts(methodName, opts = {}) {
+  assert(isObject(opts), 'The parameter opts for', methodName, 'must be an object');
 
   ['strict', 'abortEarly', 'recursive', 'allowUnknown', 'stripUnknown'].forEach(optName =>
     assert(
-      typeof opts[optName] === 'boolean',
+      opts[optName] === undefined || typeof opts[optName] === 'boolean',
       'The option',
       optName,
       'for',
@@ -263,9 +251,14 @@ function _opts(methodName, withDefaults, rawOpts = {}) {
     ),
   );
 
-  assert(isObject(opts.context), 'The option context for', methodName, 'must be an object');
+  assert(
+    opts.context === undefined || isObject(opts.context),
+    'The option context for',
+    methodName,
+    'must be an object',
+  );
 
-  return withDefaults ? opts : rawOpts;
+  return opts;
 }
 
 function _values(schema, values, type) {
@@ -284,7 +277,7 @@ function _values(schema, values, type) {
   return target;
 }
 
-function _createError(schema, code, state, context, terms = {}) {
+function _createError(schema, code, state, context = {}, terms = {}) {
   assert(typeof code === 'string', 'The parameter code for error must be a string');
 
   assert(state instanceof _State, 'The parameter state for error must be a valid state');
@@ -355,10 +348,7 @@ class _Base {
 
     // Defined variables that affect the validation internally
     this._definition = {
-      rebuild: null,
-      prepare: null,
-      coerce: null,
-      validate: null,
+      /* methods: prepare, coerce, validate, rebuild */
       flags: {
         only: { default: false },
         presence: { default: 'optional' },
@@ -468,12 +458,10 @@ class _Base {
 
     assert(isObject(opts), 'The parameter opts for any.$setFlag must be an object');
 
-    opts = {
-      clone: true,
-      ...opts,
-    };
-
-    assert(typeof opts.clone === 'boolean', 'The option clone for any.$setFlag must be a boolean');
+    assert(
+      opts.clone === undefined || typeof opts.clone === 'boolean',
+      'The option clone for any.$setFlag must be a boolean',
+    );
 
     const flagDef = this._definition.flags[name];
 
@@ -483,7 +471,7 @@ class _Base {
     // If the flag and the value are already equal, we don't do anything
     if (equal(this._flags[name], value, { symbol: true })) return this;
 
-    const target = opts.clone ? this.$clone() : this;
+    const target = /* Defaults to true */ opts.clone !== false ? this.$clone() : this;
 
     if (value === symbols.removeFlag) delete target._flags[name];
     else {
@@ -516,12 +504,6 @@ class _Base {
   $addRule(opts) {
     assert(isObject(opts), 'The parameter opts for any.$addRule must be an object');
 
-    opts = {
-      args: {},
-      clone: true,
-      ...opts,
-    };
-
     assert(typeof opts.name === 'string', 'The option name for any.$addRule must be a string');
 
     assert(
@@ -529,11 +511,17 @@ class _Base {
       'The option method for any.$addRule must be a string',
     );
 
-    assert(typeof opts.clone === 'boolean', 'The option clone for any.$addRule must be a boolean');
+    assert(
+      opts.clone === undefined || typeof opts.clone === 'boolean',
+      'The option clone for any.$addRule must be a boolean',
+    );
 
-    assert(isObject(opts.args), 'The option args for any.$addRule must be an object');
+    assert(
+      opts.args === undefined || isObject(opts.args),
+      'The option args for any.$addRule must be an object',
+    );
 
-    const target = opts.clone ? this.$clone() : this;
+    const target = /* Defaults to true */ opts.clone !== false ? this.$clone() : this;
 
     delete opts.clone;
 
@@ -546,26 +534,28 @@ class _Base {
     assert(ruleDef !== undefined, 'Rule definition', opts.method, 'not found');
 
     // Param definitions
-    const argDefs = ruleDef.args;
+    if (opts.args !== undefined) {
+      const argDefs = ruleDef.args;
 
-    for (const argName of Object.keys(argDefs)) {
-      const argDef = argDefs[argName];
-      const arg = opts.args[argName];
-      const isArgRef = Ref.isRef(arg);
+      for (const argName of Object.keys(argDefs)) {
+        const argDef = argDefs[argName];
+        const arg = opts.args[argName];
+        const isArgRef = Ref.isRef(arg);
 
-      // Params assertions
-      if (argDef.ref && isArgRef) {
-        opts.refs.push(argName);
-        target._refs.register(arg);
-      } else
-        assert(
-          argDef.assert === undefined || argDef.assert(arg),
-          'The parameter',
-          argName,
-          'of',
-          `${target.type}.${opts.name}`,
-          argDef.reason,
-        );
+        // Params assertions
+        if (argDef.ref && isArgRef) {
+          opts.refs.push(argName);
+          target._refs.register(arg);
+        } else
+          assert(
+            argDef.assert === undefined || argDef.assert(arg),
+            'The parameter',
+            argName,
+            'of',
+            `${target.type}.${opts.name}`,
+            argDef.reason,
+          );
+      }
     }
 
     if (ruleDef.single) {
@@ -582,19 +572,18 @@ class _Base {
   extend(opts) {
     assert(isObject(opts), 'The parameter opts for any.extend must be an object');
 
-    opts = {
-      type: 'any',
-      flags: {},
-      index: {},
-      messages: {},
-      rules: {},
-      ...opts,
-    };
-
-    assert(typeof opts.type === 'string', 'The option type for any.extend must be a string');
+    assert(
+      opts.type === undefined || typeof opts.type === 'string',
+      'The option type for any.extend must be a string',
+    );
 
     ['flags', 'index', 'messages', 'rules'].forEach(optName =>
-      assert(isObject(opts[optName]), 'The option', optName, 'for any.extend must be an object'),
+      assert(
+        opts[optName] === undefined || isObject(opts[optName]),
+        'The option',
+        optName,
+        'for any.extend must be an object',
+      ),
     );
 
     ['validate', 'rebuild', 'coerce', 'prepare'].forEach(optName =>
@@ -611,7 +600,7 @@ class _Base {
     const proto = clone(Object.getPrototypeOf(this), { symbol: true });
     const target = _assign(Object.create(proto), this);
 
-    target.type = opts.type;
+    target.type = opts.type === undefined ? 'any' : opts.type;
 
     const def = target._definition;
 
@@ -626,187 +615,216 @@ class _Base {
 
     def.messages = { ...def.messages, ...opts.messages };
 
-    // Flag defaults
-    for (const key of Object.keys(opts.flags)) {
-      assert(def.flags[key] === undefined, 'The flag', key, 'has already been defined');
+    // Flags
+    if (opts.flags !== undefined)
+      for (const key of Object.keys(opts.flags)) {
+        assert(def.flags[key] === undefined, 'The flag', key, 'has already been defined');
 
-      def.flags[key] = { default: opts.flags[key] };
-    }
+        def.flags[key] = { default: opts.flags[key] };
+      }
 
     // Index
-    for (const key of Object.keys(opts.index)) {
-      assert(target.$index[key] === undefined, 'The index terms', key, 'has already been defined');
-
-      const isPrivate = _isPrivate(key);
-      const termsDef = {
-        value: [],
-        merge: !isPrivate,
-        ...opts.index[key],
-      };
-
-      assert(Array.isArray(termsDef.value), 'The option value for terms', key, 'must be an array');
-
-      assert(
-        termsDef.describe === undefined || typeof termsDef.describe === 'function',
-        'The option describe for terms',
-        key,
-        'must be a function',
-      );
-
-      assert(
-        typeof termsDef.merge === 'boolean' || typeof termsDef.merge === 'function',
-        'The option merge for terms',
-        key,
-        'must be a function or a boolean',
-      );
-
-      assert(
-        termsDef.describe === undefined || !isPrivate,
-        'Cannot have a describe function for private terms',
-        key,
-      );
-
-      target.$index[key] = termsDef.value;
-
-      delete termsDef.value;
-
-      if (termsDef.merge === true) delete termsDef.merge;
-      if (termsDef.describe === undefined) delete termsDef.describe;
-
-      def.index[key] = termsDef;
-    }
-
-    // Populate rule definitions
-    for (const ruleName of Object.keys(opts.rules)) {
-      const ruleDef = {
-        args: {},
-        alias: [],
-        single: true,
-        priority: false,
-        ...opts.rules[ruleName],
-      };
-
-      assert(isObject(ruleDef.args), 'The option args for rule', ruleName, 'must be an object');
-
-      assert(
-        Array.isArray(ruleDef.alias) && ruleDef.alias.every(alias => typeof alias === 'string'),
-        'The options alias for rule',
-        ruleName,
-        'must be an array of strings',
-      );
-
-      ['single', 'priority'].forEach(optName =>
+    if (opts.index !== undefined)
+      for (const key of Object.keys(opts.index)) {
         assert(
-          typeof ruleDef[optName] === 'boolean',
-          'The option',
-          optName,
-          'for rule',
-          ruleName,
-          'must be a boolean',
-        ),
-      );
+          target.$index[key] === undefined,
+          'The index terms',
+          key,
+          'has already been defined',
+        );
 
-      assert(
-        ruleDef.validate === undefined || typeof ruleDef.validate === 'function',
-        'The option validate for rule',
-        ruleName,
-        'must be a function',
-      );
-
-      assert(
-        ruleDef.method === undefined ||
-          ruleDef.method === false ||
-          typeof ruleDef.method === 'function',
-        'The option method for rule',
-        ruleName,
-        'must be false or a function',
-      );
-
-      // Make sure either validate or method is provided
-      assert(
-        typeof ruleDef.method === 'function' || ruleDef.validate !== undefined,
-        'Either option method or option validate for rule',
-        ruleName,
-        'must be defined',
-      );
-
-      // Cannot have alias if method is false (a hidden rule)
-      assert(
-        ruleDef.method !== false || ruleDef.alias.length === 0,
-        'Cannot have aliases for rule that has no method',
-      );
-
-      // If method is present, check if there's already one
-      assert(
-        ruleDef.method === false || proto[ruleName] === undefined,
-        'The rule',
-        ruleName,
-        'has already been defined',
-      );
-
-      const argDefs = {};
-
-      // Create arg definitions
-      for (const argName of Object.keys(ruleDef.args)) {
-        const argDef = {
-          ref: true,
-          ...ruleDef.args[argName],
-        };
+        const terms = opts.index[key];
+        const isPrivate = _isPrivate(key);
 
         assert(
-          typeof argDef.ref === 'boolean',
-          'The option ref for argument',
-          argName,
-          'of rule',
-          ruleName,
-          'must be a boolean',
+          terms.value === undefined || Array.isArray(terms.value),
+          'The option value for terms',
+          key,
+          'must be an array',
         );
 
         assert(
-          argDef.assert === undefined || typeof argDef.assert === 'function',
-          'The option assert for argument',
-          argName,
-          'of rule',
+          terms.describe === undefined || typeof terms.describe === 'function',
+          'The option describe for terms',
+          key,
+          'must be a function',
+        );
+
+        assert(
+          terms.merge === undefined ||
+            typeof terms.merge === 'boolean' ||
+            typeof terms.merge === 'function',
+          'The option merge for terms',
+          key,
+          'must be a function or a boolean',
+        );
+
+        assert(
+          terms.describe === undefined || !isPrivate,
+          'Cannot have a describe function for private terms',
+          key,
+        );
+
+        target.$index[key] = terms.value === undefined ? [] : terms.value;
+
+        const termsDef = {};
+
+        termsDef.merge = terms.merge === undefined ? !isPrivate : terms.merge;
+
+        if (termsDef.merge === true) delete termsDef.merge;
+
+        if (terms.describe !== undefined) termsDef.describe = terms.describe;
+
+        def.index[key] = termsDef;
+      }
+
+    // Populate rule definitions
+    if (opts.rules !== undefined)
+      for (const ruleName of Object.keys(opts.rules)) {
+        const rule = opts.rules[ruleName];
+
+        assert(
+          rule.args === undefined || isObject(rule.args),
+          'The option args for rule',
+          ruleName,
+          'must be an object',
+        );
+
+        assert(
+          rule.alias === undefined ||
+            (Array.isArray(rule.alias) && rule.alias.every(alias => typeof alias === 'string')),
+          'The options alias for rule',
+          ruleName,
+          'must be an array of strings',
+        );
+
+        ['single', 'priority'].forEach(optName =>
+          assert(
+            rule[optName] === undefined || typeof rule[optName] === 'boolean',
+            'The option',
+            optName,
+            'for rule',
+            ruleName,
+            'must be a boolean',
+          ),
+        );
+
+        assert(
+          rule.validate === undefined || typeof rule.validate === 'function',
+          'The option validate for rule',
           ruleName,
           'must be a function',
         );
 
         assert(
-          argDef.reason === undefined || typeof argDef.reason === 'string',
-          'The option reason for argument',
-          argName,
-          'of rule',
+          rule.method === undefined || rule.method === false || typeof rule.method === 'function',
+          'The option method for rule',
           ruleName,
-          'must be a string',
+          'must be false or a function',
         );
 
+        // Make sure either validate or method is provided
         assert(
-          argDef.assert !== undefined ? argDef.reason !== undefined : argDef.reason === undefined,
-          'The option assert and reason for argument',
-          argName,
-          'must be defined together',
+          typeof rule.method === 'function' || rule.validate !== undefined,
+          'Either option method or option validate for rule',
+          ruleName,
+          'must be defined',
         );
 
-        argDefs[argName] = argDef;
+        // Cannot have alias if method is false (a hidden rule)
+        assert(
+          rule.method !== false || rule.alias.length === 0,
+          'Cannot have aliases for rule that has no method',
+        );
+
+        // If method is present, check if there's already one
+        assert(
+          rule.method === false || proto[ruleName] === undefined,
+          'The rule',
+          ruleName,
+          'has already been defined',
+        );
+
+        const ruleDef = {};
+
+        ruleDef.single = rule.single === undefined ? true : rule.single;
+        ruleDef.priority = rule.priority === undefined ? false : rule.priority;
+
+        if (rule.args !== undefined) {
+          ruleDef.args = {};
+
+          // Create arg definitions
+          for (const argName of Object.keys(rule.args)) {
+            const arg = rule.args;
+
+            assert(
+              arg.ref === undefined || typeof arg.ref === 'boolean',
+              'The option ref for argument',
+              argName,
+              'of rule',
+              ruleName,
+              'must be a boolean',
+            );
+
+            assert(
+              arg.assert === undefined || typeof arg.assert === 'function',
+              'The option assert for argument',
+              argName,
+              'of rule',
+              ruleName,
+              'must be a function',
+            );
+
+            assert(
+              arg.reason === undefined || typeof arg.reason === 'string',
+              'The option reason for argument',
+              argName,
+              'of rule',
+              ruleName,
+              'must be a string',
+            );
+
+            assert(
+              arg.assert !== undefined ? arg.reason !== undefined : arg.reason === undefined,
+              'The option assert and reason for argument',
+              argName,
+              'must be defined together',
+            );
+
+            const argDef = {};
+
+            argDef.ref = arg.ref === undefined ? true : arg.ref;
+
+            // Assert and reason are defined together, so checking for one is enough
+            if (arg.assert !== undefined) {
+              argDef.assert = arg.assert;
+              argDef.reason = arg.reason;
+            }
+
+            ruleDef.args[argName] = argDef;
+          }
+        }
+
+        // Only add to rule definitions if the rule has the validate method defined
+        if (rule.validate !== undefined) {
+          ruleDef.validate = rule.validate;
+
+          def.rules[ruleName] = ruleDef;
+        }
+
+        if (typeof rule.method === 'function') attachMethod(proto, ruleName, rule.method);
+
+        // rule.validate is defined
+        if (rule.method === undefined)
+          attachMethod(proto, ruleName, function defaultMethod() {
+            return this.$addRule({ name: ruleName });
+          });
+
+        if (rule.alias !== undefined)
+          for (const alias of rule.alias) {
+            attachMethod(proto, alias, target[ruleName]);
+          }
       }
-
-      ruleDef.args = argDefs;
-
-      // Only add to rule definitions if the rule has the validate method defined
-      if (ruleDef.validate !== undefined) def.rules[ruleName] = ruleDef;
-
-      if (typeof ruleDef.method === 'function') attachMethod(proto, ruleName, ruleDef.method);
-
-      // rule.validate is defined
-      if (ruleDef.method === undefined)
-        attachMethod(proto, ruleName, function defaultMethod() {
-          return this.$addRule({ name: ruleName });
-        });
-
-      for (const alias of ruleDef.alias) {
-        attachMethod(proto, alias, target[ruleName]);
-      }
-    }
 
     return target;
   }
@@ -866,7 +884,7 @@ class _Base {
   opts(opts) {
     const next = this.$clone();
 
-    next._opts = { ...next._opts, ..._opts('any.opts', false, opts) };
+    next._opts = { ...next._opts, ..._opts('any.opts', opts) };
 
     return next;
   }
@@ -895,22 +913,17 @@ class _Base {
   default(value, opts) {
     assert(value !== undefined, `The parameter value for any.default must be provided`);
 
-    opts = {
-      literal: false,
-      ...opts,
-    };
-
     assert(
-      typeof opts.literal === 'boolean',
+      opts.literal === undefined || opts.literal === true,
       'The option literal for any.default must be a boolean',
     );
 
     assert(
-      typeof value === 'function' || !opts.literal,
+      typeof value === 'function' || opts.literal === undefined,
       'The option literal for any.default only applies to function value',
     );
 
-    if (typeof value === 'function' && !opts.literal)
+    if (typeof value === 'function' && opts.literal === undefined)
       return this.$setFlag('default', { [_symbols.callableDefault]: true, value });
 
     return this.$setFlag('default', clone(value, opts.cloneOpts));
@@ -987,7 +1000,7 @@ class _Base {
           values: valids.display,
         });
 
-        if (opts.abortEarly)
+        if (/* Defaults to true */ opts.abortEarly !== false)
           return {
             value: null,
             errors: [err],
@@ -1006,7 +1019,7 @@ class _Base {
           values: invalids.display,
         });
 
-        if (opts.abortEarly)
+        if (opts.abortEarly !== false)
           return {
             value: null,
             errors: [err],
@@ -1081,7 +1094,7 @@ class _Base {
     for (const method of ['prepare', 'coerce', 'validate']) {
       const isCoerce = method === 'coerce';
 
-      if (def[method] && isCoerce && !opts.strict) {
+      if (def[method] && isCoerce && /* Defaults to true */ opts.strict !== false) {
         const result = def[method](value, helpers);
         const err = _error(result);
 
@@ -1111,7 +1124,7 @@ class _Base {
 
           errored = true;
 
-          if (opts.abortEarly)
+          if (opts.abortEarly !== false)
             return {
               value: null,
               errors: [err],
@@ -1128,7 +1141,7 @@ class _Base {
 
       if (!err) value = result;
       else {
-        if (opts.abortEarly) return { value: null, errors: err };
+        if (opts.abortEarly !== false) return { value: null, errors: err };
 
         errors.push(...err);
       }
@@ -1138,7 +1151,7 @@ class _Base {
   }
 
   validate(value, opts) {
-    return this.$validate(value, _opts('any.validate', true, opts), new _State());
+    return this.$validate(value, _opts('any.validate', opts), new _State());
   }
 
   attempt(value, opts) {
