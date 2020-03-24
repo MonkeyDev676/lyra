@@ -237,7 +237,7 @@ function _describe(term) {
   return desc;
 }
 
-function _opts(methodName, opts = {}) {
+function _opts(methodName, opts) {
   assert(isObject(opts), 'The parameter opts for', methodName, 'must be an object');
 
   ['strict', 'abortEarly', 'recursive', 'allowUnknown', 'stripUnknown'].forEach(optName =>
@@ -717,6 +717,13 @@ class _Base {
         );
 
         assert(
+          rule.validate === undefined || rule.args === undefined,
+          'The option validate and args for rule',
+          ruleName,
+          'must be defined together',
+        );
+
+        assert(
           rule.method === undefined || rule.method === false || typeof rule.method === 'function',
           'The option method for rule',
           ruleName,
@@ -734,7 +741,9 @@ class _Base {
         // Cannot have alias if method is false (a hidden rule)
         assert(
           rule.method !== false || rule.alias.length === 0,
-          'Cannot have aliases for rule that has no method',
+          'Cannot have aliases for',
+          ruleName,
+          'because it has no method',
         );
 
         // If method is present, check if there's already one
@@ -960,6 +969,32 @@ class _Base {
     return this.$setFlag('error', customizer);
   }
 
+  when(ref, opts) {
+    assert(
+      typeof ref === 'string' || Ref.isRef(ref),
+      'The parameter ref for any.when must be a valid reference or a string',
+    );
+
+    assert(isObject(opts), 'The parameter opts for any.when must be an object');
+
+    assert(isSchema(opts.is), 'The option is for any.when must be a valid schema');
+
+    assert(
+      isSchema(opts.then) || isSchema(opts.otherwise),
+      'The option then or otherwise for any.when must be a valid schema',
+    );
+
+    ref = typeof ref === 'string' ? Ref.ref(ref) : ref;
+
+    const next = this.$clone();
+
+    next._refs.register(ref);
+
+    next.$index.conditions.push({ ref, ...opts });
+
+    return next;
+  }
+
   $validate(value, opts, state, overrides = {}) {
     let schema = this;
 
@@ -1150,7 +1185,7 @@ class _Base {
     return { value, errors: errors.length === 0 ? null : errors };
   }
 
-  validate(value, opts) {
+  validate(value, opts = {}) {
     return this.$validate(value, _opts('any.validate', opts), new _State());
   }
 
@@ -1160,32 +1195,6 @@ class _Base {
     if (result.errors !== null) throw result.errors[0];
 
     return result.value;
-  }
-
-  when(ref, opts) {
-    assert(
-      typeof ref === 'string' || Ref.isRef(ref),
-      'The parameter ref for any.when must be a valid reference or a string',
-    );
-
-    assert(isObject(opts), 'The parameter opts for any.when must be an object');
-
-    assert(isSchema(opts.is), 'The option is for any.when must be a valid schema');
-
-    assert(
-      isSchema(opts.then) || isSchema(opts.otherwise),
-      'The option then or otherwise for any.when must be a valid schema',
-    );
-
-    ref = typeof ref === 'string' ? Ref.ref(ref) : ref;
-
-    const next = this.$clone();
-
-    next._refs.register(ref);
-
-    next.$index.conditions.push({ ref, ...opts });
-
-    return next;
   }
 }
 

@@ -10,6 +10,7 @@ const func = require('./schemas/function');
 const object = require('./schemas/object');
 
 const root = {
+  ...require('./identities'),
   ...require('./base'),
   ...require('./ref'),
   symbols: require('./symbols'),
