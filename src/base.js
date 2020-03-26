@@ -1149,22 +1149,20 @@ class _Base {
     }
 
     // Rules
-    for (const rule of schema._rules) {
-      const ruleDef = def.rules[rule.method];
-      const argDefs = ruleDef.args;
-      const args = { ...rule.args };
+    for (const { refs, method, args: rawArgs, validate, ...rule } of schema._rules) {
+      const resolveds = { ...rawArgs };
       let errored = false;
 
-      for (const argName of rule.refs) {
-        const argDef = argDefs[argName];
-        const arg = args[argName];
+      for (const argName of refs) {
+        const arg = def.rules[method].args[argName];
+        const ref = resolveds[argName];
 
-        const resolved = arg.resolve(value, state._ancestors, opts.context);
+        const resolved = ref.resolve(value, state._ancestors, opts.context);
 
-        if (argDef.assert !== undefined && !argDef.assert(resolved)) {
+        if (arg.assert !== undefined && !arg.assert(resolved)) {
           const err = helpers.error('any.ref', {
             ref: arg,
-            reason: argDef.reason,
+            reason: arg.reason,
           });
 
           errored = true;
@@ -1176,12 +1174,12 @@ class _Base {
             };
 
           errors.push(err);
-        } else args[argName] = resolved;
+        } else resolveds[argName] = resolved;
       }
 
       if (errored) continue;
 
-      const result = ruleDef.validate(value, { ...helpers, args, name: rule.name });
+      const result = validate(value, { ...helpers, args: resolveds, ...rule });
       const err = _error(result);
 
       if (!err) value = result;

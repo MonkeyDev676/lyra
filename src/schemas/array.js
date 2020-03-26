@@ -344,7 +344,7 @@ module.exports = any.extend({
 
     compare: {
       method: false,
-      validate: (value, { args: { length, operator }, error, name }) => {
+      validate: (value, { args: { length }, error, name, operator }) => {
         return compare(value.length, length, operator) ? value : error(`array.${name}`, { length });
       },
       args: {
@@ -360,7 +360,8 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'length',
           method: 'compare',
-          args: { length, operator: '=' },
+          args: { length },
+          operator: '=',
         });
       },
     },
@@ -370,7 +371,8 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'min',
           method: 'compare',
-          args: { length, operator: '>=' },
+          args: { length },
+          operator: '>=',
         });
       },
     },
@@ -380,7 +382,8 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'max',
           method: 'compare',
-          args: { length, operator: '<=' },
+          args: { length },
+          operator: '<=',
         });
       },
     },

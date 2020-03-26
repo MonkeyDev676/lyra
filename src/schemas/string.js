@@ -3,15 +3,15 @@ const compare = require('@botbind/dust/src/compare');
 const any = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
-const _regexp = {
+const _regexps = {
   // The email regex is meant to be simple. Custom implementation can use any.custom
   // Copied from https://stackoverflow.com/a/41437076/10598722
   // eslint-disable-next-line no-useless-escape
   email: /(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@[*[a-zA-Z0-9-]+.[a-zA-Z0-9-.]+]*/,
   // Copied from https://mathiasbynens.be/demo/url-regex @stephenhay
   url: /^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/,
-  alphanum: /^[a-zA-Z0-9]+$/,
-  num: /^[0-9]+$/,
+  alphanumeric: /^[a-zA-Z0-9]+$/,
+  numeric: /^[0-9]+$/,
 };
 
 module.exports = any.extend({
@@ -30,7 +30,7 @@ module.exports = any.extend({
     'string.min': '{#label} must have at least {length} characters',
     'string.max': '{#label} must have at most {length} characters',
     'string.creditCard': '{#label} must be a credit card',
-    'string.pattern': '{#label} must have a pattern of {regexp}',
+    'string.pattern': '{#label} must have pattern of {regexp}',
     'string.email': '{#label} must be an email',
     'string.url': '{#label} must be a URL',
     'string.alphanum': '{#label} must only contain alpha-numeric characters',
@@ -64,7 +64,7 @@ module.exports = any.extend({
   rules: {
     compare: {
       method: false,
-      validate: (value, { args: { length, operator }, error, name }) => {
+      validate: (value, { args: { length }, error, name, operator }) => {
         return compare(value.length, length, operator)
           ? value
           : error(`string.${name}`, { length });
@@ -82,7 +82,8 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'length',
           method: 'compare',
-          args: { length, operator: '=' },
+          args: { length },
+          operator: '=',
         });
       },
     },
@@ -92,7 +93,8 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'min',
           method: 'compare',
-          args: { length, operator: '>=' },
+          args: { length },
+          operator: '>=',
         });
       },
     },
@@ -102,7 +104,8 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'max',
           method: 'compare',
-          args: { length, operator: '<=' },
+          args: { length },
+          operator: '<=',
         });
       },
     },
@@ -130,55 +133,69 @@ module.exports = any.extend({
       method(regexp) {
         return this.$addRule({ name: 'pattern', args: { regexp } });
       },
-      validate: (value, { args: { regexp }, error, name }) => {
-        return regexp.test(value)
-          ? value
-          : error(`string.${name}`, name === 'pattern' ? { regexp } : undefined);
+      validate: (value, { args: { regexp }, error }) => {
+        let err;
+
+        if (typeof regexp === 'string') {
+          regexp = _regexps[regexp];
+          err = error(`string.${regexp}`);
+        } else err = error('string.pattern', { regexp });
+
+        return regexp.test(value) ? value : err;
       },
       args: {
         regexp: {
-          assert: arg => arg instanceof RegExp,
-          reason: 'must be a regular expression',
+          assert: arg =>
+            // Predefined regular expressions
+            arg === 'email' ||
+            arg === 'url' ||
+            arg === 'alphanumeric' ||
+            arg === 'numeric' ||
+            arg instanceof RegExp,
+          reason: 'must be a regular expression or email or url or alphanumeric or numeric',
         },
       },
     },
 
     email: {
       method() {
-        return this.$addRule({ name: 'email', method: 'pattern', args: { regexp: _regexp.email } });
+        return this.pattern('email');
       },
     },
 
     url: {
       method() {
-        return this.$addRule({ name: 'url', method: 'pattern', args: { regexp: _regexp.url } });
+        return this.pattern('url');
       },
     },
 
     alphanum: {
       method() {
-        return this.$addRule({
-          name: 'alphanum',
-          method: 'pattern',
-          args: { regexp: _regexp.alphanum },
-        });
+        return this.pattern('alphanumeric');
       },
     },
 
     numeric: {
       method() {
-        return this.$addRule({ name: 'numeric', method: 'pattern', args: { regexp: _regexp.num } });
+        return this.pattern('numeric');
       },
     },
 
     case: {
       method(dir) {
-        return this.$addRule({ name: 'case', args: { dir } });
+        assert(
+          dir === 'upper' || dir === 'lower',
+          'The parameter dir for string.case must be either upper or lower',
+        );
+
+        const target = this.$setFlag('case', dir);
+
+        return target.$addRule({ name: 'case', args: { dir }, clone: false });
       },
-      validate: (value, { args: { dir }, name, error }) => {
+      validate: (value, { args: { dir }, error }) => {
         if (dir === 'lower' && value.toLocaleLowerCase() === value) return value;
 
-        return value.toLocaleUpperCase() === value ? value : error(`string.${name}`);
+        return value.toLocaleUpperCase() === value ? value : error(`string.${dir}case`);
       },
       args: {
         dir: {
@@ -190,21 +207,13 @@ module.exports = any.extend({
 
     uppercase: {
       method() {
-        const target = this.$addRule({ name: 'uppercase', method: 'case', args: { dir: 'upper' } });
-
-        target.$setFlag('case', 'upper', { clone: false });
-
-        return target;
+        return this.case('upper');
       },
     },
 
     lowercase: {
       method() {
-        const target = this.$addRule({ name: 'lowercase', method: 'case', args: { dir: 'lower' } });
-
-        target.$setFlag('case', 'lower', { clone: false });
-
-        return target;
+        return this.case('lower');
       },
     },
 

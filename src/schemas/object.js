@@ -221,7 +221,7 @@ module.exports = any.extend({
 
     compare: {
       method: false,
-      validate: (value, { args: { length, operator }, error, name }) => {
+      validate: (value, { args: { length }, error, name, operator }) => {
         return compare(Object.keys(value).length, length, operator)
           ? value
           : error(`object.${name}`, { length });
@@ -239,7 +239,8 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'length',
           method: 'compare',
-          args: { length, operator: '=' },
+          args: { length },
+          operator: '=',
         });
       },
     },
@@ -249,7 +250,8 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'min',
           method: 'compare',
-          args: { length, operator: '>=' },
+          args: { length },
+          operator: '>=',
         });
       },
     },
@@ -259,7 +261,8 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'max',
           method: 'compare',
-          args: { length, operator: '<=' },
+          args: { length },
+          operator: '<=',
         });
       },
     },

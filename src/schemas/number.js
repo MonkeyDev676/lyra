@@ -61,7 +61,7 @@ module.exports = any.extend({
 
     compare: {
       method: false,
-      validate: (value, { args: { num, operator }, name, error }) => {
+      validate: (value, { args: { num }, name, error, operator }) => {
         return compare(value, num, operator) ? value : error(`number.${name}`, { num });
       },
       args: {
@@ -80,13 +80,13 @@ module.exports = any.extend({
 
     min: {
       method(num) {
-        return this.$addRule({ name: 'min', method: 'compare', args: { num, operator: '>=' } });
+        return this.$addRule({ name: 'min', method: 'compare', args: { num }, operator: '>=' });
       },
     },
 
     max: {
       method(num) {
-        return this.$addRule({ name: 'max', method: 'compare', args: { num, operator: '<=' } });
+        return this.$addRule({ name: 'max', method: 'compare', args: { num }, operator: '<=' });
       },
     },
 
@@ -95,7 +95,8 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'greater',
           method: 'compare',
-          args: { num, operator: '>' },
+          args: { num },
+          operator: '>',
         });
       },
     },
@@ -106,7 +107,8 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'smaller',
           method: 'compare',
-          args: { num, operator: '<' },
+          args: { num },
+          operator: '<',
         });
       },
     },

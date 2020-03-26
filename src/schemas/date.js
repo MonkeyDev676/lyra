@@ -45,7 +45,7 @@ module.exports = any.extend({
   rules: {
     compare: {
       method: false,
-      validate: (value, { args: { date, operator }, error, name }) => {
+      validate: (value, { args: { date }, error, name, operator }) => {
         let compareDate;
 
         if (date === 'now') compareDate = Date.now();
@@ -68,7 +68,8 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'min',
           method: 'compare',
-          args: { date, operator: '>=' },
+          args: { date },
+          operator: '>=',
         });
       },
     },
@@ -78,7 +79,8 @@ module.exports = any.extend({
         return this.$addRule({
           name: 'max',
           method: 'compare',
-          args: { date, operator: '<=' },
+          args: { date },
+          operator: '<=',
         });
       },
     },
