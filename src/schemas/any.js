@@ -6,7 +6,7 @@ module.exports = Base.base().extend({
     strip: false,
   },
   index: {
-    notes: [],
+    notes: {},
   },
   messages: {
     'any.custom': '{#label} fails validation {name} due to {err}',
