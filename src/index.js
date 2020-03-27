@@ -11,12 +11,11 @@ const object = require('./schemas/object');
 
 const root = {
   ...require('./identities'),
-  ...require('./base'),
+  ...require('./any'),
   ...require('./ref'),
   symbols: require('./symbols'),
   alternatives,
   alt: alternatives,
-  any: require('./schemas/any'),
   boolean,
   bool: boolean,
   string,
@@ -55,8 +54,6 @@ const root = {
       assert(this.isSchema(definition.from), 'The option from for extend must be a valid schema');
 
       const from = definition.from;
-
-      delete definition.from;
 
       Lyra[definition.type] = from.extend(definition);
     }

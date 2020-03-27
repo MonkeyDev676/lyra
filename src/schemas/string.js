@@ -1,6 +1,6 @@
 const assert = require('@botbind/dust/src/assert');
 const compare = require('@botbind/dust/src/compare');
-const any = require('./any');
+const Any = require('../any');
 const _isNumber = require('../internals/_isNumber');
 
 const _regexps = {
@@ -14,7 +14,7 @@ const _regexps = {
   numeric: /^[0-9]+$/,
 };
 
-module.exports = any.extend({
+module.exports = Any.any.extend({
   type: 'string',
   flags: {
     trim: false,
@@ -183,11 +183,6 @@ module.exports = any.extend({
 
     case: {
       method(dir) {
-        assert(
-          dir === 'upper' || dir === 'lower',
-          'The parameter dir for string.case must be either upper or lower',
-        );
-
         const target = this.$setFlag('case', dir);
 
         return target.$addRule({ name: 'case', args: { dir }, clone: false });

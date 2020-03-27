@@ -1,11 +1,11 @@
 const compare = require('@botbind/dust/src/compare');
-const any = require('./any');
+const Any = require('../any');
 
 function _isValidDate(value) {
   return value instanceof Date && !Number.isNaN(value.getTime());
 }
 
-module.exports = any.extend({
+module.exports = Any.any.extend({
   type: 'date',
   messages: {
     'date.base': '{#label} must be a valid date',

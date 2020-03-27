@@ -294,7 +294,7 @@ function _createError(schema, code, state, context = {}, terms = {}) {
       return new _ValidationError(err instanceof Error ? err.message : err, code, state);
   }
 
-  const template = schema._definition.messages[code];
+  const template = schema._def.messages[code];
 
   assert(template !== undefined, 'Message template', code, 'not found');
 
@@ -333,27 +333,11 @@ function _error(err) {
   return false;
 }
 
-class _Base {
+class _Any {
   constructor() {
     this.type = 'any';
     this._refs = new _Refs();
     this._rules = []; // [{ name, method, args }]
-
-    // Defined variables that affect the validation internally
-    this._definition = {
-      flags: {
-        only: { default: false },
-        presence: { default: 'optional' },
-      },
-      messages: {
-        'any.required': '{#label} is required',
-        'any.forbidden': '{#label} is forbidden',
-        'any.default': "Default value for {#label} fails to resolve due to '{error}'",
-        'any.ref': '{ref} {reason}',
-        'any.only': '{#label} must be {values}',
-        'any.invalid': '{#label} must not be {values}',
-      },
-    };
 
     // Options that are later combined with ones passed into validation
     this._opts = {};
@@ -364,6 +348,7 @@ class _Base {
     this._flags = {};
     // Hash of arrays of immutable objects
     this.$index = {
+      notes: [],
       conditions: [],
     };
   }
@@ -392,7 +377,7 @@ class _Base {
     if (src.type !== 'any') target.type = src.type;
 
     for (const rule of src._rules)
-      if (target._definition.rules[rule.method].single)
+      if (target._def.rules[rule.method].single)
         target._rules = target._rules.filter(({ name }) => name !== rule.name);
 
     target._rules.push(...src._rules);
@@ -412,7 +397,7 @@ class _Base {
       if (key[0] === '_') continue;
 
       const terms = src.$index[key];
-      const def = target._definition.index[key];
+      const def = target._def.index[key];
 
       if (target.$index[key] === undefined) {
         target.$index[key] = [...src.$index[key]];
@@ -438,7 +423,7 @@ class _Base {
   $getFlag(name) {
     // flags could be undefined
     if (!Object.prototype.hasOwnProperty.call(this._flags, name)) {
-      const def = this._definition.flags[name];
+      const def = this._def.flags[name];
 
       return def === undefined ? undefined : def.default;
     }
@@ -456,7 +441,7 @@ class _Base {
       'The option clone for any.$setFlag must be a boolean',
     );
 
-    const def = this._definition.flags[name];
+    const def = this._def.flags[name];
     const defaultValue = def === undefined ? undefined : def.default;
 
     // If the flag is set to its default value, we remove it
@@ -486,7 +471,7 @@ class _Base {
     _register(this._rules, this._refs);
     _register(this.$index, this._refs);
 
-    if (this._definition.rebuild !== null) this._definition.rebuild(this);
+    if (this._def.rebuild !== undefined) this._def.rebuild(this);
 
     return this;
   }
@@ -508,11 +493,6 @@ class _Base {
     );
 
     assert(
-      rule.clone === undefined || typeof rule.clone === 'boolean',
-      'The option clone for any.$addRule must be a boolean',
-    );
-
-    assert(
       rule.args === undefined || isObject(rule.args),
       'The option args for any.$addRule must be an object',
     );
@@ -525,7 +505,7 @@ class _Base {
     rule.method = rule.method === undefined ? rule.name : rule.method;
     rule.refs = [];
 
-    const def = target._definition.rules[rule.method];
+    const def = target._def.rules[rule.method];
 
     assert(def !== undefined, 'Rule', rule.method, 'not found');
 
@@ -602,11 +582,20 @@ class _Base {
     // Have to clone proto for $clone to work on different types
     // If only instances are cloned then $clone() will not return the extended rules
     const proto = clone(Object.getPrototypeOf(this), { symbol: true });
-    const target = _assign(Object.create(proto), this);
+    const target = _assign(this, Object.create(proto));
+    const def =
+      proto._def === undefined
+        ? {
+            messages: {},
+            index: {},
+            flags: {},
+            rules: {},
+          }
+        : proto._def;
+
+    proto._def = def;
 
     target.type = opts.type === undefined ? 'any' : opts.type;
-
-    const def = target._definition;
 
     // Populate definition
     for (const key of ['prepare', 'coerce', 'validate'])
@@ -662,13 +651,11 @@ class _Base {
 
         target.$index[key] = terms.value === undefined ? [] : terms.value;
 
-        delete terms.value;
+        if (terms.merge !== undefined || terms.describe !== undefined) {
+          delete terms.value;
 
-        if (terms.merge === undefined) delete terms.merge;
-
-        if (terms.describe === undefined) delete terms.describe;
-
-        if (Object.keys(terms).length > 0) def.index[key] = terms;
+          def.index[key] = terms;
+        }
       }
 
     // Populate rule definitions
@@ -797,14 +784,6 @@ class _Base {
               'must be defined together',
             );
 
-            if (arg.ref === true || arg.ref === undefined) delete arg.ref;
-
-            // Assert and reason are defined together, so checking for one is enough
-            if (arg.assert === undefined) {
-              delete arg.assert;
-              delete arg.reason;
-            }
-
             args[argName] = arg;
           }
 
@@ -824,16 +803,9 @@ class _Base {
             attachMethod(proto, alias, target[ruleName]);
           }
 
-        // Only add to rule definitions if the rule has the validate method defined
         if (rule.validate !== undefined) {
           delete rule.method;
           delete rule.alias;
-
-          if (rule.priority === undefined || rule.priority === false) delete rule.priority;
-
-          if (rule.single === undefined || rule.single === true) delete rule.single;
-
-          if (Object.keys(rule.args).length === 0) delete rule.args;
 
           def.rules[ruleName] = rule;
         }
@@ -850,9 +822,7 @@ class _Base {
     for (const key of Object.keys(this._flags)) {
       if (key[0] === '_') continue;
 
-      const flag = _describe(this.$getFlag(key));
-
-      if (flag !== undefined) desc.flags[key] = flag;
+      desc.flags[key] = _describe(this._flags[key]);
     }
 
     if (this._rules.length > 0)
@@ -883,7 +853,7 @@ class _Base {
         'Cannot generate description for this schema due to internal key conflicts',
       );
 
-      const def = this._definition.index[key];
+      const def = this._def.index[key];
       const terms = this.$index[key];
 
       if (key[0] === '_' || terms.length === 0 || terms === undefined) continue;
@@ -899,11 +869,38 @@ class _Base {
   }
 
   opts(opts) {
+    assert(opts.context === undefined, 'The parameter opts for any.opts must not contain context');
+
     const target = this.$clone();
 
     target._opts = { ...target._opts, ..._opts('any.opts', opts) };
 
     return target;
+  }
+
+  annotate(...notes) {
+    assert(notes.length > 0, 'The parameter notes for any.annotate must have at least a note');
+
+    assert(
+      notes.every(note => typeof note === 'string'),
+      'The paramater notes for any.annotate must be an array of strings',
+    );
+
+    const target = this.$clone();
+
+    target.$index.notes.push(...notes);
+
+    return target;
+  }
+
+  rule(method, name = 'unknown') {
+    return this.$addRule({ name: 'custom', args: { method, name } });
+  }
+
+  strip(enabled = true) {
+    assert(typeof enabled === 'boolean', 'The parameter enabled for any.strip must be a boolean');
+
+    return this.$setFlag('strip', enabled);
   }
 
   presence(presence) {
@@ -1131,7 +1128,7 @@ class _Base {
       };
     }
 
-    const def = schema._definition;
+    const def = schema._def;
 
     // Methods
     // Always exit early
@@ -1206,21 +1203,66 @@ class _Base {
   }
 }
 
-Object.defineProperty(_Base.prototype, _symbols.schema, { value: true });
+// Default definitions
+_Any.prototype._def = {
+  flags: {
+    strip: { default: false },
+    only: { default: false },
+    presence: { default: 'optional' },
+  },
+  index: {},
+  messages: {
+    'any.required': '{#label} is required',
+    'any.forbidden': '{#label} is forbidden',
+    'any.default': "Default value for {#label} fails to resolve due to '{error}'",
+    'any.ref': '{ref} {reason}',
+    'any.only': '{#label} must be {values}',
+    'any.invalid': '{#label} must not be {values}',
+    'any.custom': '{#label} fails validation {name} due to {err}',
+  },
+  rules: {
+    custom: {
+      single: false,
+      validate: (value, helpers) => {
+        const {
+          args: { method, name },
+          error,
+        } = helpers;
+
+        try {
+          return method(value, helpers);
+        } catch (err) {
+          return error('any.custom', { err, name });
+        }
+      },
+      args: {
+        method: {
+          ref: false,
+          assert: arg => typeof arg === 'function',
+          reason: 'must be a function',
+        },
+        name: {
+          assert: arg => typeof arg === 'string',
+          reason: 'must be a string',
+        },
+      },
+    },
+  },
+};
+
+Object.defineProperty(_Any.prototype, _symbols.schema, { value: true });
 
 for (const [method, ...aliases] of [
+  ['annotate', 'note', 'description'],
+  ['rule', 'custom'],
   ['required', 'exists', 'present'],
   ['valid', 'allow', 'equal', 'is'],
   ['invalid', 'deny', 'disallow', 'not'],
   ['opts', 'options', 'prefs', 'preferences'],
 ]) {
-  aliases.forEach(alias => {
-    attachMethod(_Base.prototype, alias, _Base.prototype[method]);
-  });
-}
-
-function base() {
-  return new _Base();
+  for (const alias of aliases) {
+    attachMethod(_Any.prototype, alias, _Any.prototype[method]);
+  }
 }
 
 function isSchema(value) {
@@ -1228,6 +1270,6 @@ function isSchema(value) {
 }
 
 module.exports = {
-  base,
+  any: new _Any(),
   isSchema,
 };

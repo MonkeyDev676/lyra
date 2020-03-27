@@ -1,8 +1,7 @@
 const assert = require('@botbind/dust/src/assert');
 const clone = require('@botbind/dust/src/clone');
 const compare = require('@botbind/dust/src/compare');
-const any = require('./any');
-const Base = require('../base');
+const Any = require('../any');
 const _isNumber = require('../internals/_isNumber');
 
 function _items(schema, items, type) {
@@ -12,7 +11,7 @@ function _items(schema, items, type) {
 
   for (const item of items) {
     assert(
-      Base.isSchema(item),
+      Any.isSchema(item),
       `The parameter items for array.${type} must only contain valid schemas`,
     );
 
@@ -49,7 +48,7 @@ function _errorMissedRequireds(requireds, error) {
   return error('array.requiredUnknowns', { unknownMisses, grammar: { s } });
 }
 
-module.exports = any.extend({
+module.exports = Any.any.extend({
   type: 'array',
   flags: {
     sparse: false,

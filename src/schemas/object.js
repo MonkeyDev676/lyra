@@ -3,8 +3,7 @@ const assert = require('@botbind/dust/src/assert');
 const clone = require('@botbind/dust/src/clone');
 const compare = require('@botbind/dust/src/compare');
 const isObject = require('@botbind/dust/src/isObject');
-const any = require('./any');
-const Base = require('../base');
+const Any = require('../any');
 const Ref = require('../ref');
 const _isNumber = require('../internals/_isNumber');
 
@@ -75,7 +74,7 @@ const _dependencies = {
   },
 };
 
-module.exports = any.extend({
+module.exports = Any.any.extend({
   type: 'object',
   index: {
     keys: {
@@ -205,7 +204,7 @@ module.exports = any.extend({
         );
 
         assert(
-          keysKeys.every(key => Base.isSchema(keys[key])),
+          keysKeys.every(key => Any.any.isSchema(keys[key])),
           'The parameter keys for object.keys must contain valid schemas',
         );
 

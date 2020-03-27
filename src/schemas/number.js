@@ -1,9 +1,9 @@
 const assert = require('@botbind/dust/src/assert');
 const compare = require('@botbind/dust/src/compare');
-const any = require('./any');
+const Any = require('../any');
 const _isNumber = require('../internals/_isNumber');
 
-module.exports = any.extend({
+module.exports = Any.any.extend({
   type: 'number',
   flags: {
     unsafe: false,

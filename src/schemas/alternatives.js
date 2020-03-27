@@ -1,8 +1,7 @@
 const assert = require('@botbind/dust/src/assert');
-const any = require('./any');
-const Base = require('../base');
+const Any = require('../any');
 
-module.exports = any.extend({
+module.exports = Any.any.extend({
   type: 'alternatives',
   flags: {
     mode: 'any',
@@ -51,7 +50,7 @@ module.exports = any.extend({
 
         for (const item of items) {
           assert(
-            Base.isSchema(item),
+            Any.isSchema(item),
             'The parameter items for alternatives.try must only contain valid schemas',
           );
 
