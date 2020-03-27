@@ -360,66 +360,6 @@ class _Any {
     return _assign(this, target);
   }
 
-  $merge(src) {
-    if (src === undefined) return this;
-
-    if (this === src) return this;
-
-    assert(isSchema(src), 'The parameter src for any.$merge must be a valid schema');
-
-    assert(
-      this.type === 'any' || src.type === 'any' || this.type === src.type,
-      `Cannot merge a ${src.type} schema into a ${this.type} schema`,
-    );
-
-    const target = this.$clone();
-
-    if (src.type !== 'any') target.type = src.type;
-
-    for (const rule of src._rules)
-      if (target._def.rules[rule.method].single)
-        target._rules = target._rules.filter(({ name }) => name !== rule.name);
-
-    target._rules.push(...src._rules);
-
-    target._opts = { ...target._opts, ...src._opts };
-    target._valids = target._valids.merge(src._valids, src._invalids);
-    target._invalids = target._invalids.merge(src._invalids, src._valids);
-
-    for (const key of Object.keys(src._flags)) {
-      if (key[0] === '_') continue;
-
-      target._flags[key] = merge(target._flags[key], src._flags[key], { symbol: true });
-    }
-
-    // Index
-    for (const key of Object.keys(src.$index)) {
-      if (key[0] === '_') continue;
-
-      const terms = src.$index[key];
-      const def = target._def.index[key];
-
-      if (target.$index[key] === undefined) {
-        target.$index[key] = [...src.$index[key]];
-
-        continue;
-      }
-
-      if (def !== undefined && def.merge !== undefined) {
-        target.$index[key] = def.merge(target.$index[key], terms, target, src);
-
-        continue;
-      }
-
-      target.$index[key] = [...target.$index[key], ...src.$index[key]];
-    }
-
-    // Re-register the refs
-    target.$rebuild();
-
-    return target;
-  }
-
   $getFlag(name) {
     // flags could be undefined
     if (!Object.prototype.hasOwnProperty.call(this._flags, name)) {
@@ -532,15 +472,16 @@ class _Any {
         if (/* Defaults to true */ def.args[key].ref !== false && Ref.isRef(rawArg)) {
           rule.refs.push(key);
           target._refs.register(rawArg);
-        } else
+        } else {
           assert(
-            arg.assert === undefined || arg.assert(arg),
+            arg.assert === undefined || arg.assert(rawArg),
             'The parameter',
             key,
             'of',
             `${target.type}.${rule.name}`,
             arg.reason,
           );
+        }
       }
     } else delete rule.args;
 
@@ -551,6 +492,66 @@ class _Any {
 
     if (/* Defaults to false */ def.priority) target._rules.unshift(rule);
     else target._rules.push(rule);
+
+    return target;
+  }
+
+  merge(src) {
+    if (src === undefined) return this;
+
+    if (this === src) return this;
+
+    assert(isSchema(src), 'The parameter src for any.$merge must be a valid schema');
+
+    assert(
+      this.type === 'any' || src.type === 'any' || this.type === src.type,
+      `Cannot merge a ${src.type} schema into a ${this.type} schema`,
+    );
+
+    const target = this.$clone();
+
+    if (src.type !== 'any') target.type = src.type;
+
+    for (const rule of src._rules)
+      if (target._def.rules[rule.method].single)
+        target._rules = target._rules.filter(({ name }) => name !== rule.name);
+
+    target._rules.push(...src._rules);
+
+    target._opts = { ...target._opts, ...src._opts };
+    target._valids = target._valids.merge(src._valids, src._invalids);
+    target._invalids = target._invalids.merge(src._invalids, src._valids);
+
+    for (const key of Object.keys(src._flags)) {
+      if (key[0] === '_') continue;
+
+      target._flags[key] = merge(target._flags[key], src._flags[key], { symbol: true });
+    }
+
+    // Index
+    for (const key of Object.keys(src.$index)) {
+      if (key[0] === '_') continue;
+
+      const terms = src.$index[key];
+      const def = target._def.index[key];
+
+      if (target.$index[key] === undefined) {
+        target.$index[key] = [...src.$index[key]];
+
+        continue;
+      }
+
+      if (def !== undefined && def.merge !== undefined) {
+        target.$index[key] = def.merge(target.$index[key], terms, target, src);
+
+        continue;
+      }
+
+      target.$index[key] = [...target.$index[key], ...src.$index[key]];
+    }
+
+    // Re-register the refs
+    target.$rebuild();
 
     return target;
   }
@@ -1025,8 +1026,8 @@ class _Any {
           state,
         );
 
-        if (result.errors === null) schema = schema.$merge(condition.then);
-        else schema = schema.$merge(condition.otherwise);
+        if (result.errors === null) schema = schema.merge(condition.then);
+        else schema = schema.merge(condition.otherwise);
       }
 
     const errors = [];

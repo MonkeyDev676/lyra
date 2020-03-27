@@ -97,12 +97,19 @@ module.exports = Any.any.extend({
   index: {
     keys: {
       merge: (target, src) => {
-        for (let i = 0; i < src.length; i++) {
-          const srcTerm = src[i];
-          const targetTerm = target[i];
+        const keys = new Map();
 
-          if (targetTerm === undefined) target[i] = srcTerm;
-          else target[i] = targetTerm.$merge(srcTerm);
+        target = [...target];
+
+        for (let i = 0; i < target.length; i++) {
+          keys.set(target[i][0], i);
+        }
+
+        for (const [key, schema] of src) {
+          const pos = keys.get(key);
+
+          if (pos === undefined) target.push([key, schema]);
+          else target[pos] = [key, target[pos][1].merge(schema)];
         }
 
         return target;
