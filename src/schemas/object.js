@@ -7,6 +7,10 @@ const Any = require('../any');
 const Ref = require('../ref');
 const _isNumber = require('../internals/_isNumber');
 
+const _symbols = {
+  object: Symbol('__OBJECT__'),
+};
+
 function _dependency(schema, peers, type) {
   assert(peers.length > 0, `The parameter peers for object.${type} must have at least one item`);
 
@@ -22,6 +26,19 @@ function _dependency(schema, peers, type) {
   target.$index.dependencies.push([type, peers]);
 
   return target;
+}
+
+function _extract(schema, keys) {
+  if (!schema[_symbols.object]) return undefined;
+
+  const currentKey = keys.shift();
+  const child = schema.$index.keys.find(([key]) => key === currentKey);
+
+  if (child === undefined) return undefined;
+
+  if (keys.length === 0) return child[1];
+
+  return _extract(child[1], keys);
 }
 
 const _dependencies = {
@@ -76,6 +93,7 @@ const _dependencies = {
 
 module.exports = Any.any.extend({
   type: 'object',
+  signatures: [_symbols.object],
   index: {
     keys: {
       merge: (target, src) => {
@@ -190,6 +208,24 @@ module.exports = Any.any.extend({
   },
 
   rules: {
+    extract: {
+      alias: ['get', 'reach'],
+      method(path, opts = {}) {
+        assert(typeof path === 'string', 'The parameter path for object.extract must be a string');
+
+        assert(isObject(opts), 'The parameter opts for object.extract must be a plain object');
+
+        assert(
+          opts.separator === undefined || typeof opts.separator === 'string',
+          'The option separator for object.extract must be a string',
+        );
+
+        const keys = path.split(opts.separator === undefined ? '.' : opts.separator);
+
+        return _extract(this, keys);
+      },
+    },
+
     keys: {
       alias: ['of', 'shape'],
       method(keys) {
@@ -204,7 +240,7 @@ module.exports = Any.any.extend({
         );
 
         assert(
-          keysKeys.every(key => Any.any.isSchema(keys[key])),
+          keysKeys.every(key => Any.isSchema(keys[key])),
           'The parameter keys for object.keys must contain valid schemas',
         );
 
