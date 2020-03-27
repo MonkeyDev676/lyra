@@ -583,17 +583,7 @@ class _Any {
     // If only instances are cloned then $clone() will not return the extended rules
     const proto = clone(Object.getPrototypeOf(this), { symbol: true });
     const target = _assign(this, Object.create(proto));
-    const def =
-      proto._def === undefined
-        ? {
-            messages: {},
-            index: {},
-            flags: {},
-            rules: {},
-          }
-        : proto._def;
-
-    proto._def = def;
+    const def = proto._def;
 
     target.type = opts.type === undefined ? 'any' : opts.type;
 
