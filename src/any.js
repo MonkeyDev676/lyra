@@ -860,11 +860,13 @@ class _Any {
   }
 
   opts(opts) {
-    assert(opts.context === undefined, 'The parameter opts for any.opts must not contain context');
+    opts = _opts('any.opts', opts);
+
+    assert(opts.context === undefined, 'Cannot override context in any.opts');
 
     const target = this.$clone();
 
-    target._opts = { ...target._opts, ..._opts('any.opts', opts) };
+    target._opts = { ...target._opts, ...opts };
 
     return target;
   }
@@ -915,8 +917,10 @@ class _Any {
     return this.presence('forbidden');
   }
 
-  default(value, opts) {
+  default(value, opts = {}) {
     assert(value !== undefined, `The parameter value for any.default must be provided`);
+
+    assert(isObject(opts), 'The parameter opts for any.default must be an object');
 
     assert(
       opts.literal === undefined || opts.literal === true,
