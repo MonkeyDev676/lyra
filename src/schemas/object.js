@@ -3,9 +3,12 @@ const assert = require('@botbind/dust/src/assert');
 const clone = require('@botbind/dust/src/clone');
 const compare = require('@botbind/dust/src/compare');
 const isObject = require('@botbind/dust/src/isObject');
+const isPlainObject = require('@botbind/dust/src/isPlainObject');
 const Any = require('../any');
 const Ref = require('../ref');
 const _isNumber = require('../internals/_isNumber');
+
+let compile;
 
 function _dependency(schema, peers, type) {
   assert(peers.length > 0, `The parameter peers for object.${type} must have at least one item`);
@@ -231,7 +234,7 @@ module.exports = Any.any.extend({
     keys: {
       alias: ['of', 'shape'],
       method(keys) {
-        assert(isObject(keys), 'The parameter keys for object.keys must be a plain object');
+        assert(isPlainObject(keys), 'The parameter keys for object.keys must be a plain object');
 
         const target = this.$clone();
         const keysKeys = Object.keys(keys);
@@ -241,15 +244,13 @@ module.exports = Any.any.extend({
           'The parameter keys for object keys must contain at least a valid schema',
         );
 
-        assert(
-          keysKeys.every(key => Any.isSchema(keys[key])),
-          'The parameter keys for object.keys must contain valid schemas',
-        );
+        // eslint-disable-next-line global-require
+        compile = compile === undefined ? require('../compile') : compile;
 
         target.$index.keys = target.$index.keys.filter(([key]) => keys[key] === undefined);
 
         for (const key of keysKeys) {
-          target.$index.keys.push([key, keys[key]]);
+          target.$index.keys.push([key, compile(keys[key])]);
         }
 
         return target.$rebuild();

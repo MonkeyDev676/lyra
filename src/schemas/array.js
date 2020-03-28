@@ -4,19 +4,17 @@ const compare = require('@botbind/dust/src/compare');
 const Any = require('../any');
 const _isNumber = require('../internals/_isNumber');
 
+let compile;
+
 function _items(schema, items, type) {
   assert(items.length > 0, `At least an item must be provided to array.${type}`);
 
+  // eslint-disable-next-line global-require
+  compile = compile === undefined ? require('../compile') : compile;
+
   const target = schema.$clone();
 
-  for (const item of items) {
-    assert(
-      Any.isSchema(item),
-      `The parameter items for array.${type} must only contain valid schemas`,
-    );
-
-    target.$index[type].push(item);
-  }
+  for (const item of items) target.$index[type].push(compile(item));
 
   return target.$rebuild();
 }

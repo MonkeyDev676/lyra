@@ -20,6 +20,7 @@ const root = {
   ...require('./ref'),
 
   symbols: require('./symbols'),
+  compile: require('./compile'),
   isSchema: Any.isSchema,
   _types: new Set(Object.keys(_types)),
 

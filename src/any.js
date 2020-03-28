@@ -39,7 +39,7 @@ class _Refs {
   }
 
   clone() {
-    return new _Refs(this.refs);
+    return new _Refs([...this.refs]);
   }
 
   register(value) {
