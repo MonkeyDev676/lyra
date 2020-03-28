@@ -73,7 +73,9 @@ class _Values {
   }
 
   get display() {
-    return [...this.values, ...this.refs.map(ref => ref._display)];
+    const displays = [...this.refs].map(ref => ref._display);
+
+    return [...this.values, ...displays];
   }
 
   clone() {
@@ -256,10 +258,10 @@ function _opts(methodName, opts) {
   return opts;
 }
 
-function _values(schema, values, type) {
-  assert(values.length > 0, `At least a value must be provided to any.${type}`);
+function _values(schema, values, methodName, type) {
+  assert(values.length > 0, 'At least a value must be provided to', methodName);
 
-  const other = type === '_valids' ? '_invalids' : type;
+  const other = type === '_valids' ? '_invalids' : '_valids';
   const target = schema.$clone();
 
   for (const value of values) {
@@ -950,12 +952,20 @@ class _Any {
     return this.$setFlag('only', enabled);
   }
 
+  allow(...values) {
+    return _values(this, values, 'any.allow', '_valids');
+  }
+
   valid(...values) {
-    return _values(this, values, '_valids');
+    const target = _values(this, values, 'any.valid', '_valids');
+
+    target.$setFlag('only', true, { clone: false });
+
+    return target;
   }
 
   invalid(...values) {
-    return _values(this, values, '_invalids');
+    return _values(this, values, 'any.invalid', '_invalids');
   }
 
   error(customizer) {
@@ -1251,7 +1261,7 @@ for (const [method, ...aliases] of [
   ['annotate', 'note', 'description'],
   ['rule', 'custom'],
   ['required', 'exists', 'present'],
-  ['valid', 'allow', 'equal', 'is'],
+  ['valid', 'equal', 'is'],
   ['invalid', 'deny', 'disallow', 'not'],
   ['opts', 'options', 'prefs', 'preferences'],
 ]) {
