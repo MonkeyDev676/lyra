@@ -564,12 +564,6 @@ class _Any {
       'The option type for any.extend must be a string',
     );
 
-    assert(
-      opts.signatures === undefined ||
-        (Array.isArray(opts.signatures) &&
-          opts.signatures.every(signature => typeof signature === 'symbol')),
-    );
-
     for (const key of ['flags', 'index', 'messages', 'rules'])
       assert(
         opts[key] === undefined || isObject(opts[key]),
@@ -601,19 +595,6 @@ class _Any {
     if (opts.rebuild !== undefined) def.rebuild = _joinRebuild(def.rebuild, opts.rebuild);
 
     def.messages = { ...def.messages, ...opts.messages };
-
-    // Signatures
-    if (opts.signatures !== undefined)
-      for (const signature of opts.signatures) {
-        assert(
-          proto[signature] === undefined,
-          'The signature',
-          signature,
-          'has already been defined',
-        );
-
-        proto[signature] = true;
-      }
 
     // Flags
     if (opts.flags !== undefined)

@@ -7,10 +7,6 @@ const Any = require('../any');
 const Ref = require('../ref');
 const _isNumber = require('../internals/_isNumber');
 
-const _symbols = {
-  object: Symbol('__OBJECT__'),
-};
-
 function _dependency(schema, peers, type) {
   assert(peers.length > 0, `The parameter peers for object.${type} must have at least one item`);
 
@@ -29,7 +25,7 @@ function _dependency(schema, peers, type) {
 }
 
 function _extract(schema, keys) {
-  if (!schema[_symbols.object]) return undefined;
+  if (schema.type !== 'object') return undefined;
 
   const currentKey = keys.shift();
   const child = schema.$index.keys.find(([key]) => key === currentKey);
@@ -93,7 +89,6 @@ const _dependencies = {
 
 module.exports = Any.any.extend({
   type: 'object',
-  signatures: [_symbols.object],
   index: {
     keys: {
       merge: (target, src) => {
