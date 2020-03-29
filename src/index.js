@@ -2,7 +2,6 @@
 const assert = require('@botbind/dust/src/assert');
 const attachMethod = require('@botbind/dust/src/attachMethod');
 const compile = require('./compile');
-const build = require('./build');
 
 const _types = {
   any: require('./schemas/any'),
@@ -34,9 +33,6 @@ const root = {
   _types: new Set(Object.keys(_types)),
 
   // Methods
-  build(desc) {
-    return build(this, desc);
-  },
   compile(value) {
     return compile(this, value);
   },
