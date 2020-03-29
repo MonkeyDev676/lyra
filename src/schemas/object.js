@@ -4,11 +4,9 @@ const clone = require('@botbind/dust/src/clone');
 const compare = require('@botbind/dust/src/compare');
 const isObject = require('@botbind/dust/src/isObject');
 const isPlainObject = require('@botbind/dust/src/isPlainObject');
-const Any = require('../any');
+const any = require('./any');
 const Ref = require('../ref');
 const _isNumber = require('../internals/_isNumber');
-
-let compile;
 
 function _dependency(schema, peers, type) {
   assert(peers.length > 0, `The parameter peers for object.${type} must have at least one item`);
@@ -90,7 +88,7 @@ const _dependencies = {
   },
 };
 
-module.exports = Any.any.extend({
+module.exports = any.extend({
   type: 'object',
   index: {
     keys: {
@@ -130,6 +128,10 @@ module.exports = Any.any.extend({
     'object.oxor': '{#label} must contain one or none of {peers}',
   },
 
+  args: (schema, keys) => {
+    return schema.keys(keys);
+  },
+
   coerce: (value, { error }) => {
     if (typeof value !== 'string') return value;
 
@@ -145,6 +147,7 @@ module.exports = Any.any.extend({
     const keys = new Map(schema.$index.keys);
 
     for (const [key, subSchema] of schema.$index.keys) {
+      console.log(subSchema.$references());
       sorter.add(key, subSchema.$references());
     }
 
@@ -171,7 +174,7 @@ module.exports = Any.any.extend({
       const result = subSchema.$validate(subValue, opts, divedState);
 
       if (result.errors !== null) {
-        if (opts.abortEarly) return result.errors;
+        if (opts.abortEarly !== false) return result.errors;
 
         errors.push(...result.errors);
       } else if (subSchema.$getFlag('strip')) {
@@ -186,7 +189,7 @@ module.exports = Any.any.extend({
       if (!failed) {
         const err = error(`object.${type}`, { peers });
 
-        if (opts.abortEarly) return err;
+        if (opts.abortEarly !== false) return err;
 
         errors.push(err);
       }
@@ -203,7 +206,7 @@ module.exports = Any.any.extend({
       for (const key of keys) {
         const err = error('object.unknown', undefined, state.dive(original, key));
 
-        if (opts.abortEarly) return err;
+        if (opts.abortEarly !== false) return err;
 
         errors.push(err);
       }
@@ -244,13 +247,10 @@ module.exports = Any.any.extend({
           'The parameter keys for object keys must contain at least a valid schema',
         );
 
-        // eslint-disable-next-line global-require
-        compile = compile === undefined ? require('../compile') : compile;
-
         target.$index.keys = target.$index.keys.filter(([key]) => keys[key] === undefined);
 
         for (const key of keysKeys) {
-          target.$index.keys.push([key, compile(keys[key])]);
+          target.$index.keys.push([key, this.$root.compile(keys[key])]);
         }
 
         return target.$rebuild();

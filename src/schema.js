@@ -151,8 +151,10 @@ class _State {
   }
 }
 
-function _assign(schema, target) {
+function _assign(schema, target, cloneDef) {
   target.type = schema.type;
+  target.$root = schema.$root;
+  target._def = cloneDef ? clone(schema._def, { symbol: true }) : schema._def;
   target._refs = schema._refs.clone();
   target._rules = [...schema._rules];
   target._opts = { ...schema._opts };
@@ -335,10 +337,56 @@ function _error(err) {
   return false;
 }
 
-class _Any {
+class _Schema {
   constructor() {
     this.type = 'any';
     this._refs = new _Refs();
+    // Default definition
+    this._def = {
+      flags: {
+        strip: { default: false },
+        only: { default: false },
+        presence: { default: 'optional' },
+      },
+      index: {},
+      messages: {
+        'any.required': '{#label} is required',
+        'any.forbidden': '{#label} is forbidden',
+        'any.default': "Default value for {#label} fails to resolve due to '{error}'",
+        'any.ref': '{ref} {reason}',
+        'any.only': '{#label} must be {values}',
+        'any.invalid': '{#label} must not be {values}',
+        'any.custom': '{#label} fails validation {name} due to {err}',
+      },
+      rules: {
+        custom: {
+          single: false,
+          validate: (value, helpers) => {
+            const {
+              args: { method, name },
+              error,
+            } = helpers;
+
+            try {
+              return method(value, helpers);
+            } catch (err) {
+              return error('any.custom', { err, name });
+            }
+          },
+          args: {
+            method: {
+              ref: false,
+              assert: arg => typeof arg === 'function',
+              reason: 'must be a function',
+            },
+            name: {
+              assert: arg => typeof arg === 'string',
+              reason: 'must be a string',
+            },
+          },
+        },
+      },
+    };
     this._rules = []; // [{ name, method, args }]
 
     // Options that are later combined with ones passed into validation
@@ -353,6 +401,10 @@ class _Any {
       notes: [],
       conditions: [],
     };
+
+    // Links to the root inside index.js
+    // This is used to reference other schemas (that can be extended) and methods that depend on them
+    this.$root = null;
   }
 
   $clone() {
@@ -574,7 +626,7 @@ class _Any {
         'for any.extend must be an object',
       );
 
-    for (const key of ['validate', 'rebuild', 'coerce', 'prepare'])
+    for (const key of ['validate', 'rebuild', 'coerce', 'prepare', 'args'])
       assert(
         opts[key] === undefined || typeof opts[key] === 'function',
         'The option',
@@ -585,14 +637,16 @@ class _Any {
     // Have to clone proto for $clone to work on different types
     // If only instances are cloned then $clone() will not return the extended rules
     const proto = clone(Object.getPrototypeOf(this), { symbol: true });
-    const target = _assign(this, Object.create(proto));
-    const def = proto._def;
+    const target = _assign(this, Object.create(proto), /* cloneDef? */ true);
+    const def = target._def;
 
     target.type = opts.type === undefined ? 'any' : opts.type;
 
     // Populate definition
     for (const key of ['prepare', 'coerce', 'validate'])
       if (opts[key] !== undefined) def[key] = _joinMethod(def[key], opts[key]);
+
+    if (opts.args !== undefined) def.args = opts.args;
 
     if (opts.rebuild !== undefined) def.rebuild = _joinRebuild(def.rebuild, opts.rebuild);
 
@@ -787,7 +841,7 @@ class _Any {
 
         // rule.validate is defined
         if (rule.method === undefined)
-          attachMethod(proto, ruleName, function defaultMethod() {
+          attachMethod(proto, ruleName, function method() {
             return this.$addRule({ name: ruleName });
           });
 
@@ -813,6 +867,8 @@ class _Any {
     desc.type = this.type;
 
     for (const key of Object.keys(this._flags)) {
+      if (desc.flags === undefined) desc.flags = {};
+
       if (key[0] === '_') continue;
 
       desc.flags[key] = _describe(this._flags[key]);
@@ -1151,7 +1207,7 @@ class _Any {
     }
 
     // Rules
-    for (const { refs, method, args: rawArgs, validate, ...rule } of schema._rules) {
+    for (const { refs, method, args: rawArgs, ...rule } of schema._rules) {
       const resolveds = { ...rawArgs };
       let errored = false;
 
@@ -1181,7 +1237,7 @@ class _Any {
 
       if (errored) continue;
 
-      const result = validate(value, { ...helpers, args: resolveds, ...rule });
+      const result = def.rules[method].validate(value, { ...helpers, args: resolveds, ...rule });
       const err = _error(result);
 
       if (!err) value = result;
@@ -1209,53 +1265,8 @@ class _Any {
 }
 
 // Default definitions
-_Any.prototype._def = {
-  flags: {
-    strip: { default: false },
-    only: { default: false },
-    presence: { default: 'optional' },
-  },
-  index: {},
-  messages: {
-    'any.required': '{#label} is required',
-    'any.forbidden': '{#label} is forbidden',
-    'any.default': "Default value for {#label} fails to resolve due to '{error}'",
-    'any.ref': '{ref} {reason}',
-    'any.only': '{#label} must be {values}',
-    'any.invalid': '{#label} must not be {values}',
-    'any.custom': '{#label} fails validation {name} due to {err}',
-  },
-  rules: {
-    custom: {
-      single: false,
-      validate: (value, helpers) => {
-        const {
-          args: { method, name },
-          error,
-        } = helpers;
 
-        try {
-          return method(value, helpers);
-        } catch (err) {
-          return error('any.custom', { err, name });
-        }
-      },
-      args: {
-        method: {
-          ref: false,
-          assert: arg => typeof arg === 'function',
-          reason: 'must be a function',
-        },
-        name: {
-          assert: arg => typeof arg === 'string',
-          reason: 'must be a string',
-        },
-      },
-    },
-  },
-};
-
-Object.defineProperty(_Any.prototype, _symbols.schema, { value: true });
+Object.defineProperty(_Schema.prototype, _symbols.schema, { value: true });
 
 for (const [method, ...aliases] of [
   ['annotate', 'note', 'description'],
@@ -1266,7 +1277,7 @@ for (const [method, ...aliases] of [
   ['opts', 'options', 'prefs', 'preferences'],
 ]) {
   for (const alias of aliases) {
-    attachMethod(_Any.prototype, alias, _Any.prototype[method]);
+    attachMethod(_Schema.prototype, alias, _Schema.prototype[method]);
   }
 }
 
@@ -1275,6 +1286,6 @@ function isSchema(value) {
 }
 
 module.exports = {
-  any: new _Any(),
+  schema: new _Schema(),
   isSchema,
 };

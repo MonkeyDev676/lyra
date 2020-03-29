@@ -1,6 +1,6 @@
 const assert = require('@botbind/dust/src/assert');
 const compare = require('@botbind/dust/src/compare');
-const Any = require('../any');
+const any = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
 const _regexps = {
@@ -14,7 +14,7 @@ const _regexps = {
   numeric: /^[0-9]+$/,
 };
 
-module.exports = Any.any.extend({
+module.exports = any.extend({
   type: 'string',
   flags: {
     trim: false,
@@ -137,8 +137,8 @@ module.exports = Any.any.extend({
         let err;
 
         if (typeof regexp === 'string') {
-          regexp = _regexps[regexp];
           err = error(`string.${regexp}`);
+          regexp = _regexps[regexp];
         } else err = error('string.pattern', { regexp });
 
         return regexp.test(value) ? value : err;

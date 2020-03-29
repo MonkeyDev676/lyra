@@ -1,10 +1,6 @@
 const assert = require('@botbind/dust/src/assert');
-const alternatives = require('./schemas/alternatives');
-const object = require('./schemas/object');
-const Any = require('./any');
-const Ref = require('./ref');
 
-function _simple(value) {
+function _simple(root, value) {
   const type = typeof value;
 
   return (
@@ -12,29 +8,30 @@ function _simple(value) {
     type === 'number' ||
     type === 'string' ||
     type === 'boolean' ||
-    Ref.isRef(value)
+    root.isRef(value)
   );
 }
 
-module.exports = function compile(value) {
+module.exports = function compile(root, value) {
   assert(value !== undefined, 'The parameter value for compile must not be undefined');
 
   // If already schema, return it
-  if (Any.isSchema(value)) return value;
+  if (root.isSchema(value)) return value;
 
   // null, number, string, boolean, refs
-  if (_simple(value)) return Any.any.valid(value);
+  if (_simple(root, value)) return root.any().valid(value);
 
   // Custom rules
-  if (typeof value === 'function') return Any.any.rule(value);
+  if (typeof value === 'function') return root.any().rule(value);
 
   // Valid if all are null, number, string, boolean or refs, otherwise alternatives
   if (Array.isArray(value)) {
-    for (const subValue of value) if (!_simple(subValue)) return alternatives.try(...value);
+    for (const subValue of value)
+      if (!_simple(root, subValue)) return root.alternatives().try(...value);
 
-    return Any.any.valid(...value);
+    return root.any().valid(...value);
   }
 
   // Object
-  return object.keys(value);
+  return root.object(value);
 };

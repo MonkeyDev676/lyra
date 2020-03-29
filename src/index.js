@@ -1,10 +1,11 @@
 /* eslint-disable global-require */
 const assert = require('@botbind/dust/src/assert');
 const attachMethod = require('@botbind/dust/src/attachMethod');
-const Any = require('./any');
+const compile = require('./compile');
+const build = require('./build');
 
 const _types = {
-  any: Any.any,
+  any: require('./schemas/any'),
   alternatives: require('./schemas/alternatives'),
   boolean: require('./schemas/boolean'),
   string: require('./schemas/string'),
@@ -15,37 +16,49 @@ const _types = {
   object: require('./schemas/object'),
 };
 
+function _create(schema, root, args) {
+  schema.$root = root;
+
+  // Constructor argumnets
+  if (schema._def.args !== undefined && args.length > 0) return schema._def.args(schema, ...args);
+
+  return schema;
+}
+
 const root = {
   ...require('./identities'),
   ...require('./ref'),
 
   symbols: require('./symbols'),
-  compile: require('./compile'),
-  isSchema: Any.isSchema,
+  isSchema: require('./schema').isSchema,
   _types: new Set(Object.keys(_types)),
 
-  ..._types,
-
   // Methods
+  build(desc) {
+    return build(this, desc);
+  },
+  compile(value) {
+    return compile(this, value);
+  },
   attempt: (schema, value, opts) => {
     return schema.attempt(value, opts);
   },
   validate: (schema, value, opts) => {
     return schema.validate(value, opts);
   },
-  extend: (...extensions) => {
-    const Lyra = { ...root };
+  extend(...extensions) {
+    const newRoot = { ...this };
 
     // Clone types
-    Lyra._types = new Set(Lyra._types);
+    newRoot._types = new Set(newRoot._types);
 
     assert(extensions.length > 0, 'The parameter extensions must contain at least an extension');
 
     for (let extension of extensions) {
-      if (typeof extension === 'function') extension = extension(Lyra);
+      if (typeof extension === 'function') extension = extension(newRoot);
 
       assert(
-        Lyra[extension.type] === undefined || Lyra._types.has(extension.type),
+        newRoot[extension.type] === undefined || newRoot._types.has(extension.type),
         'Invalid extension',
         extension.type,
       );
@@ -55,18 +68,25 @@ const root = {
         'The option from for extend must be a valid schema',
       );
 
-      const from = extension.from === undefined ? Lyra.any : extension.from;
+      newRoot._types.add(extension.type);
 
-      Lyra[extension.type] = from.extend(extension);
+      const from = extension.from === undefined ? newRoot.any() : extension.from;
 
-      Lyra._types.add(extension.type);
+      newRoot[extension.type] = function method(...args) {
+        return _create(from.extend(extension), this, args);
+      };
     }
 
-    return Lyra;
+    return newRoot;
   },
 };
 
-// Aliases
+for (const type of root._types) {
+  root[type] = function method(...args) {
+    return _create(_types[type], this, args);
+  };
+}
+
 for (const [type, alias] of [
   ['boolean', 'bool'],
   ['string', 'str'],
@@ -75,8 +95,9 @@ for (const [type, alias] of [
   ['function', 'func'],
   ['array', 'arr'],
   ['object', 'obj'],
-])
+]) {
   root[alias] = root[type];
+}
 
 // Shortcut
 for (const methodName of [
@@ -108,7 +129,7 @@ for (const methodName of [
   'description',
 ])
   attachMethod(root, methodName, function method(...args) {
-    return this.any[methodName](...args);
+    return this.any()[methodName](...args);
   });
 
 module.exports = root;

@@ -1,7 +1,7 @@
 const assert = require('@botbind/dust/src/assert');
-const Any = require('../any');
+const any = require('./any');
 
-module.exports = Any.any.extend({
+module.exports = any.extend({
   type: 'boolean',
   flags: {
     sensitive: false,

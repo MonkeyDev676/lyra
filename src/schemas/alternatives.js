@@ -1,9 +1,7 @@
 const assert = require('@botbind/dust/src/assert');
-const Any = require('../any');
+const any = require('./any');
 
-let compile;
-
-module.exports = Any.any.extend({
+module.exports = any.extend({
   type: 'alternatives',
   flags: {
     mode: 'any',
@@ -48,12 +46,9 @@ module.exports = Any.any.extend({
       method(...items) {
         assert(items.length > 0, 'At least an item must be provided to alternatives.try');
 
-        // eslint-disable-next-line global-require
-        compile = compile === undefined ? require('../compile') : compile;
-
         const target = this.$clone();
 
-        for (const item of items) target.$index.items.push(compile(item));
+        for (const item of items) target.$index.items.push(this.$root.compile(item));
 
         return target.$rebuild();
       },

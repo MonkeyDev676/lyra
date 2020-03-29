@@ -1,20 +1,15 @@
 const assert = require('@botbind/dust/src/assert');
 const clone = require('@botbind/dust/src/clone');
 const compare = require('@botbind/dust/src/compare');
-const Any = require('../any');
+const any = require('./any');
 const _isNumber = require('../internals/_isNumber');
-
-let compile;
 
 function _items(schema, items, type) {
   assert(items.length > 0, `At least an item must be provided to array.${type}`);
 
-  // eslint-disable-next-line global-require
-  compile = compile === undefined ? require('../compile') : compile;
-
   const target = schema.$clone();
 
-  for (const item of items) target.$index[type].push(compile(item));
+  for (const item of items) target.$index[type].push(schema.$root.compile(item));
 
   return target.$rebuild();
 }
@@ -46,7 +41,7 @@ function _errorMissedRequireds(requireds, error) {
   return error('array.requiredUnknowns', { unknownMisses, grammar: { s } });
 }
 
-module.exports = Any.any.extend({
+module.exports = any.extend({
   type: 'array',
   flags: {
     sparse: false,
@@ -126,7 +121,7 @@ module.exports = Any.any.extend({
       if (!sparse && subValue === undefined) {
         const err = error('array.sparse', undefined, divedState);
 
-        if (opts.abortEarly) return err;
+        if (opts.abortEarly !== false) return err;
 
         errors.push(err);
         ordereds.shift();
@@ -148,7 +143,7 @@ module.exports = Any.any.extend({
 
         const err = error('array.forbidden', { item: subValue });
 
-        if (opts.abortEarly) return err;
+        if (opts.abortEarly !== false) return err;
 
         // If a forbiden schema is met, we move on to the next subValue
         errored = true;
@@ -167,7 +162,7 @@ module.exports = Any.any.extend({
         const result = ordered.$validate(subValue, opts, divedState);
 
         if (result.errors !== null) {
-          if (opts.abortEarly) return result.errors;
+          if (opts.abortEarly !== false) return result.errors;
 
           errors.push(...result.errors);
 
@@ -184,7 +179,7 @@ module.exports = Any.any.extend({
           // If the returned value from the schema is undefined, we check for the sparse item
           const err = error('array.sparse', undefined, divedState);
 
-          if (opts.abortEarly) return err;
+          if (opts.abortEarly !== false) return err;
 
           errors.push(err);
 
@@ -198,7 +193,7 @@ module.exports = Any.any.extend({
         // ordered schemas
         const err = error('array.orderedLength', { length: ordereds.length });
 
-        if (opts.abortEarly) return err;
+        if (opts.abortEarly !== false) return err;
 
         errors.push(err);
 
@@ -228,7 +223,7 @@ module.exports = Any.any.extend({
           } else if (!sparse && result.value === undefined) {
             const err = error('array.sparse', undefined, divedState);
 
-            if (opts.abortEarly) return err;
+            if (opts.abortEarly !== false) return err;
 
             errors.push(err);
           } else value[i] = result.value;
@@ -262,7 +257,7 @@ module.exports = Any.any.extend({
             } else if (!sparse && result.value === undefined) {
               const err = error('array.sparse', undefined, divedState);
 
-              if (opts.abortEarly) return err;
+              if (opts.abortEarly !== false) return err;
 
               errors.push(err);
             } else value[i] = result.value;
@@ -284,7 +279,7 @@ module.exports = Any.any.extend({
 
         const err = error('array.required', undefined, divedState);
 
-        if (opts.abortEarly) return err;
+        if (opts.abortEarly !== false) return err;
 
         errors.push(err);
       }
@@ -293,7 +288,7 @@ module.exports = Any.any.extend({
     if (requireds.length > 0) {
       const err = _errorMissedRequireds(requireds, error);
 
-      if (opts.abortEarly) return err;
+      if (opts.abortEarly !== false) return err;
 
       errors.push(err);
     }
@@ -305,7 +300,7 @@ module.exports = Any.any.extend({
     if (requiredOrdereds.length > 0) {
       const err = _errorMissedRequireds(requiredOrdereds, error);
 
-      if (opts.abortEarly) return err;
+      if (opts.abortEarly !== false) return err;
 
       errors.push(err);
     }
