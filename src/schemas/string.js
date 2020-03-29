@@ -21,7 +21,7 @@ module.exports = any.extend({
   },
   index: {
     replace: {
-      describe: ([pattern, replacement]) => ({ pattern: pattern.toString(), replacement }),
+      describe: ([pattern, replacement]) => ({ pattern, replacement }),
     },
   },
   messages: {
@@ -30,7 +30,7 @@ module.exports = any.extend({
     'string.min': '{#label} must have at least {length} characters',
     'string.max': '{#label} must have at most {length} characters',
     'string.creditCard': '{#label} must be a credit card',
-    'string.pattern': '{#label} must have pattern of {regexp}',
+    'string.pattern': '{#label} must have pattern {name} of {regexp}',
     'string.email': '{#label} must be an email',
     'string.url': '{#label} must be a URL',
     'string.alphanum': '{#label} must only contain alpha-numeric characters',
@@ -130,54 +130,57 @@ module.exports = any.extend({
 
     pattern: {
       single: false,
-      method(regexp) {
-        return this.$addRule({ name: 'pattern', args: { regexp } });
+      method(regexp, name = 'unknown') {
+        return this.$addRule({ name: 'pattern', args: { regexp, name } });
       },
-      validate: (value, { args: { regexp }, error }) => {
-        let err;
-
-        if (typeof regexp === 'string') {
-          err = error(`string.${regexp}`);
-          regexp = _regexps[regexp];
-        } else err = error('string.pattern', { regexp });
-
-        return regexp.test(value) ? value : err;
+      validate: (value, { args: { regexp, name }, error }) => {
+        return regexp.test(value) ? value : error('string.pattern', { regexp, name });
       },
       args: {
         regexp: {
-          assert: arg =>
-            // Predefined regular expressions
-            arg === 'email' ||
-            arg === 'url' ||
-            arg === 'alphanumeric' ||
-            arg === 'numeric' ||
-            arg instanceof RegExp,
-          reason: 'must be a regular expression or email or url or alphanumeric or numeric',
+          assert: arg => arg instanceof RegExp,
+          reason: 'must be a regular expression',
+        },
+        name: {
+          assert: arg => typeof arg === 'string',
+          reason: 'must be a string',
         },
       },
     },
 
     email: {
       method() {
-        return this.pattern('email');
+        return this.$addRule({ name: 'email' });
+      },
+      validate: (value, { error }) => {
+        return _regexps.email.test(value) ? value : error('string.email');
       },
     },
 
     url: {
       method() {
-        return this.pattern('url');
+        return this.$addRule({ name: 'url' });
+      },
+      validate: (value, { error }) => {
+        return _regexps.url.test(value) ? value : error('string.url');
       },
     },
 
     alphanum: {
       method() {
-        return this.pattern('alphanumeric');
+        return this.$addRule({ name: 'alphanum' });
+      },
+      validate: (value, { error }) => {
+        return _regexps.alphanumeric.test(value) ? value : error('string.alphanum');
       },
     },
 
     numeric: {
       method() {
-        return this.pattern('numeric');
+        return this.$addRule({ name: 'numeric' });
+      },
+      validate: (value, { error }) => {
+        return _regexps.numeric.test(value) ? value : error('string.numeric');
       },
     },
 
