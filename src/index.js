@@ -98,6 +98,7 @@ for (const [type, alias] of [
 // Shortcut
 for (const methodName of [
   'annotate',
+  'rule',
   'custom',
   'opts',
   'strip',

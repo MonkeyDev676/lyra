@@ -147,7 +147,6 @@ module.exports = any.extend({
     const keys = new Map(schema.$index.keys);
 
     for (const [key, subSchema] of schema.$index.keys) {
-      console.log(subSchema.$references());
       sorter.add(key, subSchema.$references());
     }
 
