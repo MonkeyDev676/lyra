@@ -154,13 +154,13 @@ class _State {
 function _assign(schema, target, cloneDef) {
   target.type = schema.type;
   target.$root = schema.$root;
-  target._def = cloneDef ? clone(schema._def, { symbol: true }) : schema._def;
+  target._definition = cloneDef ? clone(schema._definition) : schema._definition;
   target._refs = schema._refs.clone();
   target._rules = [...schema._rules];
   target._opts = { ...schema._opts };
   target._valids = schema._valids.clone();
   target._invalids = schema._invalids.clone();
-  target._flags = clone(schema._flags, { symbol: true });
+  target._flags = clone(schema._flags);
   target.$index = {};
 
   for (const key of Object.keys(schema.$index)) {
@@ -298,7 +298,7 @@ function _createError(schema, code, state, context = {}, terms = {}) {
       return new _ValidationError(err instanceof Error ? err.message : err, code, state);
   }
 
-  const template = schema._def.messages[code];
+  const template = schema._definition.messages[code];
 
   assert(template !== undefined, 'Message template', code, 'not found');
 
@@ -342,7 +342,7 @@ class _Schema {
     this.type = 'any';
     this._refs = new _Refs();
     // Default definition
-    this._def = {
+    this._definition = {
       flags: {
         strip: { default: false },
         only: { default: false },
@@ -417,7 +417,7 @@ class _Schema {
   $getFlag(name) {
     // flags could be undefined
     if (!Object.prototype.hasOwnProperty.call(this._flags, name)) {
-      const def = this._def.flags[name];
+      const def = this._definition.flags[name];
 
       return def === undefined ? undefined : def.default;
     }
@@ -435,14 +435,14 @@ class _Schema {
       'The option clone for any.$setFlag must be a boolean',
     );
 
-    const def = this._def.flags[name];
+    const def = this._definition.flags[name];
     const defaultValue = def === undefined ? undefined : def.default;
 
     // If the flag is set to its default value, we remove it
     if (equal(value, defaultValue)) value = symbols.removeFlag;
 
     // If the flag and the value are already equal, we don't do anything
-    if (equal(this._flags[name], value, { symbol: true })) return this;
+    if (equal(this._flags[name], value)) return this;
 
     const target = /* Defaults to true */ opts.clone !== false ? this.$clone() : this;
 
@@ -465,7 +465,7 @@ class _Schema {
     _register(this._rules, this._refs);
     _register(this.$index, this._refs);
 
-    if (this._def.rebuild !== undefined) this._def.rebuild(this);
+    if (this._definition.rebuild !== undefined) this._definition.rebuild(this);
 
     return this;
   }
@@ -499,7 +499,7 @@ class _Schema {
     rule.method = rule.method === undefined ? rule.name : rule.method;
     rule.refs = [];
 
-    const def = target._def.rules[rule.method];
+    const def = target._definition.rules[rule.method];
 
     assert(def !== undefined, 'Rule', rule.method, 'not found');
 
@@ -567,7 +567,7 @@ class _Schema {
     if (src.type !== 'any') target.type = src.type;
 
     for (const rule of src._rules)
-      if (target._def.rules[rule.method].single)
+      if (target._definition.rules[rule.method].single)
         target._rules = target._rules.filter(({ name }) => name !== rule.name);
 
     target._rules.push(...src._rules);
@@ -579,7 +579,7 @@ class _Schema {
     for (const key of Object.keys(src._flags)) {
       if (key[0] === '_') continue;
 
-      target._flags[key] = merge(target._flags[key], src._flags[key], { symbol: true });
+      target._flags[key] = merge(target._flags[key], src._flags[key]);
     }
 
     // Index
@@ -587,7 +587,7 @@ class _Schema {
       if (key[0] === '_') continue;
 
       const terms = src.$index[key];
-      const def = target._def.index[key];
+      const def = target._definition.index[key];
 
       if (target.$index[key] === undefined) {
         target.$index[key] = [...src.$index[key]];
@@ -636,9 +636,9 @@ class _Schema {
 
     // Have to clone proto for $clone to work on different types
     // If only instances are cloned then $clone() will not return the extended rules
-    const proto = clone(Object.getPrototypeOf(this), { symbol: true });
+    const proto = clone(Object.getPrototypeOf(this));
     const target = _assign(this, Object.create(proto), /* cloneDef? */ true);
-    const def = target._def;
+    const def = target._definition;
 
     target.type = opts.type === undefined ? 'any' : opts.type;
 
@@ -902,7 +902,7 @@ class _Schema {
         'Cannot generate description for this schema due to internal key conflicts',
       );
 
-      const def = this._def.index[key];
+      const def = this._definition.index[key];
       const terms = this.$index[key];
 
       if (key[0] === '_' || terms.length === 0 || terms === undefined) continue;
@@ -1189,7 +1189,7 @@ class _Schema {
       };
     }
 
-    const def = schema._def;
+    const def = schema._definition;
 
     // Methods
     // Always exit early
