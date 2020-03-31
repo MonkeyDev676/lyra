@@ -38,7 +38,7 @@
     "node": ">=12.0.0"
   },
   "dependencies": {
-    "@botbind/constellation": "^3.0.3",
-    "@botbind/dust": "^4.0.2"
+    "@botbind/constellation": "^3.0.5",
+    "@botbind/dust": "^5.0.0"
   }
 }
