@@ -19,7 +19,8 @@ function _create(schema, root, args) {
   schema.$root = root;
 
   // Constructor argumnets
-  if (schema._def.args !== undefined && args.length > 0) return schema._def.args(schema, ...args);
+  if (schema._definition.args !== undefined && args.length > 0)
+    return schema._defintion.args(schema, ...args);
 
   return schema;
 }
