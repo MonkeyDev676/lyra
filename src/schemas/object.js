@@ -90,7 +90,6 @@ const _dependencies = {
 
 module.exports = any.extend({
   type: 'object',
-  flags: {},
   index: {
     keys: {
       merge: (target, src) => {
