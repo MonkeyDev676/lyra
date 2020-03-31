@@ -20,7 +20,7 @@ function _create(schema, root, args) {
 
   // Constructor argumnets
   if (schema._definition.args !== undefined && args.length > 0)
-    return schema._defintion.args(schema, ...args);
+    return schema._definition.args(schema, ...args);
 
   return schema;
 }
