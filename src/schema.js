@@ -73,7 +73,7 @@ class _Values {
   }
 
   get display() {
-    const displays = [...this.refs].map(ref => ref._display);
+    const displays = [...this.refs].map(ref => ref.display);
 
     return [...this.values, ...displays];
   }
@@ -323,7 +323,7 @@ function _createError(schema, code, state, context = {}, terms = {}) {
 
     assert(found !== _symbols.default, 'Term', term, 'not found');
 
-    return Ref.isRef(found) ? found._display : display(found);
+    return Ref.isRef(found) ? found.display : display(found);
   });
 
   return new _ValidationError(message, code, state);
@@ -1043,20 +1043,25 @@ class _Schema {
 
     assert(isObject(opts), 'The parameter opts for any.when must be an object');
 
-    assert(isSchema(opts.is), 'The option is for any.when must be a valid schema');
+    assert(opts.is !== undefined, 'The option is for any.when must be provided');
 
     assert(
-      isSchema(opts.then) || isSchema(opts.otherwise),
-      'The option then or otherwise for any.when must be a valid schema',
+      opts.then !== undefined || opts.otherwise !== undefined,
+      'The option then or otherwise for any.when must be provided',
     );
 
-    ref = typeof ref === 'string' ? Ref.ref(ref) : ref;
+    const condition = { ...opts };
+
+    condition.ref = this.$root.compile.ref(ref);
+    condition.is = this.$root.compile(condition.is);
+
+    for (const key of ['then', 'otherwise'])
+      if (condition[key] !== undefined) condition[key] = this.$root.compile(condition[key]);
 
     const target = this.$clone();
 
     target._refs.register(ref);
-
-    target.$index.conditions.push({ ref, ...opts });
+    target.$index.conditions.push(condition);
 
     return target;
   }

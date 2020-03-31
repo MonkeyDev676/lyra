@@ -26,7 +26,6 @@ function _create(schema, root, args) {
 }
 
 const root = {
-  ...require('./identities'),
   ...require('./ref'),
 
   symbols: require('./symbols'),
@@ -77,6 +76,9 @@ const root = {
     return newRoot;
   },
 };
+
+// compile.ref
+root.compile.ref = compile.ref;
 
 for (const type of root._types) {
   root[type] = function method(...args) {

@@ -16,7 +16,7 @@ function _dependency(schema, peers, type) {
     `The parameter peers for object.${type} must contain only instances of Ref or strings`,
   );
 
-  peers = peers.map(peer => (typeof peer === 'string' ? Ref.ref(peer) : peer));
+  peers = peers.map(peer => schema.$root.compile.ref(peer));
 
   const target = schema.$clone();
 
@@ -41,24 +41,24 @@ function _extract(schema, keys) {
 const _dependencies = {
   and: (value, peers, ancestors, context) => {
     for (const peer of peers) {
-      if (peer.resolve(value, ancestors, context) === undefined) return peers;
+      if (peer.resolve(value, ancestors, context) === undefined) return false;
+    }
+
+    return true;
+  },
+  nand: (value, peers, ancestors, context) => {
+    for (const peer of peers) {
+      if (peer.resolve(value, ancestors, context) === undefined) return true;
     }
 
     return false;
   },
-  nand: (value, peers, ancestors, context) => {
-    for (const peer of peers) {
-      if (peer.resolve(value, ancestors, context) === undefined) return false;
-    }
-
-    return peers;
-  },
   or: (value, peers, ancestors, context) => {
     for (const peer of peers) {
-      if (peer.resolve(value, ancestors, context) !== undefined) return false;
+      if (peer.resolve(value, ancestors, context) !== undefined) return true;
     }
 
-    return peers;
+    return false;
   },
   xor: (value, peers, ancestors, context) => {
     let count = 0;
@@ -66,13 +66,13 @@ const _dependencies = {
     for (const peer of peers) {
       if (peer.resolve(value, ancestors, context) !== undefined) {
         if (count === 0) count++;
-        else return peers;
+        else return false;
       }
     }
 
-    if (count === 0) return peers;
+    if (count === 0) return false;
 
-    return false;
+    return true;
   },
   oxor: (value, peers, ancestors, context) => {
     let count = 0;
@@ -80,11 +80,11 @@ const _dependencies = {
     for (const peer of peers) {
       if (peer.resolve(value, ancestors, context) !== undefined) {
         if (count === 0) count++;
-        else return peers;
+        else return false;
       }
     }
 
-    return false;
+    return true;
   },
 };
 
@@ -186,7 +186,7 @@ module.exports = any.extend({
       const failed = _dependencies[type](value, peers, state._ancestors, opts.context);
 
       if (!failed) {
-        const err = error(`object.${type}`, { peers });
+        const err = error(`object.${type}`, { peers: peers.map(peer => peer.display) });
 
         if (opts.abortEarly !== false) return err;
 

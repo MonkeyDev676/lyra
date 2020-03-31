@@ -37,7 +37,7 @@ class _Ref {
     this._separator = separator;
     this._path = this._originalPath.slice(slice);
     this._root = this._path.split(separator)[0];
-    this._display = `ref(${path})`;
+    this.display = `ref(${path})`;
   }
 
   resolve(value, ancestors, context = {}) {
