@@ -44,11 +44,21 @@ module.exports = any.extend({
   rules: {
     try: {
       method(...items) {
-        assert(items.length > 0, 'At least an item must be provided to alternatives.try');
+        assert(
+          items.length > 0,
+          'The paramter items for alternatives.try must have at least an item',
+        );
 
         const target = this.$clone();
 
-        for (const item of items) target.$index.items.push(this.$root.compile(item));
+        for (const item of items) {
+          assert(
+            item !== undefined,
+            'The parameter items for alternatives.try must not contain undefineds',
+          );
+
+          target.$index.items.push(this.$root.compile(item));
+        }
 
         return target.$rebuild();
       },

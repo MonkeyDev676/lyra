@@ -5,11 +5,15 @@ const any = require('./any');
 const _isNumber = require('../internals/_isNumber');
 
 function _items(schema, items, type) {
-  assert(items.length > 0, `At least an item must be provided to array.${type}`);
+  assert(items.length > 0, `The parameter items for array.${type} must have at least an item`);
 
   const target = schema.$clone();
 
-  for (const item of items) target.$index[type].push(schema.$root.compile(item));
+  for (const item of items) {
+    assert(item !== undefined, `The parameter items for array.${type} must not contain undefineds`);
+
+    target.$index[type].push(schema.$root.compile(item));
+  }
 
   return target.$rebuild();
 }

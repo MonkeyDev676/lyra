@@ -261,7 +261,7 @@ function _opts(methodName, opts) {
 }
 
 function _values(schema, values, methodName, type) {
-  assert(values.length > 0, 'At least a value must be provided to', methodName);
+  assert(values.length > 0, 'The parameter values for', methodName, 'must have at least a value');
 
   const other = type === '_valids' ? '_invalids' : '_valids';
   const target = schema.$clone();

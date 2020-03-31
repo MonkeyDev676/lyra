@@ -112,6 +112,7 @@ module.exports = any.extend({
       },
     },
     dependencies: {},
+    patterns: {},
   },
   messages: {
     'object.base': '{#label} must be an object',
@@ -126,6 +127,9 @@ module.exports = any.extend({
     'object.or': '{#label} must contain at least one of {peers}',
     'object.xor': '{#label} must contain one of {peers}',
     'object.oxor': '{#label} must contain one or none of {peers}',
+    'object.pattern.key': '{#label} contains key {key} that does not follow the provided pattern',
+    'object.pattern.value':
+      '{#label} contains value {value} of key {key} that does not follow the provided pattern',
   },
 
   args: (schema, keys) => {
@@ -182,6 +186,36 @@ module.exports = any.extend({
         value[key] = result.value;
     }
 
+    for (const key of keys) {
+      const subValue = value[key];
+      const divedState = state.dive(original, key);
+
+      for (const [keyPattern, valuePattern] of schema.$index.patterns) {
+        let result = keyPattern.$validate(key, opts, divedState);
+
+        if (result.errors !== null) {
+          const err = error('object.pattern.key', { key });
+
+          if (opts.abortEarly !== false) return err;
+
+          errors.push(err);
+
+          // No point matching value if key already fails
+          continue;
+        }
+
+        result = valuePattern.$validate(subValue, opts, divedState);
+
+        if (result.errors !== null) {
+          const err = error('object.pattern.value', { key, value: subValue });
+
+          if (opts.abortEarly !== false) return err;
+
+          errors.push(err);
+        }
+      }
+    }
+
     for (const [type, peers] of schema.$index.dependencies) {
       const failed = _dependencies[type](value, peers, state._ancestors, opts.context);
 
@@ -195,10 +229,10 @@ module.exports = any.extend({
     }
 
     if (opts.stripUnknown) {
-      keys.forEach(key => {
+      for (const key of keys) {
         delete value[key];
         keys.delete(key);
-      });
+      }
     }
 
     if (/* Defaults to false */ !opts.allowUnknown) {
@@ -215,6 +249,17 @@ module.exports = any.extend({
   },
 
   rules: {
+    unknown: {
+      method(enabled = true) {
+        assert(
+          typeof enabled === 'boolean',
+          'The parameter enabled for objet.unknown must be a boolean',
+        );
+
+        return this.opts({ allowUnknown: enabled });
+      },
+    },
+
     extract: {
       alias: ['get', 'reach'],
       method(path, opts = {}) {
@@ -234,7 +279,7 @@ module.exports = any.extend({
     },
 
     keys: {
-      alias: ['of', 'shape'],
+      alias: ['of', 'shape', 'entries'],
       method(keys) {
         assert(isPlainObject(keys), 'The parameter keys for object.keys must be a plain object');
 
@@ -243,14 +288,39 @@ module.exports = any.extend({
 
         assert(
           keysKeys.length > 0,
-          'The parameter keys for object keys must contain at least a valid schema',
+          'The parameter keys for object.keys must contain at least a valid schema',
         );
 
         target.$index.keys = target.$index.keys.filter(([key]) => keys[key] === undefined);
 
         for (const key of keysKeys) {
+          assert(
+            keys[key] !== undefined,
+            'The parameter keys for object.keys must not contain undefineds',
+          );
+
           target.$index.keys.push([key, this.$root.compile(keys[key])]);
         }
+
+        return target.$rebuild();
+      },
+    },
+
+    pattern: {
+      method(keyPattern, valuePattern) {
+        assert(keyPattern !== undefined, 'The parameter key for object.pattern must be provided');
+
+        assert(
+          valuePattern !== undefined,
+          'The parameter schema for object.pattern must be provided',
+        );
+
+        const target = this.$clone();
+
+        keyPattern = this.$root.compile(keyPattern);
+        valuePattern = this.$root.compile(valuePattern);
+
+        target.$index.patterns.push([keyPattern, valuePattern]);
 
         return target.$rebuild();
       },
