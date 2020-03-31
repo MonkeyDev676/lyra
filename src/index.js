@@ -10,7 +10,7 @@ const _types = {
   string: require('./schemas/string'),
   date: require('./schemas/date'),
   number: require('./schemas/number'),
-  array: require('./schemas/number'),
+  array: require('./schemas/array'),
   function: require('./schemas/function'),
   object: require('./schemas/object'),
 };
