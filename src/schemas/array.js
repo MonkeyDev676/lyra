@@ -245,7 +245,7 @@ module.exports = any.extend({
         if (idx !== -1) {
           result = requiredChecks[idx];
         } else {
-          result = included.$validate(value, opts, divedState);
+          result = included.$validate(subValue, opts, divedState);
 
           if (result.errors === null) {
             isValid = true;
