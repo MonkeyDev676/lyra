@@ -90,6 +90,7 @@ const _dependencies = {
 
 module.exports = any.extend({
   type: 'object',
+  flags: {},
   index: {
     keys: {
       merge: (target, src) => {
@@ -235,7 +236,12 @@ module.exports = any.extend({
       }
     }
 
-    if (/* Defaults to false */ !opts.allowUnknown) {
+    let allowUnknown = schema.$getFlag('unknown');
+
+    allowUnknown =
+      allowUnknown === undefined ? /* Defaults to false */ opts.allowUnknown : allowUnknown;
+
+    if (!allowUnknown) {
       for (const key of keys) {
         const err = error('object.unknown', undefined, state.dive(original, key));
 
@@ -256,7 +262,7 @@ module.exports = any.extend({
           'The parameter enabled for objet.unknown must be a boolean',
         );
 
-        return this.opts({ allowUnknown: enabled });
+        return this.$setFlag('unknown', enabled);
       },
     },
 
