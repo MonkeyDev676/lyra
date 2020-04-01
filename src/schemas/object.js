@@ -288,13 +288,14 @@ module.exports = any.extend({
       method(keys) {
         assert(isPlainObject(keys), 'The parameter keys for object.keys must be a plain object');
 
-        const target = this.$clone();
         const keysKeys = Object.keys(keys);
 
         assert(
           keysKeys.length > 0,
           'The parameter keys for object.keys must contain at least a valid schema',
         );
+
+        const target = this.$clone();
 
         target.$index.keys = target.$index.keys.filter(([key]) => keys[key] === undefined);
 
