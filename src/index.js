@@ -68,7 +68,7 @@ const root = {
 
       const from = extension.from === undefined ? newRoot.any() : extension.from;
 
-      newRoot[extension.type] = function method(...args) {
+      newRoot[extension.type] = function ctor(...args) {
         return _create(from.extend(extension), this, args);
       };
     }
@@ -81,7 +81,7 @@ const root = {
 root.compile.ref = compile.ref;
 
 for (const type of root._types) {
-  root[type] = function method(...args) {
+  root[type] = function ctor(...args) {
     return _create(_types[type], this, args);
   };
 }
@@ -99,7 +99,7 @@ for (const [type, alias] of [
 }
 
 // Shortcut
-for (const methodName of [
+for (const method of [
   'annotate',
   'rule',
   'custom',
@@ -128,8 +128,8 @@ for (const methodName of [
   'note',
   'description',
 ])
-  attachMethod(root, methodName, function method(...args) {
-    return this.any()[methodName](...args);
+  attachMethod(root, method, function shortcut(...args) {
+    return this.any()[method](...args);
   });
 
 module.exports = root;

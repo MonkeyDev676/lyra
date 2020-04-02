@@ -237,8 +237,8 @@ function _describe(term) {
   return desc;
 }
 
-function _opts(methodName, opts) {
-  assert(isObject(opts), 'The parameter opts for', methodName, 'must be an object');
+function _opts(method, opts) {
+  assert(isObject(opts), 'The parameter opts for', method, 'must be an object');
 
   for (const key of ['strict', 'abortEarly', 'recursive', 'allowUnknown', 'stripUnknown'])
     assert(
@@ -246,22 +246,29 @@ function _opts(methodName, opts) {
       'The option',
       key,
       'for',
-      methodName,
+      method,
       'must be a boolean',
     );
 
   assert(
+    opts.separator === undefined || typeof opts.separator === 'string',
+    'The option separator for',
+    method,
+    'must be a string',
+  );
+
+  assert(
     opts.context === undefined || isObject(opts.context),
     'The option context for',
-    methodName,
+    method,
     'must be an object',
   );
 
   return opts;
 }
 
-function _values(schema, values, methodName, type) {
-  assert(values.length > 0, 'The parameter values for', methodName, 'must have at least a value');
+function _values(schema, values, method, type) {
+  assert(values.length > 0, 'The parameter values for', method, 'must have at least a value');
 
   const other = type === '_valids' ? '_invalids' : '_valids';
   const target = schema.$clone();
@@ -841,7 +848,7 @@ class _Schema {
 
         // rule.validate is defined
         if (rule.method === undefined)
-          attachMethod(proto, ruleName, function method() {
+          attachMethod(proto, ruleName, function defaultMethod() {
             return this.$addRule({ name: ruleName });
           });
 
