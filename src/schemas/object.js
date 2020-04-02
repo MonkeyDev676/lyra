@@ -186,6 +186,7 @@ module.exports = any.extend({
         value[key] = result.value;
     }
 
+    // Patterns
     for (const key of keys) {
       const subValue = value[key];
       const divedState = state.dive(original, key);
@@ -204,6 +205,8 @@ module.exports = any.extend({
           continue;
         }
 
+        if (valuePattern === undefined) continue;
+
         result = valuePattern.$validate(subValue, opts, divedState);
 
         if (result.errors !== null) {
@@ -216,6 +219,7 @@ module.exports = any.extend({
       }
     }
 
+    // Deps
     for (const [type, peers] of schema.$index.dependencies) {
       const failed = _dependencies[type](value, peers, state._ancestors, opts.context);
 
@@ -316,17 +320,20 @@ module.exports = any.extend({
       method(keyPattern, valuePattern) {
         assert(keyPattern !== undefined, 'The parameter key for object.pattern must be provided');
 
-        assert(
-          valuePattern !== undefined,
-          'The parameter schema for object.pattern must be provided',
-        );
-
         const target = this.$clone();
+        const pattern = [];
 
         keyPattern = this.$root.compile(keyPattern);
-        valuePattern = this.$root.compile(valuePattern);
 
-        target.$index.patterns.push([keyPattern, valuePattern]);
+        pattern.push(keyPattern);
+
+        if (valuePattern !== undefined) {
+          valuePattern = this.$root.compile(valuePattern);
+
+          pattern.push(valuePattern);
+        }
+
+        target.$index.patterns.push(pattern);
 
         return target.$rebuild();
       },
