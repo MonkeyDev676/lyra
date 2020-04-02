@@ -37,8 +37,8 @@ function compile(root, value) {
   return root.object(value);
 }
 
-compile.ref = function compileRef(value) {
-  return Ref.isRef(value) ? value : Ref.ref(value);
+compile.ref = function compileRef(value, opts) {
+  return Ref.isRef(value) ? value : Ref.ref(value, opts);
 };
 
 module.exports = compile;

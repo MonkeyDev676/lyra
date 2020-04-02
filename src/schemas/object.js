@@ -16,7 +16,7 @@ function _dependency(schema, peers, type) {
     `The parameter peers for object.${type} must contain only instances of Ref or strings`,
   );
 
-  peers = peers.map(peer => schema.$root.compile.ref(peer));
+  peers = peers.map(peer => schema.$root.compile.ref(peer, { ancestor: 0 }));
 
   const target = schema.$clone();
 
